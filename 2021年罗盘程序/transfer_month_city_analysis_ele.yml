@@ -1,0 +1,237 @@
+cookbook: true
+ele_month_env:
+  context_defaults:
+    delay_compute: true
+    sync_result_from_cluster: true
+    play_on_dask_cluster: true
+    dask_client_set_as_default: true
+    platform_code: elem
+    cluster_client_address: tcp://172.31.54.193:8786
+  play:
+    ### 主体匹配表
+    - name: supplier_vendor_dc
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            dataset_type_code: std_qplus_dc
+            dataset_cate: std
+            ignore_null_error: true
+            empty_df_record:
+              supplier_id: '-'
+              vendor_dc_id: '-'
+            columns: [supplier_id,vendor_dc_id]
+        - run_py:
+            - |
+              df=to_df(df)
+              df=df[df['vendor_dc_id'].notnull()]
+              result= to_dd(df)
+    ### 城市分析表
+
+    - name: city_analysis
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            dataset_cate: raw
+            template_code: ele_month_78
+            datakit_pull_way: last_day
+#            month_value: prev_month
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              团队名称: '-'
+              团队ID: 0
+              单量: 0
+              收入: 0.0
+              成本: 0.0
+              利润: 0.0
+              绝对利润值: 0.0
+              毛利率: 0.0
+              利润率: 0.0
+              商圈费用率: 0.0
+              质量系数: 0.0
+              房租: 0.0
+              办公管理: 0.0
+              装备: 0.0
+              招聘: 0.0
+              还原工资: 0.0
+              单成本: 0.0
+              站长工资: 0.0
+              商圈工资: 0.0
+              日均单量: 0.0
+              基础配送费: 0.0
+              提点配送费: 0.0
+              日常补贴: 0.0
+              手工费用: 0.0
+              上KPI: 0.0
+              下KPI: 0.0
+              政策收入: 0.0
+              违规扣款: 0.0
+              平台税金: 0.0
+              营业外收入: 0.0
+              保险扣款: 0.0
+              骑手工资: 0.0
+              商圈工资.1: 0.0
+              城市工资: 0.0
+              保险扣款.1: 0.0
+              房租费用: 0.0
+              办公费用: 0.0
+              装备采购费: 0.0
+              招聘费: 0.0
+              意外支出: 0.0
+              高价单量: 0.0
+              高价人数: 0.0
+              高价人效: 0.0
+              高价种类: '-'
+              高价金额: 0.0
+              高价溢价: 0.0
+              单溢价: 0.0
+            columns:
+              - 城市
+              - 团队名称
+              - 团队ID
+              - 单量
+              - 收入
+              - 成本
+              - 利润
+              - 绝对利润值
+              - 毛利率
+              - 利润率
+              - 商圈费用率
+              - 质量系数
+              - 房租
+              - 办公管理
+              - 装备
+              - 招聘
+              - 还原工资
+              - 单成本
+              - 站长工资
+              - 商圈工资
+              - 日均单量
+              - 基础配送费
+              - 提点配送费
+              - 日常补贴
+              - 手工费用
+              - 上KPI
+              - 下KPI
+              - 政策收入
+              - 违规扣款
+              - 平台税金
+              - 营业外收入
+              - 保险扣款
+              - 骑手工资
+              - 商圈工资.1
+              - 城市工资
+              - 保险扣款.1
+              - 房租费用
+              - 办公费用
+              - 装备采购费
+              - 招聘费
+              - 意外支出
+              - 高价单量
+              - 高价人数
+              - 高价人效
+              - 高价种类
+              - 高价金额
+              - 高价溢价
+              - 单溢价
+            rename:
+              城市: coach_team_name
+              团队名称: dc_name
+              团队ID: vendor_dc_id
+              单量: order_num
+              收入: revenues
+              成本: cost
+              利润: profit
+              绝对利润值: abs_profit
+              毛利率: gross_profit_ratio
+              利润率: profit_ratio
+              商圈费用率: dc_fee_ratio
+              质量系数: quality_coeffic
+              房租: rent
+              办公管理: office_management
+              装备: equipment
+              招聘: recruitment
+              还原工资: restore_wage
+              单成本: single_cost
+              站长工资: dc_lead_wage
+              商圈工资: dc_wage
+              日均单量: avg_single_order
+              基础配送费: basic_postage_fee
+              提点配送费: remind_postage_fee
+              日常补贴: daily_subsidy
+              手工费用: handword_fee
+              上KPI: ceil_kpi
+              下KPI: floor_kpi
+              政策收入: policy_revenues
+              违规扣款: illegal_withhold
+              平台税金: platform_tax
+              营业外收入: nonbusiness_income
+              保险扣款: insurance_withhold
+              骑手工资: knight_wage
+              商圈工资.1: dc_wage_l
+              城市工资: city_wage
+              保险扣款.1: insurance_withhold_l
+              房租费用: rent_fee
+              办公费用: office_fee
+              装备采购费: equipment_fee
+              招聘费: recruitment_fee
+              意外支出: accident_paid
+              高价单量: high_price_order
+              高价人数: high_price_person
+              高价人效: high_price_utility
+              高价种类: high_price_tyype
+              高价金额: high_price_money
+              高价溢价: high_price_premium
+              单溢价: single_premium
+
+        - set_meta_month_column:
+            - book_month
+#        - add_cols:
+#            - dimension: 'D'
+        - run_py:
+            - |
+              df=to_df(df)
+              df['book_month']=[u'%s' % i for i in df[u'book_month']]
+              result=to_dd(df)
+        - run_py:
+            - |
+              df=to_df(df)
+              df['book_year']=df['book_month'].str[:4]
+              result=to_dd(df)
+        - push_dataset:
+            key: ele_month_78_mini
+        - use_df:
+            key:  ele_month_78_mini
+        - run_py:
+            - |
+              result=df[df[u'vendor_dc_id'].isnull()]
+        - add_cols:
+            - dimension: 'C'
+        - stash_push_df: []
+        - use_df:
+            key:  ele_month_78_mini
+        - run_py:
+            - |
+              result=df[df[u'vendor_dc_id'].notnull()]
+        - add_cols:
+            - dimension: 'D'
+        - stash_push_df: []
+        - stash_concat_df:
+            drop_stash: True
+        - run_py:
+            - |
+              df=to_df(df)
+              df['vendor_dc_id']=[u'%s' % i for i in df[u'vendor_dc_id']]
+              result=to_dd(df)
+
+        - stash_push_df: []
+        ### 使用主体匹配表
+        - use_df:
+            key: supplier_vendor_dc
+        - stash_push_df: []
+        - stash_join_df:
+            how: right
+            on: vendor_dc_id
+            drop_stash: True
+
+
