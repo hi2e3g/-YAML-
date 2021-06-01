@@ -1,0 +1,122 @@
+cookbook: true
+mt_daily_env:
+  context_defaults:
+    delay_compute: true
+    sync_result_from_cluster: true
+    play_on_dask_cluster: true
+    dask_client_set_as_default: true
+    cluster_client_address: tcp://172.31.54.193:8786
+
+# 给汇流提供邀请人奖励的数据，并关联BOOS信息
+  play:
+    - name: mt_recommend_bonus_details
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            datakit_pull_way: last_day
+            columns:
+              - 加盟商名称
+              - 加盟商ID
+              - 城市
+              - 站点名称
+              - 站点ID
+              - 活动名称
+              - 活动ID
+              - 活动开始日期
+              - 活动结束日期
+              - 邀请者姓名
+              - 邀请者ID
+              - 邀请人奖金
+              - 邀请人档位1打款日期
+              - 邀请人档位1奖励金额
+              - 邀请人档位2打款日期
+              - 邀请人档位2奖励金额
+              - 邀请人档位3打款日期
+              - 邀请人档位3奖励金额
+              - 被邀请者姓名
+              - 被邀请者ID
+              - 被邀请人单量
+              - 被邀请者入职日期
+              - 被邀请者注册日期
+              - 被邀请人奖金
+              - 被邀请人档位1奖励金额
+              - 被邀请人档位1打款日期
+              - 被邀请人档位2奖励金额
+              - 被邀请人档位2打款日期
+              - 被邀请人档位3奖励金额
+              - 被邀请人档位3打款日期
+            dataset_cate: raw
+            template_code: mt_day_57
+            ignore_null_error: true
+        - set_meta_month_column:
+            - month
+        - push_dataset:
+            key: middle
+        # 构建标准数据集，随后放在00文件中
+        - use_df:
+            key: salarysheet-std
+            columns: [name,staff_id,vendor_worker_id]
+            rename:
+              vendor_worker_id: 被邀请者ID
+              staff_id: 被邀请者BOSS_ID
+              name: 被邀请者姓名
+        - stash_push_df: []
+        - use_df:
+            key: middle
+        - stash_push_df: []
+        - stash_join_df:
+            on: [被邀请者ID,被邀请者姓名]
+            how: left
+            drop_stash: true
+        # 被邀请者和邀请者BOSS信息补充
+        - stash_push_df: []
+        - use_df:
+            key: salarysheet-std
+            columns: [name,staff_id,vendor_worker_id]
+            rename:
+              vendor_worker_id: 邀请者ID
+              staff_id: 邀请者BOSS_ID
+              name: 邀请者姓名
+        - stash_push_df: []
+        - stash_join_df:
+            on: [邀请者ID,邀请者姓名]
+            how: right
+            drop_stash: true
+        - push_dataset:
+            key: middle2
+        - use_df:
+            key: middle2
+            columns:
+              - 加盟商名称
+              - 加盟商ID
+              - 城市
+              - 站点名称
+              - 站点ID
+              - 活动名称
+              - 活动ID
+              - 活动开始日期
+              - 活动结束日期
+              - 邀请者姓名
+              - 邀请者ID
+              - 邀请者BOSS_ID
+              - 邀请人奖金
+              - 邀请人档位1打款日期
+              - 邀请人档位1奖励金额
+              - 邀请人档位2打款日期
+              - 邀请人档位2奖励金额
+              - 邀请人档位3打款日期
+              - 邀请人档位3奖励金额
+              - 被邀请者姓名
+              - 被邀请者ID
+              - 被邀请者BOSS_ID
+              - 被邀请人单量
+              - 被邀请者入职日期
+              - 被邀请者注册日期
+              - 被邀请人奖金
+              - 被邀请人档位1奖励金额
+              - 被邀请人档位1打款日期
+              - 被邀请人档位2奖励金额
+              - 被邀请人档位2打款日期
+              - 被邀请人档位3奖励金额
+              - 被邀请人档位3打款日期
+              - month
