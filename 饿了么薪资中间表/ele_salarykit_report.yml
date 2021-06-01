@@ -1,0 +1,749 @@
+ele_month_env:
+  context_defaults:
+    platform_code: elem
+    play_on_dask_cluster: true
+    delay_compute: true
+    sync_result_from_cluster: true
+    dask_client_set_as_default: true
+    debug: true
+    cluster_client_address: 'tcp://172.31.54.193:8786'
+#    cluster_client_address: 'tcp://172.31.44.61:8786'
+  pre_load_dataset:
+    # 34b 财务账单-账单下载-配送费累计账单
+    - ele_month_58_std
+    # 团队关系表
+    - std_qplus_dc
+    # 服务奖惩-评价
+    - ele_month_59_std
+    # 运单详情
+    - ele_month_57_std
+    # 20BKPI管理-站点指标明细-问题单
+    - ele_month_33_std
+#    - ele_day_32_std
+    # 代理商账单
+    - ele_month_36_std_salary
+
+
+    # 给薪资组提供的中间表如下：
+    # ele_order_num_allowance_monthly 订单数量
+    # ele_order_time_monthly 时段单量
+    # ele_comment_good_order_monthly 服务奖惩评价好评（备注：有时差;已转换为数字）
+    # ele_orderdetails_good_order_monthly 运单详好评（备注：有时差;已转换为数字）
+    # ele_bad_order_monthly 差评单汇总（服务奖惩，KPI管理问题单）
+    # ele_overtime_order_monthly 超时单汇总（运单详情，配送费，KPI管理问题单）
+    # ele_forfeit_order_monthly 违规扣款
+    # ele_refund_order_monthly 申诉返款
+                  
+  play:
+    # ===== 创建欺诈单表 -> 20201111
+    # 2020.12.24 由于月数据是每个月3日才有，所以采用日累计的数据源生成欺诈单
+    - name: ele_month_37_std_cheat
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            dataset_type_code: ele_month_36_std_salary
+            dataset_cate: std
+            month_offset: -1
+            ignore_null_error: true
+            columns: [运单号,业务类型]
+        - when_empty_fetch_dataset:
+            dataset_type_code: ele_day_36_std
+            dataset_cate: std
+            month_offset: -1
+            ignore_null_error: true
+            columns: [运单号,业务类型]
+        - stash_push_df: []
+        - use_df:
+            key: ele_month_36_std_salary
+            columns: [运单号,业务类型]
+        - stash_push_df: []
+        - stash_concat_df:
+            drop_stash: true
+        - df_select:
+            - '[业务类型] == @p1'
+            - p1: 欺诈单
+        - rename_cols:
+            - 业务类型: 欺诈单
+        - str_strip_column:
+            column: 运单号
+        # 2021.4.15 去重处理
+        - drop_duplicates:
+            - [ 运单号 ]
+    # 创建欺诈单表 end ======
+
+    # 创建评价完整信息
+    - name: ele_month_33_std_plus
+      sync_result: true
+      cooks:
+        #薪资方案的意思是没有信息的都是以配送费为主，匹配
+        #2020.12.24 姜雪确认评价日数据是累计的，所以月初第一天月数据和日数据是一样的。
+        - use_df:
+            key: ele_month_33_std
+            columns: [运单号, 问题单类型]
+        - stash_push_df: []
+        - use_df:
+            key: ele_month_58_std
+            columns: [运单号,骑手ID,骑手,站点ID,站点,加盟商ID]
+        - stash_push_df: []
+        - stash_join_df:
+            on: 运单号
+            how: right
+            drop_stash: true
+        - df_fillna:
+            columns: [加盟商ID]
+            value: '-'
+        - df_select:
+            - "[加盟商ID] != @p1"
+            - p1: "-"
+
+
+    # 饿了么薪资组计算报表
+    # 2021.3.29 新增骑手和商圈信息，实验场测试OK
+    - name: ele_month_58_std_complete_order
+      sync_result: true
+      cooks:
+        # 完成单量
+        - use_df:
+            key: ele_month_58_std
+            rename:
+              账单时间: 日期
+        - df_select:
+            - '[业务类型] == @p1 & [详情] in @p2'
+            - p1: 配送收入
+              p2: [差评,完成单,完成单-超时]
+        # 增加时段标签，每半小时为一个时间段
+        - add_cols:
+            - time_segment_no: -1
+        - run_py:
+            - |
+              df['time_segment_no'] = (df[u'业务交易时间_time'] % 100 + df[u'业务交易时间_time'].floordiv(100) * 60).floordiv(30) + 1
+              result = df
+        - df_to_int:
+            - time_segment_no
+        # ====== 以下为新加入：匹配欺诈单==20201111
+        - stash_push_df: []
+        - use_df:
+            key: ele_month_37_std_cheat
+        - stash_push_df: []
+        - stash_join_df:
+            on: 运单号
+            how: right
+            drop_stash: true
+        # 匹配欺诈单 end ======
+
+
+     #新增团队关系表测试，为后期自动下载和自动算新准备
+     # 如果supplierid出现空白导致自动导出失效，那么可以对两个表同时增加相同列，进行supplierid的关联
+    - name: std_qplus_dc_ele_revenue
+      sync_result: true
+      cooks:
+        - use_df:
+            key: ele_month_58_std
+            columns: [运单号,加盟商ID]
+        - stash_push_df: []
+        - use_df:
+            key: ele_month_57_std
+            columns: [站点ID,运单号,下载城市]
+        - stash_push_df: []
+        - stash_join_df:
+            on: 运单号
+            how: left
+            drop_stash: true
+        - df_fillna:
+            columns: [加盟商ID]
+            value: '-'
+        - df_select:
+            - "[加盟商ID] != @p1"
+            - p1: "-"
+        - drop_duplicates:
+            - [站点ID,下载城市,加盟商ID]
+        - stash_push_df: []
+        - use_df:
+            key: std_qplus_dc
+            columns: [vendor_dc_id, dc_name,city_code, supplier_id]
+            rename:
+                vendor_dc_id: 站点ID
+                dc_name: 团队
+        - stash_push_df: []
+        - stash_join_df:
+            on: 站点ID
+            how: inner
+            drop_stash: true
+        - fetch_cols:
+            columns: [站点ID,团队,city_code,下载城市, supplier_id,加盟商ID]
+#        - drop_duplicates:
+#            - [city_code,城市, supplier_id,加盟商ID]
+        - dask_apply_dtypes:
+            dtypes:
+              加盟商ID: unicode
+    # 统计出勤天数
+    - name: ele_attendance_num_monthly
+      sync_result: true
+      cooks:
+        # 统计出勤天数
+        - use_df:
+            key: ele_month_58_std_complete_order
+            columns: [骑手ID, 骑手, 欺诈单,日期,订单号]
+        - df_select:
+            - '[欺诈单] != @p1'
+            - p1: 欺诈单
+        - df_groupby:
+            by: [骑手ID, 骑手,日期]
+        - df_agg:
+            - 订单号: count
+        - df_reset_index: []
+        - run_py:
+            - |
+              df= to_df(df)
+              df=df[df["订单号"]>0]
+              result = to_dd(df)
+        - add_cols:
+            - 出勤天数: 1
+        - df_groupby:
+            by: [骑手ID, 骑手]
+        - df_sum:
+            column: [出勤天数]
+        - df_reset_index: [ ]
+     # 统计完成单量，出勤天数，补贴
+    - name: ele_order_num_allowance_monthly
+      sync_result: true
+      cooks:
+        # 统计完成单量和补贴
+        - use_df:
+            key: ele_month_58_std_complete_order
+            columns: [站点ID,站点,骑手ID, 骑手,订单号, 日期, 时段补贴, 距离补贴, 重量补贴,欺诈单,加盟商ID]
+        # ====== 剔除欺诈单 -> 20201110
+        - df_select:
+            - '[欺诈单] != @p1'
+            - p1: 欺诈单
+        # 剔除欺诈单 end ======
+        - df_groupby:
+            by: [骑手ID, 骑手,站点ID,站点,加盟商ID]
+        - df_agg:
+            - 订单号: count
+              时段补贴: sum
+              距离补贴: sum
+              重量补贴: sum
+        - df_reset_index: []
+        - rename_cols:
+            - 订单号: 完成单量
+        - stash_push_df: []
+        - use_df:
+            key: ele_attendance_num_monthly
+            columns: [骑手ID,出勤天数]
+        - stash_push_df: []
+        - stash_join_df:
+            on: 骑手ID
+            how: right
+            drop_stash: true
+        #关联团队关系表2020.12.24，用于后端调用使用，暂时采用原表测试。之后需要重新构建团队关系表
+        - stash_push_df: []
+        - use_df:
+            key: std_qplus_dc_ele_revenue
+            columns: [下载城市, supplier_id,加盟商ID]
+        - drop_duplicates:
+            - [下载城市, supplier_id,加盟商ID]
+        - stash_push_df: []
+        - stash_join_df:
+            on: 加盟商ID
+            how: right
+            drop_stash: true
+          #关联团队关系表2020.12.24，用于后端调用使用，暂时采用原表测试。 end
+
+    # 算薪报表数据
+    # 统计配送费账单中的早午晚单量 提取日期时间中的时间信息 done
+    # 按照骑手、商圈、半小时进行聚合
+    # 2021.3.29 新增骑手和商圈信息，实验场测试OK
+    - name: ele_order_time_monthly
+      sync_result: true
+      cooks:
+        - use_df:
+            key: ele_month_58_std_complete_order
+            columns: [骑手ID, 骑手,站点ID,站点, 运单号, time_segment_no,欺诈单,加盟商ID]
+        # ======剔除欺诈单 -> 20201113
+        - df_select:
+            - '[欺诈单] != @p1'
+            - p1: 欺诈单
+        # 剔除欺诈单 end ======
+        # 聚合时间段内的单量
+        - df_groupby:
+            by: [骑手ID,骑手,站点ID,站点,time_segment_no,加盟商ID]
+        - df_count:
+            column: 运单号
+            rename: 该时间段内的完成单量
+        - df_reset_index: []
+        # 2021.4.16 原来的Global会有报错，置换位置才能运行
+        - run_py:
+            - |
+                global labels
+                labels = {
+                    1:u'00:00-00:30', 2:u'00:30-01:00', 3:u'01:00-01:30', 4:u'01:30-02:00', 5:u'02:00-02:30', 6:u'02:30-03:00',
+                    7:u'03:00-03:30', 8:u'03:30-04:00', 9:u'04:00-04:30', 10:u'04:30-05:00', 11:u'05:00-05:30', 12:u'05:30-06:00',
+                    13:u'06:00-06:30', 14:u'06:30-07:00', 15:u'07:00-07:30', 16:u'07:30-08:00', 17:u'08:00-08:30', 18:u'08:30-09:00',
+                    19:u'09:00-09:30', 20:u'09:30-10:00', 21:u'10:00-10:30', 22:u'10:30-11:00', 23:u'11:00-11:30', 24:u'11:30-12:00',
+                    25:u'12:00-12:30', 26:u'12:30-13:00', 27:u'13:00-13:30', 28:u'13:30-14:00', 29:u'14:00-14:30', 30:u'14:30-15:00',
+                    31:u'15:00-15:30', 32:u'15:30-16:00', 33:u'16:00-16:30', 34:u'16:30-17:00', 35:u'17:00-17:30', 36:u'17:30-18:00',
+                    37:u'18:00-18:30', 38:u'18:30-19:00', 39:u'19:00-19:30', 40:u'19:30-20:00', 41:u'20:00-20:30', 42:u'20:30-21:00',
+                    43:u'21:00-21:30', 44:u'21:30-22:00', 45:u'22:00-22:30', 46:u'22:30-23:00', 47:u'23:00-23:30', 48:u'23:30-00:00'}
+                df[u'时间段'] = df[u'time_segment_no'].apply(lambda k: labels.get(k))
+                result = df
+
+
+        # 关联团队关系表2020.12.24，用于后端调用使用
+        - stash_push_df: []
+        - use_df:
+            key: std_qplus_dc_ele_revenue
+            columns: [下载城市, supplier_id,加盟商ID]
+        - drop_duplicates:
+            - [下载城市, supplier_id,加盟商ID]
+        - stash_push_df: []
+        - stash_join_df:
+            on: 加盟商ID
+            how: right
+            drop_stash: true
+
+
+    # 服务奖惩评价的好评
+    # 2021.3.17增加商圈和骑手姓名done
+    - name: ele_comment_good_order_monthly
+      sync_result: true
+      cooks:
+        # 服务奖惩的评价中的好评，和运单匹配
+        #-------新增下载城市列------2020.12.10
+        - use_df:
+            key: ele_month_59_std
+            columns: [站点,骑手ID,运单号,骑手信息, 评价等级, 评价来源, 评价日期,判定状态,申述状态,下载城市]
+        - df_select:
+            - '[评价等级] == @p1'
+            - p1: 非常满意
+        - df_select:
+            - '[判定状态] != @p1'
+            - p1: 无效
+        - df_select:
+            - '[申述状态] != @p1'
+            - p1: 二审通过
+        # 2021.3.17修改，对骑手信息进行切片，只保留姓名
+        - run_py:
+            - |
+              df= to_df(df)
+              fn=lambda x: x.split("(")[0]
+              df[u'骑手信息']=df[u'骑手信息'].apply(fn)
+              result = to_dd(df)
+        - rename_cols:
+            - 骑手信息: 骑手
+        - stash_push_df: []
+        - fetch_dataset:
+            dataset_type_code: ele_month_57_std
+            dataset_cate: std
+            ignore_null_error: true
+            month_range: true
+            month_delta: -1
+            month_offset: 0
+            columns: [运单号,运单送达时间]
+        - stash_push_df: []
+        - stash_join_df:
+            on: 运单号
+            how: right
+            drop_stash: true
+        - run_py:
+            - |
+              df[u'评价间隔_dt'] = df[u'评价日期'] - df[u'运单送达时间']
+              df[u'评价间隔(小时)'] = df[u'评价间隔_dt'].dt.days * 24 + df[u'评价间隔_dt'].dt.seconds / 3600
+              result = df
+       # 2021/2/22优化，为解决自动导出时的bug，对时区计算做了一些修改。同时，规定了输出的字段和顺序
+        - convert_month_day_time_column:
+            src_column: 运单送达时间
+            day_column: 运单送达日期
+            time_column: 运单送达时间
+        - convert_month_day_time_column:
+            src_column: 评价日期
+            day_column: 运单评价日期
+            time_column: 运单评价时间
+        - run_py:
+            - |
+              df[u'评价间隔(天)'] = df[u'运单评价日期'] - df[u'运单送达日期']
+              result = df
+        # ======匹配欺诈单 -> 20201110
+        - stash_push_df: []
+        - use_df:
+            key: ele_month_37_std_cheat
+        - stash_push_df: []
+        - stash_join_df:
+            on: 运单号
+            how: right
+            drop_stash: true
+        #关联团队关系表2020.12.24，用于后端调用使用
+        - stash_push_df: []
+        - use_df:
+            key: std_qplus_dc_ele_revenue
+            columns: [下载城市, supplier_id]
+        - drop_duplicates:
+            - [下载城市, supplier_id]
+        - stash_push_df: []
+        - stash_join_df:
+            on: 下载城市
+            how: right
+            drop_stash: true
+       # 选取部分列，并排序
+        - push_dataset:
+            key: middle
+        - use_df:
+            key: middle
+            columns: [supplier_id,下载城市,运单号,骑手ID, 骑手,站点,评价等级, 评价来源, 申述状态, 判定状态, 评价间隔(小时),评价间隔(天)]
+
+
+ # 2021.3.17新增团队和骑手信息
+    - name: ele_orderdetails_good_order_monthly
+      sync_result: true
+      cooks:
+        # 运单详情中的好评单
+        - use_df:
+            key: ele_month_57_std
+            columns: [站点ID,站点, 骑手ID,骑手,运单号, 运单送达时间, 用户评价状态,下载城市,是否T+2用户评价]
+        - df_select:
+            - '[用户评价状态] == @p1'
+            - p1: 非常满意
+         # 2021/2/22修改 为解决解决自动导出的问题
+        - convert_month_day_time_column:
+            src_column: 运单送达时间
+            day_column: 运单送达日期
+            time_column: 运单送达时间
+        - stash_push_df: []
+
+        # ======匹配欺诈单 -> 20201110
+        - use_df:
+            key: ele_month_37_std_cheat
+        - stash_push_df: []
+        - stash_join_df:
+            on: 运单号
+            how: right
+            drop_stash: true
+        # 匹配欺诈单 end ======
+
+        #关联团队关系表2020.12.24，用于后端调用使用
+        - stash_push_df: []
+        - use_df:
+            key: std_qplus_dc_ele_revenue
+            columns: [下载城市, supplier_id]
+        - drop_duplicates:
+            - [下载城市, supplier_id]
+        - stash_push_df: []
+        - stash_join_df:
+            on: 下载城市
+            how: right
+            drop_stash: true
+
+
+    # 整理需要返款的违规账单表
+   # =====重新修改逻辑 ====20201110
+    - name: ele_forfeit_order_monthly
+      sync_result: true
+      cooks:
+        # 提取违规账单
+        - use_df:
+            key: ele_month_36_std_salary
+            columns: [账单时间,站点ID,站点,骑手ID,骑手,金额,账单类型,业务类型,详情,订单号,运单号,加盟商ID]
+        - df_select:
+            - '[账单类型] == @p1'
+            - p1: 违规扣款
+
+        #关联团队关系表2020.12.24，用于后端调用使用
+        - stash_push_df: []
+        - use_df:
+            key: std_qplus_dc_ele_revenue
+            columns: [下载城市, supplier_id,加盟商ID]
+        - drop_duplicates:
+            - [下载城市, supplier_id,加盟商ID]
+        - stash_push_df: []
+        - stash_join_df:
+            on: 加盟商ID
+            how: right
+            drop_stash: true
+
+    - name: ele_refund_order_monthly
+      sync_result: true
+      cooks:
+        # 提取申述返款账单
+        - use_df:
+            key: ele_month_36_std_salary
+            columns: [加盟商ID,账单时间,站点ID,站点,骑手ID,骑手,金额,账单类型,业务类型,详情,订单号,运单号]
+        - df_select:
+            - '[账单类型] == @p1'
+            - p1: '申诉返款'
+
+        #关联团队关系表2020.12.24，用于前端调用使用
+        - stash_push_df: []
+        - use_df:
+            key: std_qplus_dc_ele_revenue
+            columns: [下载城市, supplier_id,加盟商ID]
+        - drop_duplicates:
+            - [下载城市, supplier_id,加盟商ID]
+        - stash_push_df: []
+        - stash_join_df:
+            on: 加盟商ID
+            how: right
+            drop_stash: true
+
+
+    # 2021.4.14 新增”业务交易时间“列，目的是评判超时时，部分城市会依靠时间取消”超时“的判定
+    - name: ele_deliveryfee_overtime_order_monthly
+      sync_result: true
+      cooks:
+        # 配送费中的超时单量
+        - use_df:
+            key: ele_month_58_std
+            columns: [运单号,业务类型, 骑手ID,骑手, 站点ID,站点,详情,加盟商ID,业务交易时间]
+        - df_select:
+            - '[业务类型] == @p1 & [详情] == @p2'
+            - p1: 配送收入
+              p2: 完成单-超时
+        - add_cols:
+            - 超时路径: 配送费完成单超时
+        - convert_month_day_time_column:
+            src_column: 业务交易时间
+            day_column: 业务交易日期
+            time_column: 业务交易时间
+        #关联团队关系表2020.12.24，用于后端调用使用
+        - stash_push_df: []
+        - use_df:
+            key: std_qplus_dc_ele_revenue
+            columns: [下载城市, supplier_id,加盟商ID]
+        - drop_duplicates:
+            - [下载城市, supplier_id,加盟商ID]
+        - stash_push_df: []
+        - stash_join_df:
+            on: 加盟商ID
+            how: right
+            drop_stash: true
+        # 2021.3.17 修改。做一个排序，去掉两个无用列
+        - push_dataset:
+            key: middle
+        - use_df:
+            key: middle
+            columns: [运单号,骑手ID,骑手, 站点ID,站点,超时路径,下载城市, supplier_id,加盟商ID]
+
+   # 2021.3.29 新增骑手和站点信息，实验场测试OK
+    - name: ele_KPI_overtime_order_monthly
+      sync_result: true
+      cooks:
+        # KPI管理问题单T+12超时
+        - use_df:
+            key: ele_month_33_std_plus
+            column: [运单号, 问题单类型,加盟商ID,骑手ID,骑手,站点ID,站点]
+        - df_select:
+            - '[问题单类型] in @p1'
+            - p1: [超时,骑手T+12超时]
+        - add_cols:
+            - 超时路径: KPI问题单
+        #关联团队关系表2020.12.24，用于后端调用使用
+        - stash_push_df: []
+        - use_df:
+            key: std_qplus_dc_ele_revenue
+            columns: [下载城市, supplier_id,加盟商ID]
+        - drop_duplicates:
+            - [下载城市, supplier_id,加盟商ID]
+        - stash_push_df: []
+        - stash_join_df:
+            on: 加盟商ID
+            how: right
+            drop_stash: true
+       # 2021.3.17 修改。做一个排序，去掉两个无用列
+        - push_dataset:
+            key: middle
+        - use_df:
+            key: middle
+            columns: [运单号,骑手ID,骑手, 站点ID,站点,问题单类型,超时路径,下载城市, supplier_id,加盟商ID]
+
+       #运单详情超时
+    - name: ele_deliverydetails_overtime_order_monthly
+      sync_result: true
+      cooks:
+        - use_df:
+            key: ele_month_57_std
+            columns: [运单号, 骑手T超时时长,下载城市,站点ID,站点,骑手ID,骑手]
+        - df_py_select:
+            - 'df[u"骑手T超时时长"].str.contains(u"超时")'
+        - add_cols:
+            - 超时路径: 运单详情
+        #关联团队关系表2020.12.24，用于后端调用使用
+        - stash_push_df: []
+        - use_df:
+            key: std_qplus_dc_ele_revenue
+            columns: [下载城市, supplier_id]
+        - drop_duplicates:
+            - [下载城市, supplier_id]
+        - stash_push_df: []
+        - stash_join_df:
+            on: 下载城市
+            how: right
+            drop_stash: true
+
+
+
+
+    # 差评单2个路径之一；KPI差评
+    # 2021.3.29 新增骑手和站点信息，实验场测试OK
+    - name: ele_KPI_bad_order_monthly
+      sync_result: true
+      cooks:
+        # KPI管理中的差评
+        - use_df:
+            key: ele_month_33_std_plus
+            columns: [运单号, 问题单类型,骑手ID,加盟商ID,骑手,站点ID,站点]
+        - df_select:
+            - '[问题单类型] == @p1'
+            - p1: 差评
+        - add_cols:
+            - 差评路径: KPI管理
+          #关联团队关系表2020.12.25，用于后端调用使用
+        - stash_push_df: []
+        - use_df:
+            key: std_qplus_dc_ele_revenue
+            columns: [下载城市, supplier_id,加盟商ID]
+        - drop_duplicates:
+            - [下载城市, supplier_id,加盟商ID]
+        - stash_push_df: []
+        - stash_join_df:
+            on: 加盟商ID
+            how: right
+            drop_stash: true
+
+
+    # 差评单2个路径之一；服务奖惩的差评
+    # 2021.4.14 薪资赵锦阳：新增”评价标签“
+    - name: ele_servicecomment_bad_order_monthly
+      sync_result: true
+      cooks:
+       # 从运单详情中补充站点ID、骑手ID和送达时间，计算差评时间差
+        - fetch_dataset:
+            dataset_type_code: ele_month_57_std
+            dataset_cate: std
+            ignore_null_error: true
+            month_range: true
+            month_delta: -1
+            month_offset: 0
+            columns: [站点ID, 运单送达时间, 运单号]
+        - stash_push_df: []
+        - use_df:
+            key: ele_month_59_std
+            columns: [站点,骑手ID,运单号, 骑手信息, 评价等级, 评价来源, 申述状态, 判定状态, 评价日期,下载城市]
+        - df_select:
+            - '[评价等级] == @p1'
+            - p1: '吐槽'
+        - df_select:
+            - '[申述状态] != @p1'
+            - p1: '二审通过'
+        - df_select:
+            - '[判定状态] != @p1'
+            - p1: '无效'
+        - run_py:
+            - |
+              df= to_df(df)
+              fn=lambda x: x.split("(")[0]
+              df[u'骑手信息']=df[u'骑手信息'].apply(fn)
+              result = to_dd(df)
+        - add_cols:
+            - 差评路径: 服务奖惩评价
+        - rename_cols:
+            - 骑手信息: 骑手
+        - stash_push_df: []
+        - stash_join_df:
+            on: 运单号
+            how: left
+            drop_stash: true
+        - run_py:
+            - |
+              df[u'评价间隔_dt'] = df[u'评价日期'] - df[u'运单送达时间']
+              df[u'评价间隔(小时)'] = df[u'评价间隔_dt'].dt.days * 24 + df[u'评价间隔_dt'].dt.seconds / 3600
+              result = df
+        # 2021/2/22优化，为解决自动导出时的bug，对时区计算做了一些修改。同时，规定了输出的字段和顺序
+        - convert_month_day_time_column:
+            src_column: 运单送达时间
+            day_column: 运单送达日期
+            time_column: 运单送达时间
+        - convert_month_day_time_column:
+            src_column: 评价日期
+            day_column: 运单评价日期
+            time_column: 运单评价时间
+        - run_py:
+            - |
+              df[u'评价间隔(天)'] = df[u'运单评价日期'] - df[u'运单送达日期']
+              result = df
+        #关联团队关系表2020.12.25，用于后端调用使用
+        - stash_push_df: []
+        - use_df:
+            key: std_qplus_dc_ele_revenue
+            columns: [下载城市, supplier_id]
+        - drop_duplicates:
+            - [下载城市, supplier_id]
+        - stash_push_df: []
+        - stash_join_df:
+            on: 下载城市
+            how: right
+            drop_stash: true
+        #关联团队关系表2020.12.25，用于后端调用使用，结束
+        - push_dataset:
+            key: middle
+        - use_df:
+            key: middle
+            columns: [supplier_id,下载城市,运单号,骑手ID, 骑手,站点,站点ID, 差评路径, 评价来源, 申述状态, 判定状态, 评价间隔(小时),评价间隔(天)]
+
+
+
+# 2021.3.30 后续自动算薪脚本调用部分，目前为节省运行资源，暂时注掉
+   # 超时单详情汇总
+#    - name: ele_overtime_order_monthly
+#      sync_result: true
+#      cooks:
+#        # 配送费中的超时单量
+#        - use_df:
+#            key: ele_deliveryfee_overtime_order_monthly
+#        - stash_push_df: []
+#        # KPI管理问题单T+12超时
+#        - use_df:
+#            key: ele_KPI_overtime_order_monthly
+#        - stash_push_df: []
+#        - stash_concat_df:
+#            drop_stash: true
+#        - stash_push_df: []
+#        # 运单详情中的超时时长
+#        - use_df:
+#            key: ele_deliverydetails_overtime_order_monthly
+#        - stash_push_df: []
+#        - stash_concat_df:
+#            drop_stash: true
+#        # ======匹配欺诈单 -> 20201110
+#        - stash_push_df: []
+#        - use_df:
+#            key: ele_month_37_std_cheat
+#        - stash_push_df: []
+#        - stash_join_df:
+#            on: 运单号
+#            how: right
+#            drop_stash: true
+#        # 匹配欺诈单 end ======
+#
+#    # 差评单详情concat汇总
+#    - name: ele_bad_order_monthly
+#      sync_result: true
+#      cooks:
+#        # 服务奖惩的评价中的差评
+#        - use_df:
+#            key: ele_KPI_bad_order_monthly
+#        - stash_push_df: []
+#        - use_df:
+#            key: ele_servicecomment_bad_order_monthly
+#        - stash_push_df: []
+#        - stash_concat_df:
+#            drop_stash: true
+#        - stash_push_df: []
+#        # 匹配欺诈单 begin ======
+#        - use_df:
+#            key: ele_month_37_std_cheat
+#        - stash_push_df: []
+#        - stash_join_df:
+#            on: 运单号
+#            how: right
+#            drop_stash: true
+#        # 匹配欺诈单 end ======
+
