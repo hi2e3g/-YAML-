@@ -1,0 +1,1 @@
+python D:\校验\app_script_bot_windows_v7\main.py
