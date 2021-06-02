@@ -1,0 +1,85 @@
+# 饿了么下载数据的目录
+
+#  datasource
+#     ├── 安阳
+#     │    └── 每日下载
+#     │          └── xxx.csv
+#     │
+#     ├── 鞍山
+#     │    └── 每日下载
+#     │          └── xxx.csv
+#     │
+#     └── 北京
+#          └── 每日下载
+#                └── xxx.csv
+
+
+ele_data:
+#  value: C:\Users\admin\Desktop\app_script_bot_v2\datasource
+  value: D:\校验\app_script_bot_windows_v7\饿了么数据
+
+
+#  layer_data
+#     ├──业务名
+#     │    └── 城市
+#     │          └── xxx.csv
+#     │
+#     ├── 业务
+#     │    └── 城市
+#     │          └── xxx.csv
+#     │
+#     └── 业务
+#          └── 城市
+#                └── xxx.csv
+
+ele_store:
+#  value: C:\Users\admin\Desktop\app_script_bot_v2\layer_data
+  value: D:\校验\app_script_bot_windows_v7\饿了么拆分结果
+
+
+
+
+# 美团数据下载数据的目录
+
+#  美团数据
+#     ├── T1
+#     │    ├── 4业务管理-考勤管理（新）-考勤明细-导出骑手考勤明细数据
+#     │    │    └── 集约配送-上海易即达【上海】八佰伴2站
+#     │    │          └── 每日下载
+#     │    │               └── xxx.xlsx
+#     │    │
+#     │    ├── 19A结算对账-配送员薪资工具-配送数据-考勤数据
+#     │    │     └── 上海易即达网络科技有限公司【广州】
+#     │    │          └── 每日下载
+#     │    │               └── xxx.xlsx
+#     │    │
+#     │    └── 38A数据中心-运营分析-加盟商违规报表-骑手
+#     │         └── 每日下载
+#     │               └── xxx.xlsx
+#     │
+#     └── T2
+#          └── 4业务管理-考勤管理（新）-考勤明细-导出骑手考勤明细数据
+#              └── 集约配送-上海易即达【上海】八佰伴2站
+#                    └── 每日下载
+#                        └── xxx.xlsx
+
+
+mt_data:
+  value: D:\校验\app_script_bot_windows_v7\美团数据
+
+
+#  美团分层
+#     ├── 1业务名
+#     │    └── 城市
+#     │          └── xxx.csv
+#     │
+#     ├── 2业务
+#     │    └── 城市
+#     │          └── xxx.csv
+#     │
+#     └── 5业务
+#          └── 城市
+#                └── xxx.csv
+
+mt_store:
+  value: D:\校验\app_script_bot_windows_v7\美团拆分结果

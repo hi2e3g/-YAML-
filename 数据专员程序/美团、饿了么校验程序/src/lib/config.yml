@@ -1,0 +1,104 @@
+# 文件的匹配规则
+-
+  ele_day_1:
+    type: xlsx
+    rule: ^[\u4e00-\u9fa5]*骑手信息
+  ele_day_4:
+    type: csv
+    rule: 运单数据--\d\d\d\d-\d\d-\d\d_\d\d\d\d-\d\d-\d\d
+  ele_day_13:
+    type: xls
+    rule: 服务中心_评价_\d\d\d\d-\d\d-\d\d
+  ele_day_22:
+    type: csv
+    rule: \d\d\d\d-\d\d-\d\d至\d\d\d\d-\d\d-\d\d出勤统计表
+  ele_day_32:
+    type: xlsx
+    rule: KPI问题单导出数据\d\d\d\d_\d\d_\d\d \d\d_\d\d_\d\d
+
+  # 21A 和 22A的压缩包文件，命名是一样的，要全部解压缩之后去匹配规则才行
+  ele_day_34:
+    type: zip
+    rule: \d*-代理商账单-\d\d-\d\d-\d\d-\d\d-\d*
+    pack:
+      # 21A
+      - ele_day_34:
+          type: csv
+          rule: \d*-配送费-\d\d-\d\d-\d\d-\d\d
+
+  # 21A 和 22A的压缩包文件，命名是一样的，要全部解压缩之后去匹配规则才行
+  ele_day_36:
+    type: zip
+    rule: \d*-代理商账单-\d\d-\d\d-\d\d-\d\d-\d*
+    pack:
+      # 22A
+      - ele_day_36:
+          type: csv
+          rule: \d*-违规扣款-\d\d-\d\d-\d\d-\d\d
+      - ele_day_36:
+          type: csv
+          rule: \d*-调整账-\d\d-\d\d-\d\d-\d\d
+      - ele_day_36:
+          type: csv
+          rule: \d*-服务费-\d\d-\d\d-\d\d-\d\d
+      - ele_day_36:
+          type: csv
+          rule: \d*-考核奖惩-\d\d-\d\d-\d\d-\d\d
+      - ele_day_36:
+          type: csv
+          rule: \d*-骑手活动-\d\d-\d\d-\d\d-\d\d
+      - ele_day_36:
+          type: csv
+          rule: \d*-日结配送费扣款-\d\d-\d\d-\d\d-\d\d
+      - ele_day_36:
+          type: csv
+          rule: \d*-申诉返款-\d\d-\d\d-\d\d-\d\d
+
+  # 23A 24A 所有文件在一个压缩包里, 要解压缩之后去匹配规则才行
+  ele_day_38:
+    type: zip
+    rule: \d*-骑手账单-\d\d-\d\d-\d\d-\d\d-\d*
+    pack:
+      # 23A
+      - ele_day_38:
+          type: csv
+          rule: \d*-配送费-\d\d-\d\d-\d\d-\d\d
+
+  # 23A 24A 所有文件在一个压缩包里, 要解压缩之后去匹配规则才行
+  ele_day_40:
+    type: zip
+    rule: \d*-骑手账单-\d\d-\d\d-\d\d-\d\d-\d*
+    pack:
+      # 24A
+      - ele_day_40:
+          type: csv
+          rule: \d*-调整帐-\d\d-\d\d-\d\d-\d\d
+      - ele_day_40:
+          type: csv
+          rule: \d*-骑手活动-\d\d-\d\d-\d\d-\d\d
+      - ele_day_40:
+          type: csv
+          rule: \d*-申诉返款-\d\d-\d\d-\d\d-\d\d
+      - ele_day_40:
+          type: csv
+          rule: \d*-违规扣款-\d\d-\d\d-\d\d-\d\d
+
+  ele_day_42:
+    type: csv
+    rule: \d\d\d\d-\d\d-\d\d-\d\d\d\d-\d\d-\d\d-骑手数据明细
+  ele_day_45:
+    type: xlsx
+    rule: data
+  ele_day_47:
+    type: csv
+    rule: \d\d\d\d-\d\d-\d\d至\d\d\d\d-\d\d-\d\d出勤明细表
+  ele_day_51:
+    type: xlsx
+    rule: KPI数据导出\d\d\d\d_\d\d_\d\d \d\d_\d\d_\d\d
+  # 31A拆分自30A文件
+  ele_day_53:
+    type: xlsx
+    rule: KPI数据导出\d\d\d\d_\d\d_\d\d \d\d_\d\d_\d\d
+  ele_day_55:
+    type: xls
+    rule: \d\d\d\d-\d\d-\d\d至\d\d\d\d-\d\d-\d\d奖励明细
