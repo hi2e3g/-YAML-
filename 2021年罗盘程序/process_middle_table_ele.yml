@@ -1,0 +1,4415 @@
+cookbook: true
+ele_daily_env:
+  context_defaults:
+    delay_compute: true
+    sync_result_from_cluster: true
+    play_on_dask_cluster: true
+    platform_code: elem
+    dask_client_set_as_default: true
+    cluster_client_address: 'dask-scheduler-service.databus:8786'
+
+  play:
+    - name: std_qplus_dc_copy
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            dataset_type_code: std_qplus_dc
+            dataset_cate: std
+            ignore_null_error: true
+        - when_empty_fetch_dataset:
+            dataset_type_code: std_qplus_dc
+            dataset_cate: std
+            month_offset: -1
+            ignore_null_error: true
+        - drop_duplicates:
+            subset: [ supplier_id,vendor_dc_id  ]
+####权限表
+    - name: authority_list
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            template_code: ele_day_60
+            dataset_cate: raw
+            columns: [ 城市,团队ID,团队名称 ]
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              团队ID: '-'
+              团队名称: '-'
+            rename:
+              城市: coach_team_name
+              团队ID: vendor_dc_id
+              团队名称: dc_name
+        - drop_duplicates:
+            subset: [ coach_team_name,vendor_dc_id ]
+        - stash_push_df: []
+        - use_df:
+            key: std_qplus_dc_copy
+            columns: [ platform_code,supplier_id,supplier_name,vendor_dc_id,city_code,city_name]
+        - stash_push_df: []
+        - stash_join_df:
+            on: [ vendor_dc_id ]
+            how: inner
+            drop_stash: true
+        - add_cols:
+            - platform: '-'
+        - df_set_column_val_if:
+            column: platform
+            condition: '[platform_code] == "elem"'
+            val: 饿了么
+        - df_set_column_val_if:
+            column: platform
+            condition: '[platform_code] == "meituan"'
+            val: 美团
+        - fetch_cols:
+            columns: [ platform_code,platform,supplier_id,supplier_name,coach_team_name,vendor_dc_id,dc_name,city_code,city_name ]
+        - set_meta_month_column:
+            - month
+
+
+    ### 私教和地理城市映射表
+    - name: city_coach_map
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            template_code: ele_day_60  #KPI计算（北京1）(日更新)
+            dataset_cate: raw
+            ignore_null_error: true
+            columns: [城市,团队ID]
+            empty_df_record:
+              城市: '-'
+              团队ID: '-'
+        - df_rename_columns:
+            - 城市: coach_team_name
+              团队ID: vendor_dc_id
+        - run_py:
+            - |
+              df['city_name'] = df['coach_team_name'].str.replace('\d+','')
+              result = to_dd(df)
+        - fetch_cols:
+            columns: [coach_team_name,city_name]
+        - drop_duplicates:
+            - [ coach_team_name,city_name]
+
+
+    - name: ele_day_60_dc_std
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            template_code:  ele_day_60    #KPI计算（北京1）(日更新)
+            dataset_cate: raw
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              团队ID: '-'
+              meta_day: 0
+              人效: 0.0
+              团队名称: '-'
+              KPI奖罚得分: 0.0
+              KPI非奖罚得分: 0.0
+              安全线: 0.0
+              目标线: 0.0
+              全量单: 0
+              全量单平均日单量: 0.0
+              平均在线骑手数: 0.0
+        - df_rename_columns:
+            - 团队ID: vendor_dc_id
+        - stash_push_df: []
+        - use_df:
+            key: std_qplus_dc_copy
+            columns: [ supplier_id,vendor_dc_id]
+        - stash_push_df: []
+        - stash_join_df:
+            on: [vendor_dc_id ]
+            how: inner
+            drop_stash: true
+
+
+    - name: ele_day_62_std
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            template_code: ele_day_62      # kpi计算模板--源数据（日更新）
+            dataset_cate: raw
+            ignore_null_error: true
+            datakit_pull_way: last_day
+            columns: [团队ID,团队名称,骑手,全量单,日期,城市]
+            empty_df_record:
+              团队ID: '-'
+              团队名称: '-'
+              骑手: 0
+              全量单: 0
+              日期: '1999-12-12 00:00:00'
+              城市: '-'
+        - df_rename_columns:
+            - 团队ID: vendor_dc_id
+              团队名称: dc_name
+        - set_date_column:
+            src_column: 日期
+        - df_to_int:
+            - 日期
+        - df_rename_columns:
+            - 日期: meta_day
+        - stash_push_df: []
+        - use_df:
+            key: std_qplus_dc_copy
+            columns: [ supplier_id,vendor_dc_id ]
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ vendor_dc_id ]
+            how: inner
+            drop_stash: true
+
+    - name: ele_day_67_std
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            template_code: ele_day_67      # 商评分--站点难度 （日更新）
+            dataset_cate: raw
+            ignore_null_error: true
+            empty_df_record:
+              团队ID: '-'
+              难度等级: '-'
+              meta_day: 0
+        - df_rename_columns:
+            - 团队ID: vendor_dc_id
+        - stash_push_df: []
+        - use_df:
+            key: std_qplus_dc_copy
+            columns: [ supplier_id,vendor_dc_id ]
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ vendor_dc_id ]
+            how: inner
+            drop_stash: true
+
+    - name: ele_month_77_std
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            template_code: ele_month_77        # 站点评价体系(月更新)
+            dataset_cate: raw
+            datakit_pull_way: last_day
+            columns: [ 团队ID,站点类型 ]
+            ignore_null_error: true
+            empty_df_record:
+              团队ID: '-'
+              站点类型: '-'
+            rename:
+              团队ID: vendor_dc_id
+              站点类型: evaluate_forecast
+        - stash_push_df: []
+        - use_df:
+            key: std_qplus_dc_copy
+            columns: [ supplier_id,vendor_dc_id ]
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ vendor_dc_id ]
+            how: inner
+            drop_stash: true
+
+    - name: ele_day_60_coach_std
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            template_code: ele_day_60
+            dataset_cate: raw
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              团队ID: '-'
+              团队名称: '-'
+              KPI奖罚得分: 0.0
+              KPI非奖罚得分: 0.0
+              安全线: 0
+              目标线: 0
+              全量单: 0.0
+              全量单平均日单量: 0.0
+              平均在线骑手数: 0.0
+              人效: 0.0
+              meta_day: 0
+        - df_rename_columns:
+            - 城市: coach_team_name
+              团队ID: vendor_dc_id
+        - run_py:
+            - |
+              df = df[df['vendor_dc_id'].isnull()]
+              result = df
+        - stash_push_df: [ ]
+
+        -  use_df:
+             key: ele_day_60_dc_std
+             columns: [ supplier_id,meta_day,城市]
+             ignore_null_error: true
+             empty_df_record:
+               supplier_id: '-'
+               meta_day: 0
+               城市: '-'
+        - df_rename_columns:
+            - 城市: coach_team_name
+        - drop_duplicates:
+            - [supplier_id,coach_team_name,meta_day]
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ coach_team_name,meta_day]
+            how: inner
+            drop_stash: true
+
+#计算商圈级总体详情表
+    - name: total_details_dc_mini
+      sync_result: true
+      cooks:
+        - use_df:
+            key:  ele_day_60_dc_std
+            columns: [supplier_id,城市,vendor_dc_id,团队名称,KPI奖罚得分,KPI非奖罚得分,安全线,目标线,全量单,全量单平均日单量,平均在线骑手数,人效,meta_day]
+            ignore_null_error: true
+            empty_df_record:
+              supplier_id: '-'
+              城市: '-'
+              vendor_dc_id: '-'
+              团队名称: '-'
+              KPI奖罚得分: 0.0
+              KPI非奖罚得分: 0.0
+              安全线: 0.0
+              目标线: 0.0
+              全量单: 0
+              全量单平均日单量: 0.0
+              平均在线骑手数: 0.0
+              人效: 0.0
+              meta_day: 0
+        - df_rename_columns:
+            - 城市: coach_team_name
+              团队名称: dc_name
+              KPI奖罚得分: kpi_score
+              KPI非奖罚得分: kpi_no_reward_score
+              安全线: secure_line
+              目标线: object_line
+              全量单: total_order
+              全量单平均日单量: avg_daily_order
+              平均在线骑手数: avg_daily_knight
+              人效: single_utility
+        ### select 商圈级数据
+#          - df_not_nan_inf:
+#              column: vendor_dc_id
+        - df_to_float:
+            - kpi_score
+        - df_to_float:
+            - kpi_no_reward_score
+        - df_to_float:
+            - total_order
+        - df_to_float:
+            - avg_daily_order
+        - df_to_float:
+            - avg_daily_knight
+        - df_to_float:
+            - single_utility
+        - stash_push_df: []
+
+        - fetch_dataset:
+            template_code: ele_day_64
+            dataset_cate: raw
+            columns: [ 团队ID,得分,meta_day ]
+            ignore_null_error: true
+            empty_df_record:
+              团队ID: '-'
+              得分: '-'
+              meta_day: 0
+        - df_rename_columns:
+            - 得分: kpi_no_reward_score_l
+              团队ID: vendor_dc_id
+        - stash_push_df: []
+        - stash_join_df:
+            on: [ vendor_dc_id,meta_day ]
+            how: right
+            drop_stash: true
+        - stash_push_df: [ ]
+
+        - use_df:
+            key: ele_day_62_std
+            columns: [vendor_dc_id,骑手,全量单,meta_day,supplier_id]
+            ignore_null_error: true
+            empty_df_record:
+              vendor_dc_id: '-'
+              骑手: 0
+              全量单: 0
+              meta_day: 0
+              supplier_id: '-'
+        - df_rename_columns:
+            - 骑手: single_daily_knight
+              全量单: single_daily_order
+        - df_to_float:
+            - single_daily_knight
+        - df_to_float:
+            - single_daily_order
+        - stash_push_df: []
+        - stash_join_df:
+            on: [ supplier_id,vendor_dc_id,meta_day ]
+            how: right
+            drop_stash: true
+        - stash_push_df: [ ]
+
+        - use_df:
+            key: ele_day_67_std
+            columns: [vendor_dc_id,难度等级,meta_day,supplier_id]
+            ignore_null_error: true
+            empty_df_record:
+               vendor_dc_id: '-'
+               难度等级: '-'
+               meta_day: 0
+               supplier_id: '-'
+        - df_rename_columns:
+            - 难度等级: difficulty_level
+        - stash_push_df: []
+        - stash_join_df:
+            on: [ supplier_id,vendor_dc_id,meta_day ]
+            how: right
+            drop_stash: true
+        - stash_push_df: []
+
+        - use_df:
+            key: ele_month_77_std
+            ignore_null_error: true
+            empty_df_record:
+              supplier_id: '-'
+              vendor_dc_id: '-'
+              evaluate_forecast: '-'
+        - stash_push_df: []
+
+        - stash_join_df:
+            on: [supplier_id,vendor_dc_id]
+            how: right
+            drop_stash: true
+
+        - drop_duplicates:
+            subset: [ supplier_id,vendor_dc_id,meta_day ]
+        ###全量单排名 日均单排名  日均骑手量排名 当日人效排名 经营结果排名 非奖罚kPI得分排名
+        - run_py:
+            - |
+              df = to_df(df)
+              df['total_order_rank'] = df.groupby(by=['supplier_id','meta_day'])['total_order'].rank(method='min',ascending=False)
+              df['avg_daily_order_rank'] = df.groupby(by=['supplier_id','meta_day'])['avg_daily_order'].rank(method='min',ascending=False)
+              df['avg_daily_knight_rank'] = df.groupby(by=['supplier_id','meta_day'])['avg_daily_knight'].rank(method='min',ascending=False)
+              df['single_utility_rank'] = df.groupby(by=['supplier_id','meta_day'])['single_utility'].rank(method='min',ascending=False)
+              df['kpi_score_rank'] = df.groupby(by=['supplier_id','meta_day'])['kpi_score'].rank(method='min',ascending=False)
+              df['kpi_no_reward_score_rank'] = df.groupby(by=['supplier_id','meta_day'])['kpi_no_reward_score'].rank(method='min',ascending=False)
+              result = df
+
+    - name: total_details_dc
+      sync_result: true
+      cooks:
+        - use_df:
+            key: total_details_dc_mini
+            columns: [supplier_id,vendor_dc_id,meta_day,total_order,total_order_rank,avg_daily_order,avg_daily_order_rank,avg_daily_knight,avg_daily_knight_rank,single_utility,single_utility_rank,kpi_score,kpi_score_rank,kpi_no_reward_score,kpi_no_reward_score_rank]
+        ###环比及各状态
+        - run_py:
+            - |
+              df['meta_day'] = df['meta_day'] + 1
+              result = df
+        - df_rename_columns:
+            - total_order: total_order_before
+              total_order_rank: total_order_rank_before
+              avg_daily_order: avg_daily_order_before
+              avg_daily_order_rank: avg_daily_order_rank_before
+              avg_daily_knight: avg_daily_knight_before
+              avg_daily_knight_rank: avg_daily_knight_rank_before
+              single_utility: single_utility_before
+              single_utility_rank: single_utility_rank_before
+              kpi_score: kpi_score_before
+              kpi_score_rank: kpi_score_rank_before
+              kpi_no_reward_score: kpi_no_reward_score_before
+              kpi_no_reward_score_rank: kpi_no_reward_score_rank_before
+
+        - stash_push_df: []
+        - use_df:
+            key: total_details_dc_mini
+        - stash_push_df: []
+        - stash_join_df:
+            on: [supplier_id,vendor_dc_id,meta_day]
+            how: left
+            drop_stash: true
+        ###全量单排名状态
+        - add_cols:
+            - total_order_rank_status: '-'
+        - df_set_column_val_if:
+            column: total_order_rank_status
+            condition: '[total_order_rank] > [total_order_rank_before]'
+            val: 'up'
+        - df_set_column_val_if:
+            column: total_order_rank_status
+            condition: '[total_order_rank] < [total_order_rank_before]'
+            val: 'down'
+        - df_set_column_val_if:
+            column: total_order_rank_status
+            condition: '[total_order_rank] == [total_order_rank_before]'
+            val: 'equal'
+
+        ### 非奖罚得分排名状态
+        - add_cols:
+            - kpi_no_reward_score_rank_status: '-'
+        - df_set_column_val_if:
+            column: kpi_no_reward_score_rank_status
+            condition: '[kpi_no_reward_score_rank] > [kpi_no_reward_score_rank_before]'
+            val: 'up'
+        - df_set_column_val_if:
+            column: kpi_no_reward_score_rank_status
+            condition: '[kpi_no_reward_score_rank] < [kpi_no_reward_score_rank_before]'
+            val: 'down'
+        - df_set_column_val_if:
+            column: kpi_no_reward_score_rank_status
+            condition: '[kpi_no_reward_score_rank] == [kpi_no_reward_score_rank_before]'
+            val: 'equal'
+
+        ### kpi经营结果排名状态
+        - add_cols:
+            - kpi_score_rank_status: '-'
+        - df_set_column_val_if:
+            column: kpi_score_rank_status
+            condition: '[kpi_score_rank] > [kpi_score_rank_before]'
+            val: 'up'
+        - df_set_column_val_if:
+            column: kpi_score_rank_status
+            condition: '[kpi_score_rank] < [kpi_score_rank_before]'
+            val: 'down'
+        - df_set_column_val_if:
+            column: kpi_score_rank_status
+            condition: '[kpi_score_rank] == [kpi_score_rank_before]'
+            val: 'equal'
+
+        ###日均单排名状态
+        - add_cols:
+            - avg_daily_order_rank_status: '-'
+        - df_set_column_val_if:
+            column: avg_daily_order_rank_status
+            condition: '[avg_daily_order_rank] > [avg_daily_order_rank_before]'
+            val: 'up'
+        - df_set_column_val_if:
+            column: avg_daily_order_rank_status
+            condition: '[avg_daily_order_rank] < [avg_daily_order_rank_before]'
+            val: 'down'
+        - df_set_column_val_if:
+            column: avg_daily_order_rank_status
+            condition: '[avg_daily_order_rank] == [avg_daily_order_rank_before]'
+            val: 'equal'
+
+         ### 日均骑手量排名状态
+        - add_cols:
+            - avg_daily_knight_rank_status: '-'
+        - df_set_column_val_if:
+            column: avg_daily_knight_rank_status
+            condition: '[avg_daily_knight_rank] > [avg_daily_knight_rank_before]'
+            val: 'up'
+        - df_set_column_val_if:
+            column: avg_daily_knight_rank_status
+            condition: '[avg_daily_knight_rank] < [avg_daily_knight_rank_before]'
+            val: 'down'
+        - df_set_column_val_if:
+            column: avg_daily_knight_rank_status
+            condition: '[avg_daily_knight_rank] == [avg_daily_knight_rank_before]'
+            val: 'equal'
+
+        ###当日人效排名状态
+        - add_cols:
+            - single_utility_rank_status: '-'
+        - df_set_column_val_if:
+            column: single_utility_rank_status
+            condition: '[single_utility_rank] > [single_utility_rank_before]'
+            val: 'up'
+        - df_set_column_val_if:
+            column: single_utility_rank_status
+            condition: '[single_utility_rank] < [single_utility_rank_before]'
+            val: 'down'
+        - df_set_column_val_if:
+            column: single_utility_rank_status
+            condition: '[single_utility_rank] == [single_utility_rank_before]'
+            val: 'equal'
+
+        ###日均单环比 日均骑手量环比 当日人效环比
+        - df_eval:
+            - |
+              [avg_daily_order_ratio] = ([avg_daily_order] - [avg_daily_order_before]) / [avg_daily_order_before]
+              [avg_daily_knight_ratio] = ([avg_daily_knight] - [avg_daily_knight_before]) / [avg_daily_knight_before]
+              [single_utility_ratio] = ([single_utility] - [single_utility_before]) / [single_utility_before]
+
+        ### 日均单环比状态
+        - add_cols:
+            - avg_daily_order_ratio_status: '-'
+        - df_set_column_val_if:
+            column: avg_daily_order_ratio_status
+            condition: '[avg_daily_order_ratio] > 0'
+            val: 'up'
+        - df_set_column_val_if:
+            column: avg_daily_order_ratio_status
+            condition: '[avg_daily_order_ratio] < 0 '
+            val: 'down'
+        - df_set_column_val_if:
+            column: avg_daily_order_ratio_status
+            condition: '[avg_daily_order_ratio] == 0'
+            val: 'equal'
+
+        ### 日均骑手量环比状态
+        - add_cols:
+            - avg_daily_knight_ratio_status: '-'
+        - df_set_column_val_if:
+            column: avg_daily_knight_ratio_status
+            condition: '[avg_daily_knight_ratio] > 0'
+            val: 'up'
+        - df_set_column_val_if:
+            column: avg_daily_knight_ratio_status
+            condition: '[avg_daily_knight_ratio] < 0 '
+            val: 'down'
+        - df_set_column_val_if:
+            column: avg_daily_knight_ratio_status
+            condition: '[avg_daily_knight_ratio] == 0'
+            val: 'equal'
+
+        ### 当日人效环比状态
+        - add_cols:
+            - single_utility_ratio_status: '-'
+        - df_set_column_val_if:
+            column: single_utility_ratio_status
+            condition: '[single_utility_ratio] > 0'
+            val: 'up'
+        - df_set_column_val_if:
+            column: single_utility_ratio_status
+            condition: '[single_utility_ratio] < 0 '
+            val: 'down'
+        - df_set_column_val_if:
+            column: single_utility_ratio_status
+            condition: '[single_utility_ratio] == 0'
+            val: 'equal'
+
+        - add_cols:
+            - dc_count: 1
+              dimension: 'D'
+#          - fetch_cols:
+#              columns: [ supplier_id,vendor_dc_id,dc_name,coach_team_name,meta_day,total_order,total_order_rank,total_order_rank_status,single_daily_order,avg_daily_order,avg_daily_order_rank,avg_daily_order_rank_status,avg_daily_order_ratio,avg_daily_order_ratio_status,single_daily_knight,avg_daily_knight,avg_daily_knight_rank,avg_daily_knight_rank_status,avg_daily_knight_ratio,avg_daily_knight_ratio_status,single_utility,single_utility_rank,single_utility_rank_status,single_utility_ratio,single_utility_ratio_status,kpi_score,kpi_score_rank,kpi_no_reward_score,secure_line,object_line,difficulty_level,evaluate_forecast,dc_count,dimension,meta_day]
+        - set_meta_month_column:
+            - month
+
+###计算私教级总体详情表
+    - name: total_details_coach_mini
+      sync_result: true
+      cooks:
+        - use_df:
+            key: ele_day_60_coach_std
+            columns: [ coach_team_name,vendor_dc_id,团队名称,KPI奖罚得分,KPI非奖罚得分,安全线,目标线,全量单,全量单平均日单量,平均在线骑手数,人效,meta_day,supplier_id ]
+            ignore_null_error: true
+            empty_df_record:
+              coach_team_name: '-'
+              vendor_dc_id: '-'
+              团队名称: '-'
+              KPI奖罚得分: 0.0
+              KPI非奖罚得分: 0.0
+              安全线: 0.0
+              目标线: 0.0
+              全量单: 0
+              全量单平均日单量: 0.0
+              平均在线骑手数: 0.0
+              人效: 0.0
+              meta_day: 0
+              supplier_id: '-'
+        - df_rename_columns:
+            - 团队名称: dc_name
+              KPI奖罚得分: kpi_score
+              KPI非奖罚得分: kpi_no_reward_score
+              安全线: secure_line
+              目标线: object_line
+              全量单: total_order
+              全量单平均日单量: avg_daily_order
+              平均在线骑手数: avg_daily_knight
+              人效: single_utility
+      ### 私教级数据
+#        - df_is_nan_inf:
+#            column: vendor_dc_id
+        - df_to_float:
+            - kpi_score
+        - df_to_float:
+            - kpi_no_reward_score
+        - df_to_float:
+            - total_order
+        - df_to_float:
+            - avg_daily_order
+        - df_to_float:
+            - avg_daily_knight
+        - df_to_float:
+            - single_utility
+        - stash_push_df: []
+
+        - fetch_dataset:
+            template_code: ele_day_64
+            dataset_cate: raw
+            columns: [ 城市,团队ID,得分,meta_day]
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              团队ID: '-'
+              得分: '-'
+              meta_day: 0
+        - df_rename_columns:
+            - 得分: kpi_no_reward_score_l
+              城市: coach_team_name
+              团队ID: vendor_dc_id
+        - run_py:
+            - |
+              df = df[df['vendor_dc_id'].isnull()]
+              result = df
+        - fetch_cols:
+            columns: [coach_team_name,meta_day,kpi_no_reward_score_l]
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ coach_team_name,meta_day ]
+            how: right
+            drop_stash: true
+        - stash_push_df: [ ]
+
+        - use_df:
+            key: ele_day_62_std  #kpi计算模板--源数据（日更新）
+            columns: [ 城市,骑手,全量单,meta_day,supplier_id ]
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              骑手: 0
+              全量单: 0
+              meta_day: 0
+              supplier_id: '-'
+        - df_rename_columns:
+            - 城市: coach_team_name
+              骑手: single_daily_knight
+              全量单: single_daily_order
+        - df_to_int:
+            - single_daily_knight
+        - df_to_int:
+            - single_daily_order
+        - df_groupby:
+            by: [supplier_id,meta_day,coach_team_name]
+        - df_sum:
+            column: [single_daily_knight,single_daily_order]
+        - df_reset_index: []
+        - stash_push_df: []
+
+        - stash_join_df:
+            on: [ supplier_id,coach_team_name,meta_day ]
+            how: right
+            drop_stash: true
+
+        - df_fillna:
+            columns: [ kpi_score,kpi_no_reward_score,total_order,avg_daily_order,avg_daily_knight,single_utility,single_daily_knight,single_daily_order ]
+            value: 0.0
+        - drop_duplicates:
+            subset: [ supplier_id,coach_team_name,meta_day ]
+
+      ###全量单排名 日均单排名 日均骑手量排名 当日人效排名  经营结果排名
+        - run_py:
+            - |
+              df = to_df(df)
+              df['total_order_rank'] = df.groupby(by=['supplier_id','meta_day'])['total_order'].rank(method='min',ascending=False)
+              df['avg_daily_order_rank'] = df.groupby(by=['supplier_id','meta_day'])['avg_daily_order'].rank(method='min',ascending=False)
+              df['avg_daily_knight_rank'] = df.groupby(by=['supplier_id','meta_day'])['avg_daily_knight'].rank(method='min',ascending=False)
+              df['single_utility_rank'] = df.groupby(by=['supplier_id','meta_day'])['single_utility'].rank(method='min',ascending=False)
+              df['kpi_score_rank'] = df.groupby(by=['supplier_id','meta_day'])['kpi_score'].rank(method='min',ascending=False)
+              df['kpi_no_reward_score_rank'] = df.groupby(by=['supplier_id','meta_day'])['kpi_no_reward_score'].rank(method='min',ascending=False)
+              result = df
+
+
+    - name: total_details_coach
+      sync_result: true
+      cooks:
+        - use_df:
+            key: total_details_coach_mini
+            columns: [ supplier_id,coach_team_name,meta_day,total_order,total_order_rank,avg_daily_order,avg_daily_order_rank,avg_daily_knight,avg_daily_knight_rank,single_utility,single_utility_rank,kpi_score,kpi_score_rank,kpi_no_reward_score,kpi_no_reward_score_rank]
+
+      ###环比及各状态
+        - run_py:
+            - |
+              df['meta_day'] = df['meta_day'] + 1
+              result = df
+        - df_rename_columns:
+            - total_order: total_order_before
+              total_order_rank: total_order_rank_before
+              avg_daily_order: avg_daily_order_before
+              avg_daily_order_rank: avg_daily_order_rank_before
+              avg_daily_knight: avg_daily_knight_before
+              avg_daily_knight_rank: avg_daily_knight_rank_before
+              single_utility: single_utility_before
+              single_utility_rank: single_utility_rank_before
+              kpi_score: kpi_score_before
+              kpi_score_rank: kpi_score_rank_before
+              kpi_no_reward_score: kpi_no_reward_score_before
+              kpi_no_reward_score_rank: kpi_no_reward_score_rank_before
+        - stash_push_df: [ ]
+        - use_df:
+            key: total_details_coach_mini
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ supplier_id,coach_team_name,meta_day ]
+            how: left
+            drop_stash: true
+        ###全量单排名状态
+        - add_cols:
+            - total_order_rank_status: '-'
+        - df_set_column_val_if:
+            column: total_order_rank_status
+            condition: '[total_order_rank] > [total_order_rank_before]'
+            val: 'up'
+        - df_set_column_val_if:
+            column: total_order_rank_status
+            condition: '[total_order_rank] < [total_order_rank_before]'
+            val: 'down'
+        - df_set_column_val_if:
+            column: total_order_rank_status
+            condition: '[total_order_rank] == [total_order_rank_before]'
+            val: 'equal'
+
+        ### 非奖罚得分排名状态
+        - add_cols:
+            - kpi_no_reward_score_rank_status: '-'
+        - df_set_column_val_if:
+            column: kpi_no_reward_score_rank_status
+            condition: '[kpi_no_reward_score_rank] > [kpi_no_reward_score_rank_before]'
+            val: 'up'
+        - df_set_column_val_if:
+            column: kpi_no_reward_score_rank_status
+            condition: '[kpi_no_reward_score_rank] < [kpi_no_reward_score_rank_before]'
+            val: 'down'
+        - df_set_column_val_if:
+            column: kpi_no_reward_score_rank_status
+            condition: '[kpi_no_reward_score_rank] == [kpi_no_reward_score_rank_before]'
+            val: 'equal'
+
+        ### kpi经营结果排名状态
+        - add_cols:
+            - kpi_score_rank_status: '-'
+        - df_set_column_val_if:
+            column: kpi_score_rank_status
+            condition: '[kpi_score_rank] > [kpi_score_rank_before]'
+            val: 'up'
+        - df_set_column_val_if:
+            column: kpi_score_rank_status
+            condition: '[kpi_score_rank] < [kpi_score_rank_before]'
+            val: 'down'
+        - df_set_column_val_if:
+            column: kpi_score_rank_status
+            condition: '[kpi_score_rank] == [kpi_score_rank_before]'
+            val: 'equal'
+
+      ###日均单排名状态
+        - add_cols:
+            - avg_daily_order_rank_status: '-'
+        - df_set_column_val_if:
+            column: avg_daily_order_rank_status
+            condition: '[avg_daily_order_rank] > [avg_daily_order_rank_before]'
+            val: 'up'
+        - df_set_column_val_if:
+            column: avg_daily_order_rank_status
+            condition: '[avg_daily_order_rank] < [avg_daily_order_rank_before]'
+            val: 'down'
+        - df_set_column_val_if:
+            column: avg_daily_order_rank_status
+            condition: '[avg_daily_order_rank] == [avg_daily_order_rank_before]'
+            val: 'equal'
+
+      ### 日均骑手量排名状态
+        - add_cols:
+            - avg_daily_knight_rank_status: '-'
+        - df_set_column_val_if:
+            column: avg_daily_knight_rank_status
+            condition: '[avg_daily_knight_rank] > [avg_daily_knight_rank_before]'
+            val: 'up'
+        - df_set_column_val_if:
+            column: avg_daily_knight_rank_status
+            condition: '[avg_daily_knight_rank] < [avg_daily_knight_rank_before]'
+            val: 'down'
+        - df_set_column_val_if:
+            column: avg_daily_knight_rank_status
+            condition: '[avg_daily_knight_rank] == [avg_daily_knight_rank_before]'
+            val: 'equal'
+
+      ###当日人效排名状态
+        - add_cols:
+            - single_utility_rank_status: '-'
+        - df_set_column_val_if:
+            column: single_utility_rank_status
+            condition: '[single_utility_rank] > [single_utility_rank_before]'
+            val: 'up'
+        - df_set_column_val_if:
+            column: single_utility_rank_status
+            condition: '[single_utility_rank] < [single_utility_rank_before]'
+            val: 'down'
+        - df_set_column_val_if:
+            column: single_utility_rank_status
+            condition: '[single_utility_rank] == [single_utility_rank_before]'
+            val: 'equal'
+
+      ###日均单环比 日均骑手量环比  当日人效环比
+        - df_eval:
+            - |
+              [avg_daily_order_ratio] = ([avg_daily_order] - [avg_daily_order_before]) / [avg_daily_order_before]
+              [avg_daily_knight_ratio] = ([avg_daily_knight] - [avg_daily_knight_before]) / [avg_daily_knight_before]
+              [single_utility_ratio] = ([single_utility] - [single_utility_before]) / [single_utility_before]
+      ### 日均单环比状态
+        - add_cols:
+            - avg_daily_order_ratio_status: '-'
+        - df_set_column_val_if:
+            column: avg_daily_order_ratio_status
+            condition: '[avg_daily_order_ratio] > 0'
+            val: 'up'
+        - df_set_column_val_if:
+            column: avg_daily_order_ratio_status
+            condition: '[avg_daily_order_ratio] < 0 '
+            val: 'down'
+        - df_set_column_val_if:
+            column: avg_daily_order_ratio_status
+            condition: '[avg_daily_order_ratio] == 0'
+            val: 'equal'
+
+      ### 日均骑手量环比状态
+        - add_cols:
+            - avg_daily_knight_ratio_status: '-'
+        - df_set_column_val_if:
+            column: avg_daily_knight_ratio_status
+            condition: '[avg_daily_knight_ratio] > 0'
+            val: 'up'
+        - df_set_column_val_if:
+            column: avg_daily_knight_ratio_status
+            condition: '[avg_daily_knight_ratio] < 0 '
+            val: 'down'
+        - df_set_column_val_if:
+            column: avg_daily_knight_ratio_status
+            condition: '[avg_daily_knight_ratio] == 0'
+            val: 'equal'
+
+      ### 当日人效环比状态
+        - add_cols:
+            - single_utility_ratio_status: '-'
+        - df_set_column_val_if:
+            column: single_utility_ratio_status
+            condition: '[single_utility_ratio] > 0'
+            val: 'up'
+        - df_set_column_val_if:
+            column: single_utility_ratio_status
+            condition: '[single_utility_ratio] < 0 '
+            val: 'down'
+        - df_set_column_val_if:
+            column: single_utility_ratio_status
+            condition: '[single_utility_ratio] == 0'
+            val: 'equal'
+        - add_cols:
+            - dimension: 'C'
+        - stash_push_df: []
+
+        - use_df:
+            key: ele_day_60_dc_std   #KPI计算（北京1）(日更新)
+            columns: [ 城市,vendor_dc_id,meta_day,supplier_id ]
+            ignore_null_error: true
+            empty_df_record:
+               城市: '-'
+               vendor_dc_id: '-'
+               meta_day: 0
+               supplier_id: '-'
+        - df_rename_columns:
+            - 城市: coach_team_name
+
+        - run_py:
+            - |
+              df = df[df['vendor_dc_id'].notnull()]
+              result = df
+        - df_groupby:
+            by: [supplier_id,meta_day,coach_team_name]
+        - df_count:
+            column: [vendor_dc_id]
+        - df_rename_columns:
+            - vendor_dc_id: dc_count
+        - df_reset_index: []
+
+        - stash_push_df: []
+        - stash_join_df:
+            on: [supplier_id,meta_day,coach_team_name]
+            how: right
+            drop_stash: true
+#          - fetch_cols:
+#              columns: [ supplier_id,vendor_dc_id,dc_name,coach_team_name,meta_day,total_order,total_order_rank,total_order_rank_status,single_daily_order,avg_daily_order,avg_daily_order_rank,avg_daily_order_rank_status,avg_daily_order_ratio,avg_daily_order_ratio_status,single_daily_knight,avg_daily_knight,avg_daily_knight_rank,avg_daily_knight_rank_status,avg_daily_knight_ratio,avg_daily_knight_ratio_status,single_utility,single_utility_rank,single_utility_rank_status,single_utility_ratio,single_utility_ratio_status,kpi_score,kpi_score_rank,kpi_no_reward_score,secure_line,object_line,dc_count,dimension,meta_day]
+        - set_meta_month_column:
+            - month
+
+### 计算总体详情表
+    - name: total_details
+      sync_result: true
+      cooks:
+        - use_df:
+            key: total_details_dc
+            columns: [ supplier_id,vendor_dc_id,dc_name,coach_team_name,meta_day,kpi_no_reward_score_l,total_order,total_order_rank,total_order_rank_status,single_daily_order,avg_daily_order,avg_daily_order_rank,avg_daily_order_rank_status,avg_daily_order_ratio,avg_daily_order_ratio_status,single_daily_knight,avg_daily_knight,avg_daily_knight_rank,avg_daily_knight_rank_status,avg_daily_knight_ratio,avg_daily_knight_ratio_status,single_utility,single_utility_rank,single_utility_rank_status,single_utility_ratio,single_utility_ratio_status,kpi_score,kpi_score_rank,kpi_score_rank_status,kpi_no_reward_score,kpi_no_reward_score_rank,kpi_no_reward_score_rank_status,secure_line,object_line,difficulty_level,evaluate_forecast,dc_count,dimension,month ]
+        - stash_push_df: []
+        - use_df:
+            key: total_details_coach
+            columns: [ supplier_id,vendor_dc_id,dc_name,coach_team_name,meta_day,kpi_no_reward_score_l,total_order,total_order_rank,total_order_rank_status,single_daily_order,avg_daily_order,avg_daily_order_rank,avg_daily_order_rank_status,avg_daily_order_ratio,avg_daily_order_ratio_status,single_daily_knight,avg_daily_knight,avg_daily_knight_rank,avg_daily_knight_rank_status,avg_daily_knight_ratio,avg_daily_knight_ratio_status,single_utility,single_utility_rank,single_utility_rank_status,single_utility_ratio,single_utility_ratio_status,kpi_score,kpi_score_rank,kpi_score_rank_status,kpi_no_reward_score,kpi_no_reward_score_rank,kpi_no_reward_score_rank_status,secure_line,object_line,dc_count,dimension,month ]
+        - stash_push_df: []
+
+        - stash_concat_df:
+            drop_stash: true
+        - df_rename_columns:
+            - meta_day: book_day
+              month: book_month
+
+
+    - name: raw_main_range_dc
+      sync_result: true
+      cooks:
+        - use_df:
+            key: ele_day_62_std
+            columns: [vendor_dc_id,dc_name,骑手,全量单,meta_day,城市]
+        - df_rename_columns:
+            - 骑手: single_daily_knight
+              全量单: single_daily_order
+              城市: coach_team_name
+              meta_day: book_day
+        - df_to_float:
+            - single_daily_knight
+        - df_to_float:
+            - single_daily_order
+        - stash_push_df: []
+        - use_df:
+            key: total_details
+            columns: [vendor_dc_id,book_day,avg_daily_order,avg_daily_knight]
+        - stash_push_df: []
+        - stash_join_df:
+            on: [ vendor_dc_id,book_day]
+            how: right
+            drop_stash: true
+        - stash_push_df: []
+        - use_df:
+            key: std_qplus_dc_copy
+            columns: [supplier_id,vendor_dc_id ]
+        - stash_push_df: []
+        - stash_join_df:
+            on: [vendor_dc_id]
+            how: inner
+            drop_stash: true
+        - add_cols:
+            - dimension: D
+
+    - name: raw_main_range_coach
+      sync_result: true
+      cooks:
+        - use_df:
+            key: ele_day_62_std
+            columns: [ vendor_dc_id,骑手,全量单,meta_day,城市 ]
+        - df_rename_columns:
+            - 骑手: single_daily_knight
+              全量单: single_daily_order
+              城市: coach_team_name
+              meta_day: book_day
+        - df_to_float:
+            - single_daily_knight
+        - df_to_float:
+            - single_daily_order
+        - df_groupby:
+            by: [coach_team_name,book_day]
+        - df_sum:
+            column: [single_daily_knight,single_daily_order]
+        - df_reset_index: []
+        - stash_push_df: []
+
+        - use_df:
+            key: total_details
+        - df_select:
+            - 'dimension == @p1'
+            - p1: C
+        - fetch_cols:
+            columns: [book_day,avg_daily_order,avg_daily_knight,coach_team_name]
+        - stash_push_df: []
+        - stash_join_df:
+            on: [ coach_team_name,book_day ]
+            how: right
+            drop_stash: true
+        - stash_push_df: []
+
+        - use_df:
+            key: ele_day_60_dc_std
+            columns: [ supplier_id,城市]
+            ignore_null_error: true
+            empty_df_record:
+              supplier_id: '-'
+              城市: '-'
+        - df_rename_columns:
+            - 城市: coach_team_name
+        - drop_duplicates:
+            - [supplier_id,coach_team_name]
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ coach_team_name]
+            how: inner
+            drop_stash: true
+        - add_cols:
+            - dimension: C
+
+    - name: raw_main_range
+      sync_result: true
+      cooks:
+        - use_df:
+            key: raw_main_range_dc
+        - stash_push_df: []
+        - use_df:
+            key: raw_main_range_coach
+        - stash_push_df: []
+        - stash_concat_df:
+            drop_stash: true
+
+
+#### kpi明细表
+    - name: kpi_detail
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            template_code: ele_day_60   #KPI计算（北京1）(日更新)
+            dataset_cate: raw
+            datakit_pull_way: last_day
+            columns: [ 城市,团队ID,团队名称,KPI奖罚得分,快送降级单加分,目标线,目标线是否达标,安全线,安全线是否达标,平台触达结果1,平台触达结果2,平台触达结果3 ]
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              团队ID: '-'
+              团队名称: '-'
+              KPI奖罚得分: 0.0
+              快送降级单加分: 0.0
+              目标线: 0
+              目标线是否达标: '-'
+              安全线: 0
+              安全线是否达标: '-'
+              平台触达结果1: '-'
+              平台触达结果2: '-'
+              平台触达结果3: '-'
+        - df_rename_columns:
+            - 城市: coach_team_name
+              团队ID: vendor_dc_id
+              团队名称: dc_name
+              KPI奖罚得分: kpi_reward_punish_score
+              快送降级单加分: quick_demotion_order_add
+              目标线: object_line
+              目标线是否达标: object_line_result
+              安全线: secure_line
+              安全线是否达标: secure_line_result
+              平台触达结果1: platform_reach_result_one
+              平台触达结果2: platform_reach_result_two
+              平台触达结果3: platform_reach_result_three
+        - stash_push_df: [ ]
+
+        - use_df:
+            key: std_qplus_dc_copy
+        - fetch_cols:
+            columns: [ supplier_id,vendor_dc_id ]
+        - stash_push_df: [ ]
+
+        - stash_join_df:
+            on: [ vendor_dc_id ]
+            how: inner
+            drop_stash: true
+        - set_meta_month_column:
+            - book_month
+        - df_to_float:
+            - kpi_reward_punish_score
+        - df_to_float:
+            - quick_demotion_order_add
+
+### 奖罚KPI得分明细
+    - name: kpi_reward_punish_score_detail
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            template_code: ele_day_60   #KPI计算（北京1）(日更新)
+            dataset_cate: raw
+            datakit_pull_way: last_day
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              团队ID: '-'
+              团队名称: '-'
+              KPI奖罚得分: 0.0
+              快送降级单加分: 0.0
+              平均在线骑手数: 0.0
+              人效: 0.0
+              全量单平均日单量: 0
+              全量单: 0
+              系统接单数: 0
+              有效完成单: 0
+              超时数: 0
+              超时率: 0.0
+              超时分数: 0.0
+              配送原因取消: 0
+              配送原因取消率: 0.0
+              配送原因取消分数: 0.0
+              坏单: 0
+              坏单率: 0.0
+              坏单分数: 0.0
+              虚假配送: 0
+              虚假配送率: 0.0
+              虚假配送分数: 0.0
+              骑手T10超时单: 0
+              骑手T10超时率: 0.0
+              骑手T10超时得分: 0.0
+        - df_rename_columns:
+            - 城市: coach_team_name
+              团队ID: vendor_dc_id
+              团队名称: dc_name
+              KPI奖罚得分: kpi_reward_punish_score
+              快送降级单加分: quick_demotion_order_add
+              平均在线骑手数: avg_online_knight
+              人效: utility
+              全量单平均日单量: avg_daily_order
+              全量单: total_order
+              系统接单数: system_order
+              有效完成单: valid_over_order
+              超时数: overtime_order
+              超时率: overtime_ratio
+              超时分数: overtime_score
+              配送原因取消: cancel_order
+              配送原因取消率: cancel_ratio
+              配送原因取消分数: cancel_score
+              坏单: bad_order
+              坏单率: bad_ratio
+              坏单分数: bad_score
+              虚假配送: false_order
+              虚假配送率: false_ratio
+              虚假配送分数: false_score
+              骑手T10超时单: t10_overtime_order
+              骑手T10超时率: t10_overtime_ratio
+              骑手T10超时得分: t10_overtime_score
+        - pad_cols:
+            columns: [ overtime_order,overtime_score,overtime_score,t10_overtime_order,t10_overtime_ratio,t10_overtime_score ]
+            default_value:
+        - fetch_cols:
+            columns: [ coach_team_name,vendor_dc_id,dc_name,kpi_reward_punish_score,quick_demotion_order_add,avg_online_knight,utility,avg_daily_order,total_order,system_order,valid_over_order,overtime_order,overtime_ratio,overtime_score,cancel_order,cancel_ratio,cancel_score,bad_order,bad_ratio,bad_score,false_order,false_ratio,false_score,t10_overtime_order,t10_overtime_ratio,t10_overtime_score]
+
+        - stash_push_df: [ ]
+
+        - use_df:
+            key: std_qplus_dc_copy
+        - fetch_cols:
+            columns: [ supplier_id,vendor_dc_id ]
+        - stash_push_df: [ ]
+
+        - stash_join_df:
+            on: [ vendor_dc_id ]
+            how: inner
+            drop_stash: true
+        - set_meta_month_column:
+            - book_month
+        - df_to_float:
+            - kpi_reward_punish_score
+        - df_to_float:
+            - quick_demotion_order_add
+        - df_to_float:
+            - utility
+        - df_to_float:
+            - cancel_ratio
+        - df_to_float:
+            - cancel_score
+        - df_to_float:
+            - bad_ratio
+        - df_to_float:
+            - bad_score
+        - df_to_float:
+            - false_ratio
+        - df_to_float:
+            - false_score
+#        - df_to_float:
+#            - overtime_ratio
+#        - df_to_float:
+#            - overtime_score
+#        - df_to_float:
+#            - t10_overtime_ratio
+#        - df_to_float:
+#            - t10_overtime_score
+
+
+
+
+
+#### 非奖罚得分kPI明细
+    - name: kpi_no_reward_punish_score_detail
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            template_code: ele_day_61  #kpi计算- 非奖罚(日更新)
+            dataset_cate: raw
+            datakit_pull_way: last_day
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              团队ID: '-'
+              团队名称: '-'
+              融合单有效完成单: 0
+              质选有效完成单: 0
+              星巴克有效完成单: 0
+              淘鲜达有效完成单: 0
+              融合单得分: 0.0
+              质选得分: 0.0
+              星巴克得分: 0.0
+              淘鲜达得分: 0.0
+              x值: 0.0
+              y值: 0.0
+              z值: 0.0
+              全量单: 0
+              得分: 0.0
+        - df_rename_columns:
+            - 城市: coach_team_name
+              团队ID: vendor_dc_id
+              团队名称: dc_name
+              融合单有效完成单: fuse_valid_over_order
+              质选有效完成单: quality_select_valid_over_order
+              星巴克有效完成单: xbk_valid_over_order
+              淘鲜达有效完成单: txd_valid_over_order
+              融合单得分: fuse_score
+              质选得分: quality_select_score
+              星巴克得分: xbk_score
+              淘鲜达得分: txd_score
+              x值: x_score
+              y值: y_score
+              z值: z_score
+              全量单: total_order
+              得分: score
+        - pad_cols:
+            columns: [ quality_select_valid_over_order,quality_select_score,x_score ]
+            default_value:
+        - fetch_cols:
+            columns: [ coach_team_name,vendor_dc_id,dc_name,fuse_valid_over_order,quality_select_valid_over_order,xbk_valid_over_order,txd_valid_over_order,fuse_score,quality_select_score,xbk_score,txd_score,x_score,y_score,z_score,total_order,score ]
+        - stash_push_df: [ ]
+        - use_df:
+            key: std_qplus_dc_copy
+        - fetch_cols:
+            columns: [ supplier_id,vendor_dc_id ]
+        - stash_push_df: [ ]
+
+        - stash_join_df:
+            on: [ vendor_dc_id ]
+            how: inner
+            drop_stash: true
+        - set_meta_month_column:
+            - book_month
+        - df_to_float:
+            - fuse_score
+        - df_to_float:
+            - xbk_score
+        - df_to_float:
+            - txd_score
+        - df_to_float:
+            - y_score
+        - df_to_float:
+            - z_score
+        - df_to_float:
+            - score
+#        - df_to_float:
+#            - quality_select_score
+#        - df_to_float:
+#            - x_score
+
+
+####  商评分各项得分明细
+    - name: merchant_grade_item_score_detail
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            template_code:  ele_day_66   # 商评分--商评结果 （日更新）
+            dataset_cate: raw
+            datakit_pull_way: last_day
+            columns: [ 城市,大区,有《食品经营许可证》,尾部站点整改不达标,站长评级,骑手出勤率,非奖罚得分,难度站点,单量占比增长,多业务承接,加分项,减分项,合计得分,折和100分后得分,评级,城市内排名,全量标品运营天数日均有效完成单,城市下限,城市规模上限,单量区间判定,城市商数量,城市单量区间,商数量上限,尾部强排规则]
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              大区: '-'
+              有《食品经营许可证》: 0.0
+              尾部站点整改不达标: 0.0
+              站长评级: 0.0
+              骑手出勤率: 0.0
+              非奖罚得分: 0.0
+              难度站点: 0.0
+              单量占比增长: 0.0
+              多业务承接: 0.0
+              加分项: '-'
+              减分项: '-'
+              合计得分: 0.0
+              折和100分后得分: 0.0
+              评级: '-'
+              城市内排名: 0
+              全量标品运营天数日均有效完成单: 0.0
+              城市下限: 0.0
+              城市规模上限: 0.0
+              单量区间判定: '-'
+              城市商数量: 0
+              城市单量区间: 0.0
+              商数量上限: 0.0
+              尾部强排规则: '-'
+        - df_rename_columns:
+            - 城市: city_name
+              大区: theater_team_name
+              有《食品经营许可证》: have_licence
+              尾部站点整改不达标: low_change
+              站长评级: dc_lead_level
+              骑手出勤率: knight_attendance_score
+              非奖罚得分: no_reward_punish_score
+              难度站点: difficulty_level
+              单量占比增长: order_ration_growth
+              多业务承接: multi_business
+              加分项: add_option
+              减分项: sub_option
+              合计得分: total_score
+              折和100分后得分: equal_100_score
+              评级: level
+              城市内排名: rank_in_city
+              全量标品运营天数日均有效完成单: avg_valid_order_num
+              城市下限: city_floor
+              城市规模上限: city_ceil
+              单量区间判定: single_section
+              城市商数量: dc_count
+              城市单量区间: city_order_section
+              商数量上限: dc_order_ceil
+              尾部强排规则: tail_rule
+        - stash_push_df: []
+        - use_df:
+            key: city_coach_map
+        - stash_push_df: []
+        - stash_join_df:
+            on: [city_name]
+            how: inner
+            drop_stash: true
+        - stash_push_df: []
+
+        - use_df:
+            key: ele_day_60_dc_std
+            columns: [ supplier_id,城市 ]
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              supplier_id: '-'
+        - df_rename_columns:
+            - 城市: coach_team_name
+        - drop_duplicates:
+            - [ supplier_id,coach_team_name ]
+        - stash_push_df: [ ]
+
+        - stash_join_df:
+            on: [ coach_team_name ]
+            how: inner
+            drop_stash: true
+        - set_meta_month_column:
+            - book_month
+
+#### 清退预警
+    - name: clean_warning
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            template_code: ele_day_60
+            dataset_cate: raw
+            datakit_pull_way: last_day
+            columns: [城市,团队ID]
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              团队ID: '-'
+            rename:
+              城市: coach_team_name
+              团队ID: vendor_dc_id
+        - run_py:
+            - |
+              df = df[df['vendor_dc_id'].notnull()]
+              result = df
+        - drop_duplicates:
+            subset: [ coach_team_name,vendor_dc_id ]
+        - stash_push_df:  []
+
+        - fetch_dataset:
+            template_code : ele_day_79    #  ele站点考核项
+            dataset_cate: raw
+            datakit_pull_way: last_day
+            ignore_null_error: true
+            empty_df_record:
+              站点名称: '-'
+              站点ID: '-'
+              站点质量不达标清退: '-'
+              站点评级体系: '-'
+              上海商圈专项优化方案: '-'
+            rename:
+              站点ID: vendor_dc_id
+              站点名称: dc_name
+        - run_py:
+            - |
+              df = to_df(df)
+              for i in df.columns:
+                if i not in ['vendor_dc_id','dc_name','meta_month','meta_day']:
+                  df[u'%s'%(i)] = np.where(df[u'%s'%(i)].str.contains(u"安全"),u"安全",np.where(df[u'%s'%(i)].str.contains(u'不参与'),'-',u'危险'))
+              result = to_dd(df)
+#              df[u'站点质量不达标清退'] = np.where(df[u'站点质量不达标清退'].str.contains(u"安全"),u"安全",np.where(df[u'站点质量不达标清退'].str.contains(u'不参与'),'-',u'危险'))
+#              df[u'站点评级体系'] = np.where(df[u'站点评级体系'].str.contains(u"安全"),u"安全",np.where(df[u'站点评级体系'].str.contains(u'不参与'),'-',u'危险'))
+#              df[u'上海商圈专项优化方案'] = np.where(df[u'上海商圈专项优化方案'].str.contains(u"安全"),u"安全",np.where(df[u'上海商圈专项优化方案'].str.contains(u'不参与'),'-',u'危险'))
+        - stash_push_df: []
+        - stash_join_df:
+            on: vendor_dc_id
+            how: inner
+            drop_stash: true
+        - add_cols:
+            - dimension: 'D'
+        - stash_push_df: [ ]
+        - use_df:
+            key: std_qplus_dc_copy
+            columns: [ supplier_id,vendor_dc_id ]
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ vendor_dc_id ]
+            how: inner
+            drop_stash: true
+        - set_meta_month_column:
+            - book_month
+
+####other
+
+    ### 主体匹配表
+    - name: supplier_vendor_dc
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            dataset_type_code: std_qplus_dc
+            dataset_cate: std
+            ignore_null_error: true
+            columns: [supplier_id,vendor_dc_id]
+        - when_empty_fetch_dataset:
+            dataset_type_code: std_qplus_dc
+            dataset_cate: std
+            month_offset: -1
+            ignore_null_error: true
+            columns: [supplier_id,vendor_dc_id]
+        - run_py:
+            - |
+              df=to_df(df)
+              df=df[df['vendor_dc_id'].notnull()]
+              result= to_dd(df)
+        - drop_duplicates:
+            subset: [ supplier_id,vendor_dc_id  ]
+
+
+    ###  骑手影响站点分布
+
+    - name: knight_kpi_std
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            dataset_cate: raw
+            template_code: ele_day_63
+            datakit_pull_way: last_day
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              团队ID: 0
+              团队名称: '-'
+              人员ID: '-'
+              KPI奖惩得分: 0
+            columns:
+              - 城市
+              - 团队ID
+              - 团队名称
+              - 人员ID
+              - KPI奖惩得分
+            rename:
+              城市: coach_team_name
+              团队ID: vendor_dc_id
+              团队名称: dc_name
+              人员ID: knight_id
+              KPI奖惩得分: knight_kpi
+        - df_to_int:
+            - vendor_dc_id
+        - stash_push_df: []
+        ### 导入目标线与安全线
+        - fetch_dataset:
+            template_code: ele_day_60
+            dataset_cate: raw
+            datakit_pull_way: last_day
+            ignore_null_error: true
+            empty_df_record:
+              团队ID: 0
+              目标线: 0
+              安全线: 0
+            columns: [团队ID,目标线,安全线]
+            rename:
+              团队ID: vendor_dc_id
+              目标线: object_line
+              安全线: secure_line
+        - df_to_int:
+            - vendor_dc_id
+
+        - stash_push_df: []
+        - stash_join_df:
+            how: right
+            on: vendor_dc_id
+            drop_stash: True
+        - run_py:
+            - |
+              df=to_df(df)
+              df['vendor_dc_id']=[u'%s' % i for i in df[u'vendor_dc_id']]
+              result=to_dd(df)
+        - stash_push_df: []
+        ### 使用主体匹配表
+        - use_df:
+            key: supplier_vendor_dc
+        - stash_push_df: []
+
+        - stash_join_df:
+            how: right
+            on: vendor_dc_id
+            drop_stash: True
+        - add_cols:
+            - over_object_line_knight: 0
+        - add_cols:
+            - between_knight: 0
+        - add_cols:
+            - low_secure_line_knightt: 0
+    - name: knight_kpi_percent
+      sync_result: true
+      cooks:
+        - use_df:
+            key: knight_kpi_std
+        - df_select:
+            - '[knight_kpi]>=[object_line]'
+        - df_eval:
+            - '[over_object_line_knight]=1'
+        - stash_push_df: []
+
+        - use_df:
+            key: knight_kpi_std
+        - df_select:
+            - '[knight_kpi]<[object_line]&[knight_kpi]>=[secure_line]'
+        - df_eval:
+            - '[between_knight]=1'
+        - stash_push_df: []
+
+        - use_df:
+            key: knight_kpi_std
+        - df_select:
+            - '[knight_kpi]<[secure_line]'
+        - df_eval:
+            - '[low_secure_line_knight]=1'
+        - stash_push_df: []
+        - stash_concat_df:
+            stash_drop: True
+        - df_groupby:
+            by: [supplier_id,coach_team_name,vendor_dc_id,dc_name]
+        - df_sum:
+            column: [over_object_line_knight,between_knight,low_secure_line_knight]
+        - df_reset_index: []
+        - add_cols:
+            - over_object_line_knight_ratio: 0
+        - add_cols:
+            - between_knight_ratio: 0
+        - add_cols:
+            - low_secure_line_knight_ratio: 0
+        - df_eval:
+            - '[over_object_line_knight_ratio]=[over_object_line_knight]/([over_object_line_knight]+[between_knight]+[low_secure_line_knight])'
+        - df_eval:
+            - '[between_knight_ratio]=[between_knight]/([over_object_line_knight]+[between_knight]+[low_secure_line_knight])'
+        - df_eval:
+            - '[low_secure_line_knight_ratio]=[low_secure_line_knight]/([over_object_line_knight]+[between_knight]+[low_secure_line_knight])'
+        - df_sum_with_columns:
+            dest_column: total_knight
+            src_columns: [over_object_line_knight,between_knight,low_secure_line_knight]
+    - name: knight_affect_dc_score
+      sync_result: true
+      cooks:
+        - use_df:
+            key: knight_kpi_percent
+            columns:
+              - supplier_id
+              - coach_team_name
+              - vendor_dc_id
+              - dc_name
+              - total_knight
+              - over_object_line_knight
+              - over_object_line_knight_ratio
+              - between_knight
+              - between_knight_ratio
+              - low_secure_line_knight
+              - low_secure_line_knight_ratio
+        - set_meta_month_column:
+            - book_month
+        - df_to_int:
+            - total_knight
+        - df_to_int:
+            - over_object_line_knight
+        - df_to_int:
+            - between_knight
+        - df_to_int:
+            - low_secure_line_knight
+        - df_to_float:
+            - over_object_line_knight_ratio
+        - df_to_float:
+            - between_knight_ratio
+        - df_to_float:
+            - low_secure_line_knight_ratio
+
+
+    ### 商评分各项问题商圈明细
+    - name: dc_question_detail_mini
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            dataset_cate: raw
+            template_code: ele_day_67
+            datakit_pull_way: last_day
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              团队ID: 0
+              团队名称: '-'
+              难度等级: '-'
+              达标情况: '-'
+              KPI得分: 0
+              目标线: 0
+              安全线: 0
+              得分: 0
+              非奖罚-单量（站点）: 0
+              非奖罚-单量（商ID）: 0
+              单量权重: 0.0
+            columns:
+              - 城市
+              - 团队ID
+              - 团队名称
+              - 难度等级
+              - 达标情况
+              - KPI得分
+              - 目标线
+              - 安全线
+              - 得分
+              - 非奖罚-单量（站点）
+              - 非奖罚-单量（商ID）
+              - 单量权重
+            rename:
+              城市: city_name
+              团队ID: vendor_dc_id
+              团队名称: dc_name
+              难度等级: difficulty_level
+              达标情况: reach_the_standard
+              KPI得分: kpi_score
+              目标线: object_line
+              安全线: secure_line
+              得分: score
+              非奖罚-单量（站点）: dc_order_no_reward
+              非奖罚-单量（商ID）: id_order_no_reward
+              单量权重: weight
+        - df_to_int:
+            - vendor_dc_id
+        - add_cols:
+            - dimension: ND
+        - stash_push_df: []
+
+        - fetch_dataset:
+            dataset_cate: raw
+            template_code: ele_day_65
+            datakit_pull_way: last_day
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              团队名称: '-'
+              团队ID: 0
+              活跃骑手数: 0
+              周活跃骑手数: 0
+              日均出勤率: 0.0
+              得分: 0.0
+            columns:
+              - 城市
+              - 团队名称
+              - 团队ID
+              - 活跃骑手数
+              - 周活跃骑手数
+              - 日均出勤率
+              - 得分
+            rename:
+              城市: city_name
+              团队名称: dc_name
+              团队ID: vendor_dc_id
+              活跃骑手数: active_knight
+              周活跃骑手数: weekly_active_knight
+              日均出勤率: single_avg_attendance_score
+              得分: score
+        - df_to_int:
+            - vendor_dc_id
+        - add_cols:
+            - dimension: CQ
+        - stash_push_df: []
+        - stash_concat_df:
+            drop_stash: True
+        - stash_push_df: []
+
+        - fetch_dataset:
+            dataset_cate: raw
+            template_code: ele_day_68
+            datakit_pull_way: last_day
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              团队名称: '-'
+              团队ID: 0
+              站长评级得分: 0.0
+              账号有效完成单: 0
+              得分: 0.0
+            columns:
+              - 城市
+              - 团队名称
+              - 团队ID
+              - 站长评级得分
+              - 账号有效完成单
+              - 得分
+            rename:
+              城市: city_name
+              团队名称: dc_name
+              团队ID: vendor_dc_id
+              站长评级得分: grade_score
+              账号有效完成单: account_valid_order
+              得分: score
+        - df_to_int:
+            - vendor_dc_id
+        - add_cols:
+            - dimension: PJ
+        - stash_push_df: []
+        - stash_concat_df:
+            drop_stash: True
+
+
+    - name: dc_question_detail
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            dataset_cate: raw
+            template_code: ele_day_60
+#            month_offset: -1
+            datakit_pull_way: last_day
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              团队ID: 0
+            columns: [城市,团队ID]
+            rename:
+              城市: coach_team_name
+              团队ID: vendor_dc_id
+        - run_py:
+            - |
+              df=to_df(df)
+              df=df[df['vendor_dc_id'].notnull()]
+              result= to_dd(df)
+        - drop_duplicates:
+            subset:
+              - coach_team_name
+              - vendor_dc_id
+        - push_dataset:
+            key: team_coach_team_name
+        - fetch_dataset:
+            dataset_cate: raw
+            template_code: ele_day_64
+            columns: [ 城市,团队ID,团队名称,全量单,融合单有效完成单,质选有效完成单,星巴克有效完成单,淘鲜达有效完成单,融合单得分,质选得分,星巴克得分,淘鲜达得分,x值,y值,z值,得分 ]
+            datakit_pull_way: last_day
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              团队ID: 0
+              团队名称: '-'
+              全量单: 0
+              融合单有效完成单: 0
+              质选有效完成单: 0
+              星巴克有效完成单: 0
+              淘鲜达有效完成单: 0
+              融合单得分: 0.0
+              质选得分: 0.0
+              星巴克得分: 0.0
+              淘鲜达得分: 0.0
+              x值: 0.0
+              y值: 0.0
+              z值: 0.0
+              得分: 0.0
+            rename:
+              城市: city_name
+              团队ID: vendor_dc_id
+              团队名称: dc_name
+              全量单: total_order
+              融合单有效完成单: fuse_valid_over_order
+              质选有效完成单: quality_select_valid_over_order
+              星巴克有效完成单: xbk_valid_over_order
+              淘鲜达有效完成单: txd_valid_over_order
+              融合单得分: fuse_score
+              质选得分: quality_select_score
+              星巴克得分: xbk_score
+              淘鲜达得分: txd_score
+              x值: x_score
+              y值: y_score
+              z值: z_score
+              得分: score
+        - run_py:
+            - |
+              df = df[df['vendor_dc_id'].notnull()]
+              result = df
+        - df_to_int:
+            - vendor_dc_id
+        - add_cols:
+            - dimension: FJF
+        - stash_push_df: []
+        - fetch_dataset:
+            dataset_cate: raw
+            template_code: ele_day_60
+            datakit_pull_way: last_day
+            columns: [城市,团队ID,目标线]
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              团队ID: 0
+              目标线: 0
+            rename:
+              城市: city_name
+              团队ID: vendor_dc_id
+              目标线: object_line
+        - run_py:
+            - |
+              df = df[df['vendor_dc_id'].isnull()]
+              result = df
+        - fetch_cols:
+            columns: [city_name,object_line]
+        - stash_push_df: []
+        - stash_join_df:
+            on: [city_name]
+            how: right
+            drop_stash: true
+        - stash_push_df: []
+        - use_df:
+            key: dc_question_detail_mini
+        - stash_push_df: []
+        - stash_concat_df:
+            drop_stash: true
+        - run_py:
+            - |
+              df=to_df(df)
+              df['vendor_dc_id']=[u'%s' % i for i in df[u'vendor_dc_id']]
+              result=to_dd(df)
+        - stash_push_df: []
+        ### 使用主体匹配表
+        - use_df:
+            key: supplier_vendor_dc
+        - run_py:
+            - |
+              df=to_df(df)
+              df['vendor_dc_id']=[u'%s' % i for i in df[u'vendor_dc_id']]
+              result=to_dd(df)
+        - stash_push_df: [ ]
+        - stash_join_df:
+            how: inner
+            on: vendor_dc_id
+            drop_stash: True
+        - stash_push_df: [ ]
+        ### 使用私教匹配表
+        - use_df:
+            key: team_coach_team_name
+        - run_py:
+            - |
+              df=to_df(df)
+              df['vendor_dc_id']=[u'%s' % i for i in df[u'vendor_dc_id']]
+              result=to_dd(df)
+        - stash_push_df: [ ]
+        - stash_join_df:
+            how: right
+            on: vendor_dc_id
+            drop_stash: True
+        - set_meta_month_column:
+            - book_month
+
+
+    ### 骑手明细
+    - name: knight_detail
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            dataset_cate: raw
+            template_code: ele_day_75
+            datakit_pull_way: last_day
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              站点ID: 0
+              站点名称: '-'
+              骑手ID: '-'
+              骑手名称: '-'
+              1-5出勤天数: 0
+              6-10出勤天数: 0
+              11-15出勤天数: 0
+              新老骑手判定: '-'
+              是否为高价骑手: '-'
+              是否有离职倾向: '-'
+            columns:
+              - 城市
+              - 站点ID
+              - 站点名称
+              - 骑手ID
+              - 骑手名称
+              - 1-5出勤天数
+              - 6-10出勤天数
+              - 11-15出勤天数
+              - 新老骑手判定
+              - 是否为高价骑手
+              - 是否有离职倾向
+            rename:
+              城市: coach_team_name
+              站点ID: vendor_dc_id
+              站点名称: dc_name
+              骑手ID: knight_id
+              骑手名称: knight_name
+              1-5出勤天数: 1-5_attendance_day
+              6-10出勤天数: 6-10_attendance_day
+              11-15出勤天数: 11-15_attendance_day
+              新老骑手判定: new_old_knight
+              是否为高价骑手: high_price_decide
+              是否有离职倾向: leave_decide
+        - run_py:
+            - |
+              df=to_df(df)
+              df['vendor_dc_id']=[u'%s' % i for i in df[u'vendor_dc_id']]
+              result=to_dd(df)
+        - add_cols:
+            - dimension: CQ
+        - stash_push_df: []
+        - fetch_dataset:
+            dataset_cate: raw
+            template_code: ele_day_63
+            datakit_pull_way: last_day
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              团队ID: 0
+              团队名称: '-'
+              人员ID: '-'
+              人员姓名: '-'
+              骑手影响站点分数: 0.0
+              全职/高价骑手: 0.0
+              KPI奖惩得分: 0.0
+            columns:
+              - 城市
+              - 团队名称
+              - 人员姓名
+              - 团队ID
+              - 人员ID
+              - 骑手影响站点分数
+              - 全职/高价骑手
+              - KPI奖惩得分
+            rename:
+              城市: coach_team_name
+              团队名称: dc_name
+              团队ID: vendor_dc_id
+              人员ID: knight_id
+              人员姓名:  knight_name
+              骑手影响站点分数: knight_affect_dc_score
+              全职/高价骑手: knight_type
+              KPI奖惩得分: reward_punish_score
+        - run_py:
+            - |
+              df=to_df(df)
+              df['vendor_dc_id']=[u'%s' % i for i in df[u'vendor_dc_id']]
+              result=to_dd(df)
+        - add_cols:
+            - dimension: KPI
+        - stash_push_df: []
+        - stash_concat_df:
+            drop_stash: True
+        - stash_push_df: []
+        ### 导入目标线与安全线
+        - fetch_dataset:
+            template_code: ele_day_60
+            dataset_cate: raw
+            datakit_pull_way: last_day
+            ignore_null_error: true
+            empty_df_record:
+              团队ID: 0
+              目标线: 0
+              安全线: 0
+            columns: [团队ID,目标线,安全线]
+            rename:
+              团队ID: vendor_dc_id
+              目标线: object_line
+              安全线: secure_line
+        - run_py:
+            - |
+              df=to_df(df)
+              df['vendor_dc_id']=[u'%s' % i for i in df[u'vendor_dc_id']]
+              result=to_dd(df)
+        - stash_push_df: []
+        - stash_join_df:
+            how: right
+            on: [vendor_dc_id]
+            drop_stash: True
+        - stash_push_df: []
+        ### 使用主体匹配表
+        - use_df:
+            key: supplier_vendor_dc
+        - run_py:
+            - |
+              df=to_df(df)
+              df['vendor_dc_id']=[u'%s' % i for i in df[u'vendor_dc_id']]
+              result=to_dd(df)
+        - stash_push_df: []
+        - stash_join_df:
+            how: inner
+            on: [vendor_dc_id]
+            drop_stash: True
+
+        - set_meta_month_column:
+            - book_month
+        - df_fillna:
+            columns: [reward_punish_score]
+            value: 0
+
+
+    ### 离职率趋势分析
+    - name: dimission_tendency_analysis_dc
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            dataset_cate: raw
+            template_code: ele_day_74
+            ignore_null_error: true
+            empty_df_record:
+              meta_day: 0
+              城市: '-'
+              站点ID: 0
+              站点名称: '-'
+              新骑手离职率（不含高价）: 0.0
+              老骑手离职率（不含高价）: 0.0
+              骑手离职率（不含高价）: 0.0
+            columns:
+              - meta_day
+              - 城市
+              - 站点ID
+              - 站点名称
+              - 新骑手离职率（不含高价）
+              - 老骑手离职率（不含高价）
+              - 骑手离职率（不含高价）
+            rename:
+              城市: coach_team_name
+              站点ID: vendor_dc_id
+              站点名称: dc_name
+              新骑手离职率（不含高价）: new_knight_leave_ratio
+              老骑手离职率（不含高价）: old_knight_leave_ratio
+              骑手离职率（不含高价）: leave_ratio
+        - run_py:
+            - |
+              df = to_df(df)
+              df=df[df['leave_ratio'].notnull()]
+              need2 = df[df['leave_ratio'].map(str).str.contains('-')]
+              need2['leave_ratio']=0
+              need = df[df['leave_ratio'].map(str).str.contains('%')]
+              need['leave_ratio'] = need['leave_ratio'].map(str).str.strip('%').map(float)/100
+              need_1 =  df[(~df['leave_ratio'].map(str).str.contains('%')) & (~df['leave_ratio'].map(str).str.contains('-')) ]
+              need_1['leave_ratio'] = need_1['leave_ratio'].map(str).map(float)
+              result = pd.concat([need_1,need,need2])
+        - run_py:
+            - |
+              df=to_df(df)
+              df['vendor_dc_id']=[u'%s' % i for i in df[u'vendor_dc_id']]
+              result=to_dd(df)
+        - stash_push_df: []
+          ### 使用主体匹配表
+        - use_df:
+            key: supplier_vendor_dc
+        - run_py:
+            - |
+              df=to_df(df)
+              df['vendor_dc_id']=[u'%s' % i for i in df[u'vendor_dc_id']]
+              result=to_dd(df)
+        - stash_push_df: []
+        - stash_join_df:
+            how: right
+            on: vendor_dc_id
+            drop_stash: True
+        - df_to_float:
+            - leave_ratio
+        - df_fillna:
+            columns: [supplier_id]
+            value: 0
+        - run_py:
+            - |
+              df=to_df(df)
+              df[u'leave_ratio_rank']=df.groupby([u'meta_day','supplier_id'])[u'leave_ratio'].rank(method='min',ascending=True)
+              result=to_dd(df)
+        - set_meta_month_column:
+            - book_month
+        - add_cols:
+            - dimension: "D"
+    - name: dimission_tendency_analysis_city
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            dataset_cate: raw
+            template_code: ele_day_73
+            ignore_null_error: true
+            empty_df_record:
+              meta_day: 0
+              城市: '-'
+              新骑手离职率（不含高价）: 0.0
+              老骑手离职率（不含高价）: 0.0
+              骑手离职率（不含高价）: 0.0
+            columns:
+              - meta_day
+              - 城市
+              - 新骑手离职率（不含高价）
+              - 老骑手离职率（不含高价）
+              - 骑手离职率（不含高价）
+            rename:
+              城市: coach_team_name
+              新骑手离职率（不含高价）: new_knight_leave_ratio
+              老骑手离职率（不含高价）: old_knight_leave_ratio
+              骑手离职率（不含高价）: leave_ratio
+        - run_py:
+            - |
+              df = to_df(df)
+              df=df[df['leave_ratio'].notnull()]
+              need2 = df[df['leave_ratio'].map(str).str.contains('-')]
+              need2['leave_ratio']=0
+              need = df[df['leave_ratio'].map(str).str.contains('%')]
+              need['leave_ratio'] = need['leave_ratio'].map(str).str.strip('%').map(float)/100
+              need_1 =  df[(~df['leave_ratio'].map(str).str.contains('%')) & (~df['leave_ratio'].map(str).str.contains('-')) ]
+              need_1['leave_ratio'] = need_1['leave_ratio'].map(str).map(float)
+              result = pd.concat([need_1,need,need2])
+        - df_to_float:
+            - leave_ratio
+        - stash_push_df: []
+        - use_df:
+            key: dimission_tendency_analysis_dc
+            columns: [supplier_id,coach_team_name]
+        - drop_duplicates:
+            subset: [ supplier_id,coach_team_name  ]
+        - stash_push_df: []
+        - stash_join_df:
+            how: inner
+            on: coach_team_name
+            drop_stash: True
+        - df_fillna:
+            columns: [supplier_id]
+            value: 0
+        - run_py:
+            - |
+              df=to_df(df)
+              df[u'leave_ratio_rank']=df.groupby([u'meta_day',u'supplier_id'])[u'leave_ratio'].rank(method='min',ascending=True)
+              result=to_dd(df)
+        - set_meta_month_column:
+            - book_month
+        - add_cols:
+            - dimension: "C"
+
+    - name: dimission_tendency_analysis
+      sync_result: true
+      cooks:
+        - use_df:
+            key: dimission_tendency_analysis_dc
+        - stash_push_df: []
+        - use_df:
+            key: dimission_tendency_analysis_city
+        - stash_push_df: []
+        - stash_concat_df:
+            drop_stash: true
+
+
+ele_month_env:
+  context_defaults:
+    delay_compute: true
+    sync_result_from_cluster: true
+    play_on_dask_cluster: true
+    platform_code: elem
+    dask_client_set_as_default: true
+    cluster_client_address: 'dask-scheduler-service.databus:8786'
+
+#  pre_load_dataset:
+#    - std_qplus_dc
+  play:
+    - name: std_qplus_dc_copy
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            dataset_type_code: std_qplus_dc
+            dataset_cate: std
+            ignore_null_error: true
+        - when_empty_fetch_dataset:
+            dataset_type_code: std_qplus_dc
+            dataset_cate: std
+            month_offset: -1
+            ignore_null_error: true
+        - drop_duplicates:
+            subset: [ supplier_id,vendor_dc_id  ]
+####权限表
+    - name: authority_list
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            template_code: ele_day_60
+            dataset_cate: raw
+            columns: [ 城市,团队ID,团队名称 ]
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              团队ID: '-'
+              团队名称: '-'
+            rename:
+              城市: coach_team_name
+              团队ID: vendor_dc_id
+              团队名称: dc_name
+        - drop_duplicates:
+            subset: [ coach_team_name,vendor_dc_id ]
+        - stash_push_df: []
+        - use_df:
+            key: std_qplus_dc_copy
+            columns: [ platform_code,supplier_id,supplier_name,vendor_dc_id,city_code,city_name]
+        - stash_push_df: []
+        - stash_join_df:
+            on: [ vendor_dc_id ]
+            how: inner
+            drop_stash: true
+        - add_cols:
+            - platform: '-'
+        - df_set_column_val_if:
+            column: platform
+            condition: '[platform_code] == "elem"'
+            val: 饿了么
+        - df_set_column_val_if:
+            column: platform
+            condition: '[platform_code] == "meituan"'
+            val: 美团
+        - fetch_cols:
+            columns: [ platform_code,platform,supplier_id,supplier_name,coach_team_name,vendor_dc_id,dc_name,city_code,city_name ]
+        - set_meta_month_column:
+            - month
+
+
+    ### 私教和地理城市映射表
+    - name: city_coach_map
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            template_code: ele_day_60  #KPI计算（北京1）(日更新)
+            dataset_cate: raw
+            ignore_null_error: true
+            columns: [城市,团队ID]
+            empty_df_record:
+              城市: '-'
+              团队ID: '-'
+        - df_rename_columns:
+            - 城市: coach_team_name
+              团队ID: vendor_dc_id
+        - run_py:
+            - |
+              df['city_name'] = df['coach_team_name'].str.replace('\d+','')
+              result = to_dd(df)
+        - fetch_cols:
+            columns: [coach_team_name,city_name]
+        - drop_duplicates:
+            - [ coach_team_name,city_name]
+
+
+    - name: ele_day_60_dc_std
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            template_code:  ele_day_60    #KPI计算（北京1）(日更新)
+            dataset_cate: raw
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              团队ID: '-'
+              meta_day: 0
+              人效: 0.0
+              团队名称: '-'
+              KPI奖罚得分: 0.0
+              KPI非奖罚得分: 0.0
+              安全线: 0.0
+              目标线: 0.0
+              全量单: 0
+              全量单平均日单量: 0.0
+              平均在线骑手数: 0.0
+        - df_rename_columns:
+            - 团队ID: vendor_dc_id
+        - stash_push_df: []
+        - use_df:
+            key: std_qplus_dc_copy
+            columns: [ supplier_id,vendor_dc_id]
+        - stash_push_df: []
+        - stash_join_df:
+            on: [vendor_dc_id ]
+            how: inner
+            drop_stash: true
+
+
+    - name: ele_day_62_std
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            template_code: ele_day_62      # kpi计算模板--源数据（日更新）
+            dataset_cate: raw
+            ignore_null_error: true
+            datakit_pull_way: last_day
+            columns: [团队ID,团队名称,骑手,全量单,日期,城市]
+            empty_df_record:
+              团队ID: '-'
+              团队名称: '-'
+              骑手: 0
+              全量单: 0
+              日期: '1999-12-12 00:00:00'
+              城市: '-'
+        - df_rename_columns:
+            - 团队ID: vendor_dc_id
+              团队名称: dc_name
+        - set_date_column:
+            src_column: 日期
+        - df_to_int:
+            - 日期
+        - df_rename_columns:
+            - 日期: meta_day
+        - stash_push_df: []
+        - use_df:
+            key: std_qplus_dc_copy
+            columns: [ supplier_id,vendor_dc_id ]
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ vendor_dc_id ]
+            how: inner
+            drop_stash: true
+
+    - name: ele_day_67_std
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            template_code: ele_day_67      # 商评分--站点难度 （日更新）
+            dataset_cate: raw
+            ignore_null_error: true
+            empty_df_record:
+              团队ID: '-'
+              难度等级: '-'
+              meta_day: 0
+        - df_rename_columns:
+            - 团队ID: vendor_dc_id
+        - stash_push_df: []
+        - use_df:
+            key: std_qplus_dc_copy
+            columns: [ supplier_id,vendor_dc_id ]
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ vendor_dc_id ]
+            how: inner
+            drop_stash: true
+
+    - name: ele_month_77_std
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            template_code: ele_month_77        # 站点评价体系(月更新)
+            dataset_cate: raw
+            datakit_pull_way: last_day
+            columns: [ 团队ID,站点类型 ]
+            ignore_null_error: true
+            empty_df_record:
+              团队ID: '-'
+              站点类型: '-'
+            rename:
+              团队ID: vendor_dc_id
+              站点类型: evaluate_forecast
+        - stash_push_df: []
+        - use_df:
+            key: std_qplus_dc_copy
+            columns: [ supplier_id,vendor_dc_id ]
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ vendor_dc_id ]
+            how: inner
+            drop_stash: true
+
+    - name: ele_day_60_coach_std
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            template_code: ele_day_60
+            dataset_cate: raw
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              团队ID: '-'
+              团队名称: '-'
+              KPI奖罚得分: 0.0
+              KPI非奖罚得分: 0.0
+              安全线: 0
+              目标线: 0
+              全量单: 0.0
+              全量单平均日单量: 0.0
+              平均在线骑手数: 0.0
+              人效: 0.0
+              meta_day: 0
+        - df_rename_columns:
+            - 城市: coach_team_name
+              团队ID: vendor_dc_id
+        - run_py:
+            - |
+              df = df[df['vendor_dc_id'].isnull()]
+              result = df
+        - stash_push_df: [ ]
+
+        -  use_df:
+             key: ele_day_60_dc_std
+             columns: [ supplier_id,meta_day,城市]
+             ignore_null_error: true
+             empty_df_record:
+               supplier_id: '-'
+               meta_day: 0
+               城市: '-'
+        - df_rename_columns:
+            - 城市: coach_team_name
+        - drop_duplicates:
+            - [supplier_id,coach_team_name,meta_day]
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ coach_team_name,meta_day]
+            how: inner
+            drop_stash: true
+
+#计算商圈级总体详情表
+    - name: total_details_dc_mini
+      sync_result: true
+      cooks:
+        - use_df:
+            key:  ele_day_60_dc_std
+            columns: [supplier_id,城市,vendor_dc_id,团队名称,KPI奖罚得分,KPI非奖罚得分,安全线,目标线,全量单,全量单平均日单量,平均在线骑手数,人效,meta_day]
+            ignore_null_error: true
+            empty_df_record:
+              supplier_id: '-'
+              城市: '-'
+              vendor_dc_id: '-'
+              团队名称: '-'
+              KPI奖罚得分: 0.0
+              KPI非奖罚得分: 0.0
+              安全线: 0.0
+              目标线: 0.0
+              全量单: 0
+              全量单平均日单量: 0.0
+              平均在线骑手数: 0.0
+              人效: 0.0
+              meta_day: 0
+        - df_rename_columns:
+            - 城市: coach_team_name
+              团队名称: dc_name
+              KPI奖罚得分: kpi_score
+              KPI非奖罚得分: kpi_no_reward_score
+              安全线: secure_line
+              目标线: object_line
+              全量单: total_order
+              全量单平均日单量: avg_daily_order
+              平均在线骑手数: avg_daily_knight
+              人效: single_utility
+        ### select 商圈级数据
+#          - df_not_nan_inf:
+#              column: vendor_dc_id
+        - df_to_float:
+            - kpi_score
+        - df_to_float:
+            - kpi_no_reward_score
+        - df_to_float:
+            - total_order
+        - df_to_float:
+            - avg_daily_order
+        - df_to_float:
+            - avg_daily_knight
+        - df_to_float:
+            - single_utility
+        - stash_push_df: []
+
+        - fetch_dataset:
+            template_code: ele_day_64
+            dataset_cate: raw
+            columns: [ 团队ID,得分,meta_day ]
+            ignore_null_error: true
+            empty_df_record:
+              团队ID: '-'
+              得分: '-'
+              meta_day: 0
+        - df_rename_columns:
+            - 得分: kpi_no_reward_score_l
+              团队ID: vendor_dc_id
+        - stash_push_df: []
+        - stash_join_df:
+            on: [ vendor_dc_id,meta_day ]
+            how: right
+            drop_stash: true
+        - stash_push_df: [ ]
+
+        - use_df:
+            key: ele_day_62_std
+            columns: [vendor_dc_id,骑手,全量单,meta_day,supplier_id]
+            ignore_null_error: true
+            empty_df_record:
+              vendor_dc_id: '-'
+              骑手: 0
+              全量单: 0
+              meta_day: 0
+              supplier_id: '-'
+        - df_rename_columns:
+            - 骑手: single_daily_knight
+              全量单: single_daily_order
+        - df_to_float:
+            - single_daily_knight
+        - df_to_float:
+            - single_daily_order
+        - stash_push_df: []
+        - stash_join_df:
+            on: [ supplier_id,vendor_dc_id,meta_day ]
+            how: right
+            drop_stash: true
+        - stash_push_df: [ ]
+
+        - use_df:
+            key: ele_day_67_std
+            columns: [vendor_dc_id,难度等级,meta_day,supplier_id]
+            ignore_null_error: true
+            empty_df_record:
+               vendor_dc_id: '-'
+               难度等级: '-'
+               meta_day: 0
+               supplier_id: '-'
+        - df_rename_columns:
+            - 难度等级: difficulty_level
+        - stash_push_df: []
+        - stash_join_df:
+            on: [ supplier_id,vendor_dc_id,meta_day ]
+            how: right
+            drop_stash: true
+        - stash_push_df: []
+
+        - use_df:
+            key: ele_month_77_std
+            ignore_null_error: true
+            empty_df_record:
+              supplier_id: '-'
+              vendor_dc_id: '-'
+              evaluate_forecast: '-'
+        - stash_push_df: []
+
+        - stash_join_df:
+            on: [supplier_id,vendor_dc_id]
+            how: right
+            drop_stash: true
+
+        - drop_duplicates:
+            subset: [ supplier_id,vendor_dc_id,meta_day ]
+        ###全量单排名 日均单排名  日均骑手量排名 当日人效排名 经营结果排名 非奖罚kPI得分排名
+        - run_py:
+            - |
+              df = to_df(df)
+              df['total_order_rank'] = df.groupby(by=['supplier_id','meta_day'])['total_order'].rank(method='min',ascending=False)
+              df['avg_daily_order_rank'] = df.groupby(by=['supplier_id','meta_day'])['avg_daily_order'].rank(method='min',ascending=False)
+              df['avg_daily_knight_rank'] = df.groupby(by=['supplier_id','meta_day'])['avg_daily_knight'].rank(method='min',ascending=False)
+              df['single_utility_rank'] = df.groupby(by=['supplier_id','meta_day'])['single_utility'].rank(method='min',ascending=False)
+              df['kpi_score_rank'] = df.groupby(by=['supplier_id','meta_day'])['kpi_score'].rank(method='min',ascending=False)
+              df['kpi_no_reward_score_rank'] = df.groupby(by=['supplier_id','meta_day'])['kpi_no_reward_score'].rank(method='min',ascending=False)
+              result = df
+
+    - name: total_details_dc
+      sync_result: true
+      cooks:
+        - use_df:
+            key: total_details_dc_mini
+            columns: [supplier_id,vendor_dc_id,meta_day,total_order,total_order_rank,avg_daily_order,avg_daily_order_rank,avg_daily_knight,avg_daily_knight_rank,single_utility,single_utility_rank,kpi_score,kpi_score_rank,kpi_no_reward_score,kpi_no_reward_score_rank]
+        ###环比及各状态
+        - run_py:
+            - |
+              df['meta_day'] = df['meta_day'] + 1
+              result = df
+        - df_rename_columns:
+            - total_order: total_order_before
+              total_order_rank: total_order_rank_before
+              avg_daily_order: avg_daily_order_before
+              avg_daily_order_rank: avg_daily_order_rank_before
+              avg_daily_knight: avg_daily_knight_before
+              avg_daily_knight_rank: avg_daily_knight_rank_before
+              single_utility: single_utility_before
+              single_utility_rank: single_utility_rank_before
+              kpi_score: kpi_score_before
+              kpi_score_rank: kpi_score_rank_before
+              kpi_no_reward_score: kpi_no_reward_score_before
+              kpi_no_reward_score_rank: kpi_no_reward_score_rank_before
+
+        - stash_push_df: []
+        - use_df:
+            key: total_details_dc_mini
+        - stash_push_df: []
+        - stash_join_df:
+            on: [supplier_id,vendor_dc_id,meta_day]
+            how: left
+            drop_stash: true
+        ###全量单排名状态
+        - add_cols:
+            - total_order_rank_status: '-'
+        - df_set_column_val_if:
+            column: total_order_rank_status
+            condition: '[total_order_rank] > [total_order_rank_before]'
+            val: 'up'
+        - df_set_column_val_if:
+            column: total_order_rank_status
+            condition: '[total_order_rank] < [total_order_rank_before]'
+            val: 'down'
+        - df_set_column_val_if:
+            column: total_order_rank_status
+            condition: '[total_order_rank] == [total_order_rank_before]'
+            val: 'equal'
+
+        ### 非奖罚得分排名状态
+        - add_cols:
+            - kpi_no_reward_score_rank_status: '-'
+        - df_set_column_val_if:
+            column: kpi_no_reward_score_rank_status
+            condition: '[kpi_no_reward_score_rank] > [kpi_no_reward_score_rank_before]'
+            val: 'up'
+        - df_set_column_val_if:
+            column: kpi_no_reward_score_rank_status
+            condition: '[kpi_no_reward_score_rank] < [kpi_no_reward_score_rank_before]'
+            val: 'down'
+        - df_set_column_val_if:
+            column: kpi_no_reward_score_rank_status
+            condition: '[kpi_no_reward_score_rank] == [kpi_no_reward_score_rank_before]'
+            val: 'equal'
+
+        ### kpi经营结果排名状态
+        - add_cols:
+            - kpi_score_rank_status: '-'
+        - df_set_column_val_if:
+            column: kpi_score_rank_status
+            condition: '[kpi_score_rank] > [kpi_score_rank_before]'
+            val: 'up'
+        - df_set_column_val_if:
+            column: kpi_score_rank_status
+            condition: '[kpi_score_rank] < [kpi_score_rank_before]'
+            val: 'down'
+        - df_set_column_val_if:
+            column: kpi_score_rank_status
+            condition: '[kpi_score_rank] == [kpi_score_rank_before]'
+            val: 'equal'
+
+        ###日均单排名状态
+        - add_cols:
+            - avg_daily_order_rank_status: '-'
+        - df_set_column_val_if:
+            column: avg_daily_order_rank_status
+            condition: '[avg_daily_order_rank] > [avg_daily_order_rank_before]'
+            val: 'up'
+        - df_set_column_val_if:
+            column: avg_daily_order_rank_status
+            condition: '[avg_daily_order_rank] < [avg_daily_order_rank_before]'
+            val: 'down'
+        - df_set_column_val_if:
+            column: avg_daily_order_rank_status
+            condition: '[avg_daily_order_rank] == [avg_daily_order_rank_before]'
+            val: 'equal'
+
+         ### 日均骑手量排名状态
+        - add_cols:
+            - avg_daily_knight_rank_status: '-'
+        - df_set_column_val_if:
+            column: avg_daily_knight_rank_status
+            condition: '[avg_daily_knight_rank] > [avg_daily_knight_rank_before]'
+            val: 'up'
+        - df_set_column_val_if:
+            column: avg_daily_knight_rank_status
+            condition: '[avg_daily_knight_rank] < [avg_daily_knight_rank_before]'
+            val: 'down'
+        - df_set_column_val_if:
+            column: avg_daily_knight_rank_status
+            condition: '[avg_daily_knight_rank] == [avg_daily_knight_rank_before]'
+            val: 'equal'
+
+        ###当日人效排名状态
+        - add_cols:
+            - single_utility_rank_status: '-'
+        - df_set_column_val_if:
+            column: single_utility_rank_status
+            condition: '[single_utility_rank] > [single_utility_rank_before]'
+            val: 'up'
+        - df_set_column_val_if:
+            column: single_utility_rank_status
+            condition: '[single_utility_rank] < [single_utility_rank_before]'
+            val: 'down'
+        - df_set_column_val_if:
+            column: single_utility_rank_status
+            condition: '[single_utility_rank] == [single_utility_rank_before]'
+            val: 'equal'
+
+        ###日均单环比 日均骑手量环比 当日人效环比
+        - df_eval:
+            - |
+              [avg_daily_order_ratio] = ([avg_daily_order] - [avg_daily_order_before]) / [avg_daily_order_before]
+              [avg_daily_knight_ratio] = ([avg_daily_knight] - [avg_daily_knight_before]) / [avg_daily_knight_before]
+              [single_utility_ratio] = ([single_utility] - [single_utility_before]) / [single_utility_before]
+
+        ### 日均单环比状态
+        - add_cols:
+            - avg_daily_order_ratio_status: '-'
+        - df_set_column_val_if:
+            column: avg_daily_order_ratio_status
+            condition: '[avg_daily_order_ratio] > 0'
+            val: 'up'
+        - df_set_column_val_if:
+            column: avg_daily_order_ratio_status
+            condition: '[avg_daily_order_ratio] < 0 '
+            val: 'down'
+        - df_set_column_val_if:
+            column: avg_daily_order_ratio_status
+            condition: '[avg_daily_order_ratio] == 0'
+            val: 'equal'
+
+        ### 日均骑手量环比状态
+        - add_cols:
+            - avg_daily_knight_ratio_status: '-'
+        - df_set_column_val_if:
+            column: avg_daily_knight_ratio_status
+            condition: '[avg_daily_knight_ratio] > 0'
+            val: 'up'
+        - df_set_column_val_if:
+            column: avg_daily_knight_ratio_status
+            condition: '[avg_daily_knight_ratio] < 0 '
+            val: 'down'
+        - df_set_column_val_if:
+            column: avg_daily_knight_ratio_status
+            condition: '[avg_daily_knight_ratio] == 0'
+            val: 'equal'
+
+        ### 当日人效环比状态
+        - add_cols:
+            - single_utility_ratio_status: '-'
+        - df_set_column_val_if:
+            column: single_utility_ratio_status
+            condition: '[single_utility_ratio] > 0'
+            val: 'up'
+        - df_set_column_val_if:
+            column: single_utility_ratio_status
+            condition: '[single_utility_ratio] < 0 '
+            val: 'down'
+        - df_set_column_val_if:
+            column: single_utility_ratio_status
+            condition: '[single_utility_ratio] == 0'
+            val: 'equal'
+
+        - add_cols:
+            - dc_count: 1
+              dimension: 'D'
+#          - fetch_cols:
+#              columns: [ supplier_id,vendor_dc_id,dc_name,coach_team_name,meta_day,total_order,total_order_rank,total_order_rank_status,single_daily_order,avg_daily_order,avg_daily_order_rank,avg_daily_order_rank_status,avg_daily_order_ratio,avg_daily_order_ratio_status,single_daily_knight,avg_daily_knight,avg_daily_knight_rank,avg_daily_knight_rank_status,avg_daily_knight_ratio,avg_daily_knight_ratio_status,single_utility,single_utility_rank,single_utility_rank_status,single_utility_ratio,single_utility_ratio_status,kpi_score,kpi_score_rank,kpi_no_reward_score,secure_line,object_line,difficulty_level,evaluate_forecast,dc_count,dimension,meta_day]
+        - set_meta_month_column:
+            - month
+
+###计算私教级总体详情表
+    - name: total_details_coach_mini
+      sync_result: true
+      cooks:
+        - use_df:
+            key: ele_day_60_coach_std
+            columns: [ coach_team_name,vendor_dc_id,团队名称,KPI奖罚得分,KPI非奖罚得分,安全线,目标线,全量单,全量单平均日单量,平均在线骑手数,人效,meta_day,supplier_id ]
+            ignore_null_error: true
+            empty_df_record:
+              coach_team_name: '-'
+              vendor_dc_id: '-'
+              团队名称: '-'
+              KPI奖罚得分: 0.0
+              KPI非奖罚得分: 0.0
+              安全线: 0.0
+              目标线: 0.0
+              全量单: 0
+              全量单平均日单量: 0.0
+              平均在线骑手数: 0.0
+              人效: 0.0
+              meta_day: 0
+              supplier_id: '-'
+        - df_rename_columns:
+            - 团队名称: dc_name
+              KPI奖罚得分: kpi_score
+              KPI非奖罚得分: kpi_no_reward_score
+              安全线: secure_line
+              目标线: object_line
+              全量单: total_order
+              全量单平均日单量: avg_daily_order
+              平均在线骑手数: avg_daily_knight
+              人效: single_utility
+      ### 私教级数据
+#        - df_is_nan_inf:
+#            column: vendor_dc_id
+        - df_to_float:
+            - kpi_score
+        - df_to_float:
+            - kpi_no_reward_score
+        - df_to_float:
+            - total_order
+        - df_to_float:
+            - avg_daily_order
+        - df_to_float:
+            - avg_daily_knight
+        - df_to_float:
+            - single_utility
+        - stash_push_df: []
+
+        - fetch_dataset:
+            template_code: ele_day_64
+            dataset_cate: raw
+            columns: [ 城市,团队ID,得分,meta_day]
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              团队ID: '-'
+              得分: '-'
+              meta_day: 0
+        - df_rename_columns:
+            - 得分: kpi_no_reward_score_l
+              城市: coach_team_name
+              团队ID: vendor_dc_id
+        - run_py:
+            - |
+              df = df[df['vendor_dc_id'].isnull()]
+              result = df
+        - fetch_cols:
+            columns: [coach_team_name,meta_day,kpi_no_reward_score_l]
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ coach_team_name,meta_day ]
+            how: right
+            drop_stash: true
+        - stash_push_df: [ ]
+
+        - use_df:
+            key: ele_day_62_std  #kpi计算模板--源数据（日更新）
+            columns: [ 城市,骑手,全量单,meta_day,supplier_id ]
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              骑手: 0
+              全量单: 0
+              meta_day: 0
+              supplier_id: '-'
+        - df_rename_columns:
+            - 城市: coach_team_name
+              骑手: single_daily_knight
+              全量单: single_daily_order
+        - df_to_int:
+            - single_daily_knight
+        - df_to_int:
+            - single_daily_order
+        - df_groupby:
+            by: [supplier_id,meta_day,coach_team_name]
+        - df_sum:
+            column: [single_daily_knight,single_daily_order]
+        - df_reset_index: []
+        - stash_push_df: []
+
+        - stash_join_df:
+            on: [ supplier_id,coach_team_name,meta_day ]
+            how: right
+            drop_stash: true
+
+        - df_fillna:
+            columns: [ kpi_score,kpi_no_reward_score,total_order,avg_daily_order,avg_daily_knight,single_utility,single_daily_knight,single_daily_order ]
+            value: 0.0
+        - drop_duplicates:
+            subset: [ supplier_id,coach_team_name,meta_day ]
+
+      ###全量单排名 日均单排名 日均骑手量排名 当日人效排名  经营结果排名
+        - run_py:
+            - |
+              df = to_df(df)
+              df['total_order_rank'] = df.groupby(by=['supplier_id','meta_day'])['total_order'].rank(method='min',ascending=False)
+              df['avg_daily_order_rank'] = df.groupby(by=['supplier_id','meta_day'])['avg_daily_order'].rank(method='min',ascending=False)
+              df['avg_daily_knight_rank'] = df.groupby(by=['supplier_id','meta_day'])['avg_daily_knight'].rank(method='min',ascending=False)
+              df['single_utility_rank'] = df.groupby(by=['supplier_id','meta_day'])['single_utility'].rank(method='min',ascending=False)
+              df['kpi_score_rank'] = df.groupby(by=['supplier_id','meta_day'])['kpi_score'].rank(method='min',ascending=False)
+              df['kpi_no_reward_score_rank'] = df.groupby(by=['supplier_id','meta_day'])['kpi_no_reward_score'].rank(method='min',ascending=False)
+              result = df
+
+
+    - name: total_details_coach
+      sync_result: true
+      cooks:
+        - use_df:
+            key: total_details_coach_mini
+            columns: [ supplier_id,coach_team_name,meta_day,total_order,total_order_rank,avg_daily_order,avg_daily_order_rank,avg_daily_knight,avg_daily_knight_rank,single_utility,single_utility_rank,kpi_score,kpi_score_rank,kpi_no_reward_score,kpi_no_reward_score_rank]
+
+      ###环比及各状态
+        - run_py:
+            - |
+              df['meta_day'] = df['meta_day'] + 1
+              result = df
+        - df_rename_columns:
+            - total_order: total_order_before
+              total_order_rank: total_order_rank_before
+              avg_daily_order: avg_daily_order_before
+              avg_daily_order_rank: avg_daily_order_rank_before
+              avg_daily_knight: avg_daily_knight_before
+              avg_daily_knight_rank: avg_daily_knight_rank_before
+              single_utility: single_utility_before
+              single_utility_rank: single_utility_rank_before
+              kpi_score: kpi_score_before
+              kpi_score_rank: kpi_score_rank_before
+              kpi_no_reward_score: kpi_no_reward_score_before
+              kpi_no_reward_score_rank: kpi_no_reward_score_rank_before
+        - stash_push_df: [ ]
+        - use_df:
+            key: total_details_coach_mini
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ supplier_id,coach_team_name,meta_day ]
+            how: left
+            drop_stash: true
+        ###全量单排名状态
+        - add_cols:
+            - total_order_rank_status: '-'
+        - df_set_column_val_if:
+            column: total_order_rank_status
+            condition: '[total_order_rank] > [total_order_rank_before]'
+            val: 'up'
+        - df_set_column_val_if:
+            column: total_order_rank_status
+            condition: '[total_order_rank] < [total_order_rank_before]'
+            val: 'down'
+        - df_set_column_val_if:
+            column: total_order_rank_status
+            condition: '[total_order_rank] == [total_order_rank_before]'
+            val: 'equal'
+
+        ### 非奖罚得分排名状态
+        - add_cols:
+            - kpi_no_reward_score_rank_status: '-'
+        - df_set_column_val_if:
+            column: kpi_no_reward_score_rank_status
+            condition: '[kpi_no_reward_score_rank] > [kpi_no_reward_score_rank_before]'
+            val: 'up'
+        - df_set_column_val_if:
+            column: kpi_no_reward_score_rank_status
+            condition: '[kpi_no_reward_score_rank] < [kpi_no_reward_score_rank_before]'
+            val: 'down'
+        - df_set_column_val_if:
+            column: kpi_no_reward_score_rank_status
+            condition: '[kpi_no_reward_score_rank] == [kpi_no_reward_score_rank_before]'
+            val: 'equal'
+
+        ### kpi经营结果排名状态
+        - add_cols:
+            - kpi_score_rank_status: '-'
+        - df_set_column_val_if:
+            column: kpi_score_rank_status
+            condition: '[kpi_score_rank] > [kpi_score_rank_before]'
+            val: 'up'
+        - df_set_column_val_if:
+            column: kpi_score_rank_status
+            condition: '[kpi_score_rank] < [kpi_score_rank_before]'
+            val: 'down'
+        - df_set_column_val_if:
+            column: kpi_score_rank_status
+            condition: '[kpi_score_rank] == [kpi_score_rank_before]'
+            val: 'equal'
+
+      ###日均单排名状态
+        - add_cols:
+            - avg_daily_order_rank_status: '-'
+        - df_set_column_val_if:
+            column: avg_daily_order_rank_status
+            condition: '[avg_daily_order_rank] > [avg_daily_order_rank_before]'
+            val: 'up'
+        - df_set_column_val_if:
+            column: avg_daily_order_rank_status
+            condition: '[avg_daily_order_rank] < [avg_daily_order_rank_before]'
+            val: 'down'
+        - df_set_column_val_if:
+            column: avg_daily_order_rank_status
+            condition: '[avg_daily_order_rank] == [avg_daily_order_rank_before]'
+            val: 'equal'
+
+      ### 日均骑手量排名状态
+        - add_cols:
+            - avg_daily_knight_rank_status: '-'
+        - df_set_column_val_if:
+            column: avg_daily_knight_rank_status
+            condition: '[avg_daily_knight_rank] > [avg_daily_knight_rank_before]'
+            val: 'up'
+        - df_set_column_val_if:
+            column: avg_daily_knight_rank_status
+            condition: '[avg_daily_knight_rank] < [avg_daily_knight_rank_before]'
+            val: 'down'
+        - df_set_column_val_if:
+            column: avg_daily_knight_rank_status
+            condition: '[avg_daily_knight_rank] == [avg_daily_knight_rank_before]'
+            val: 'equal'
+
+      ###当日人效排名状态
+        - add_cols:
+            - single_utility_rank_status: '-'
+        - df_set_column_val_if:
+            column: single_utility_rank_status
+            condition: '[single_utility_rank] > [single_utility_rank_before]'
+            val: 'up'
+        - df_set_column_val_if:
+            column: single_utility_rank_status
+            condition: '[single_utility_rank] < [single_utility_rank_before]'
+            val: 'down'
+        - df_set_column_val_if:
+            column: single_utility_rank_status
+            condition: '[single_utility_rank] == [single_utility_rank_before]'
+            val: 'equal'
+
+      ###日均单环比 日均骑手量环比  当日人效环比
+        - df_eval:
+            - |
+              [avg_daily_order_ratio] = ([avg_daily_order] - [avg_daily_order_before]) / [avg_daily_order_before]
+              [avg_daily_knight_ratio] = ([avg_daily_knight] - [avg_daily_knight_before]) / [avg_daily_knight_before]
+              [single_utility_ratio] = ([single_utility] - [single_utility_before]) / [single_utility_before]
+      ### 日均单环比状态
+        - add_cols:
+            - avg_daily_order_ratio_status: '-'
+        - df_set_column_val_if:
+            column: avg_daily_order_ratio_status
+            condition: '[avg_daily_order_ratio] > 0'
+            val: 'up'
+        - df_set_column_val_if:
+            column: avg_daily_order_ratio_status
+            condition: '[avg_daily_order_ratio] < 0 '
+            val: 'down'
+        - df_set_column_val_if:
+            column: avg_daily_order_ratio_status
+            condition: '[avg_daily_order_ratio] == 0'
+            val: 'equal'
+
+      ### 日均骑手量环比状态
+        - add_cols:
+            - avg_daily_knight_ratio_status: '-'
+        - df_set_column_val_if:
+            column: avg_daily_knight_ratio_status
+            condition: '[avg_daily_knight_ratio] > 0'
+            val: 'up'
+        - df_set_column_val_if:
+            column: avg_daily_knight_ratio_status
+            condition: '[avg_daily_knight_ratio] < 0 '
+            val: 'down'
+        - df_set_column_val_if:
+            column: avg_daily_knight_ratio_status
+            condition: '[avg_daily_knight_ratio] == 0'
+            val: 'equal'
+
+      ### 当日人效环比状态
+        - add_cols:
+            - single_utility_ratio_status: '-'
+        - df_set_column_val_if:
+            column: single_utility_ratio_status
+            condition: '[single_utility_ratio] > 0'
+            val: 'up'
+        - df_set_column_val_if:
+            column: single_utility_ratio_status
+            condition: '[single_utility_ratio] < 0 '
+            val: 'down'
+        - df_set_column_val_if:
+            column: single_utility_ratio_status
+            condition: '[single_utility_ratio] == 0'
+            val: 'equal'
+        - add_cols:
+            - dimension: 'C'
+        - stash_push_df: []
+
+        - use_df:
+            key: ele_day_60_dc_std   #KPI计算（北京1）(日更新)
+            columns: [ 城市,vendor_dc_id,meta_day,supplier_id ]
+            ignore_null_error: true
+            empty_df_record:
+               城市: '-'
+               vendor_dc_id: '-'
+               meta_day: 0
+               supplier_id: '-'
+        - df_rename_columns:
+            - 城市: coach_team_name
+
+        - run_py:
+            - |
+              df = df[df['vendor_dc_id'].notnull()]
+              result = df
+        - df_groupby:
+            by: [supplier_id,meta_day,coach_team_name]
+        - df_count:
+            column: [vendor_dc_id]
+        - df_rename_columns:
+            - vendor_dc_id: dc_count
+        - df_reset_index: []
+
+        - stash_push_df: []
+        - stash_join_df:
+            on: [supplier_id,meta_day,coach_team_name]
+            how: right
+            drop_stash: true
+#          - fetch_cols:
+#              columns: [ supplier_id,vendor_dc_id,dc_name,coach_team_name,meta_day,total_order,total_order_rank,total_order_rank_status,single_daily_order,avg_daily_order,avg_daily_order_rank,avg_daily_order_rank_status,avg_daily_order_ratio,avg_daily_order_ratio_status,single_daily_knight,avg_daily_knight,avg_daily_knight_rank,avg_daily_knight_rank_status,avg_daily_knight_ratio,avg_daily_knight_ratio_status,single_utility,single_utility_rank,single_utility_rank_status,single_utility_ratio,single_utility_ratio_status,kpi_score,kpi_score_rank,kpi_no_reward_score,secure_line,object_line,dc_count,dimension,meta_day]
+        - set_meta_month_column:
+            - month
+
+### 计算总体详情表
+    - name: total_details
+      sync_result: true
+      cooks:
+        - use_df:
+            key: total_details_dc
+            columns: [ supplier_id,vendor_dc_id,dc_name,coach_team_name,meta_day,kpi_no_reward_score_l,total_order,total_order_rank,total_order_rank_status,single_daily_order,avg_daily_order,avg_daily_order_rank,avg_daily_order_rank_status,avg_daily_order_ratio,avg_daily_order_ratio_status,single_daily_knight,avg_daily_knight,avg_daily_knight_rank,avg_daily_knight_rank_status,avg_daily_knight_ratio,avg_daily_knight_ratio_status,single_utility,single_utility_rank,single_utility_rank_status,single_utility_ratio,single_utility_ratio_status,kpi_score,kpi_score_rank,kpi_score_rank_status,kpi_no_reward_score,kpi_no_reward_score_rank,kpi_no_reward_score_rank_status,secure_line,object_line,difficulty_level,evaluate_forecast,dc_count,dimension,month ]
+        - stash_push_df: []
+        - use_df:
+            key: total_details_coach
+            columns: [ supplier_id,vendor_dc_id,dc_name,coach_team_name,meta_day,kpi_no_reward_score_l,total_order,total_order_rank,total_order_rank_status,single_daily_order,avg_daily_order,avg_daily_order_rank,avg_daily_order_rank_status,avg_daily_order_ratio,avg_daily_order_ratio_status,single_daily_knight,avg_daily_knight,avg_daily_knight_rank,avg_daily_knight_rank_status,avg_daily_knight_ratio,avg_daily_knight_ratio_status,single_utility,single_utility_rank,single_utility_rank_status,single_utility_ratio,single_utility_ratio_status,kpi_score,kpi_score_rank,kpi_score_rank_status,kpi_no_reward_score,kpi_no_reward_score_rank,kpi_no_reward_score_rank_status,secure_line,object_line,dc_count,dimension,month ]
+        - stash_push_df: []
+
+        - stash_concat_df:
+            drop_stash: true
+        - df_rename_columns:
+            - meta_day: book_day
+              month: book_month
+
+
+    - name: raw_main_range_dc
+      sync_result: true
+      cooks:
+        - use_df:
+            key: ele_day_62_std
+            columns: [vendor_dc_id,dc_name,骑手,全量单,meta_day,城市]
+        - df_rename_columns:
+            - 骑手: single_daily_knight
+              全量单: single_daily_order
+              城市: coach_team_name
+              meta_day: book_day
+        - df_to_float:
+            - single_daily_knight
+        - df_to_float:
+            - single_daily_order
+        - stash_push_df: []
+        - use_df:
+            key: total_details
+            columns: [vendor_dc_id,book_day,avg_daily_order,avg_daily_knight]
+        - stash_push_df: []
+        - stash_join_df:
+            on: [ vendor_dc_id,book_day]
+            how: right
+            drop_stash: true
+        - stash_push_df: []
+        - use_df:
+            key: std_qplus_dc_copy
+            columns: [supplier_id,vendor_dc_id ]
+        - stash_push_df: []
+        - stash_join_df:
+            on: [vendor_dc_id]
+            how: inner
+            drop_stash: true
+        - add_cols:
+            - dimension: D
+
+    - name: raw_main_range_coach
+      sync_result: true
+      cooks:
+        - use_df:
+            key: ele_day_62_std
+            columns: [ vendor_dc_id,骑手,全量单,meta_day,城市 ]
+        - df_rename_columns:
+            - 骑手: single_daily_knight
+              全量单: single_daily_order
+              城市: coach_team_name
+              meta_day: book_day
+        - df_to_float:
+            - single_daily_knight
+        - df_to_float:
+            - single_daily_order
+        - df_groupby:
+            by: [coach_team_name,book_day]
+        - df_sum:
+            column: [single_daily_knight,single_daily_order]
+        - df_reset_index: []
+        - stash_push_df: []
+
+        - use_df:
+            key: total_details
+        - df_select:
+            - 'dimension == @p1'
+            - p1: C
+        - fetch_cols:
+            columns: [book_day,avg_daily_order,avg_daily_knight,coach_team_name]
+        - stash_push_df: []
+        - stash_join_df:
+            on: [ coach_team_name,book_day ]
+            how: right
+            drop_stash: true
+        - stash_push_df: []
+
+        - use_df:
+            key: ele_day_60_dc_std
+            columns: [ supplier_id,城市]
+            ignore_null_error: true
+            empty_df_record:
+              supplier_id: '-'
+              城市: '-'
+        - df_rename_columns:
+            - 城市: coach_team_name
+        - drop_duplicates:
+            - [supplier_id,coach_team_name]
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ coach_team_name]
+            how: inner
+            drop_stash: true
+        - add_cols:
+            - dimension: C
+
+    - name: raw_main_range
+      sync_result: true
+      cooks:
+        - use_df:
+            key: raw_main_range_dc
+        - stash_push_df: []
+        - use_df:
+            key: raw_main_range_coach
+        - stash_push_df: []
+        - stash_concat_df:
+            drop_stash: true
+
+
+#### kpi明细表
+    - name: kpi_detail
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            template_code: ele_day_60   #KPI计算（北京1）(日更新)
+            dataset_cate: raw
+            datakit_pull_way: last_day
+            columns: [ 城市,团队ID,团队名称,KPI奖罚得分,快送降级单加分,目标线,目标线是否达标,安全线,安全线是否达标,平台触达结果1,平台触达结果2,平台触达结果3 ]
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              团队ID: '-'
+              团队名称: '-'
+              KPI奖罚得分: 0.0
+              快送降级单加分: 0.0
+              目标线: 0
+              目标线是否达标: '-'
+              安全线: 0
+              安全线是否达标: '-'
+              平台触达结果1: '-'
+              平台触达结果2: '-'
+              平台触达结果3: '-'
+        - df_rename_columns:
+            - 城市: coach_team_name
+              团队ID: vendor_dc_id
+              团队名称: dc_name
+              KPI奖罚得分: kpi_reward_punish_score
+              快送降级单加分: quick_demotion_order_add
+              目标线: object_line
+              目标线是否达标: object_line_result
+              安全线: secure_line
+              安全线是否达标: secure_line_result
+              平台触达结果1: platform_reach_result_one
+              平台触达结果2: platform_reach_result_two
+              平台触达结果3: platform_reach_result_three
+        - stash_push_df: [ ]
+
+        - use_df:
+            key: std_qplus_dc_copy
+        - fetch_cols:
+            columns: [ supplier_id,vendor_dc_id ]
+        - stash_push_df: [ ]
+
+        - stash_join_df:
+            on: [ vendor_dc_id ]
+            how: inner
+            drop_stash: true
+        - set_meta_month_column:
+            - book_month
+        - df_to_float:
+            - kpi_reward_punish_score
+        - df_to_float:
+            - quick_demotion_order_add
+
+### 奖罚KPI得分明细
+    - name: kpi_reward_punish_score_detail
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            template_code: ele_day_60   #KPI计算（北京1）(日更新)
+            dataset_cate: raw
+            datakit_pull_way: last_day
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              团队ID: '-'
+              团队名称: '-'
+              KPI奖罚得分: 0.0
+              快送降级单加分: 0.0
+              平均在线骑手数: 0.0
+              人效: 0.0
+              全量单平均日单量: 0
+              全量单: 0
+              系统接单数: 0
+              有效完成单: 0
+              超时数: 0
+              超时率: 0.0
+              超时分数: 0.0
+              配送原因取消: 0
+              配送原因取消率: 0.0
+              配送原因取消分数: 0.0
+              坏单: 0
+              坏单率: 0.0
+              坏单分数: 0.0
+              虚假配送: 0
+              虚假配送率: 0.0
+              虚假配送分数: 0.0
+              骑手T10超时单: 0
+              骑手T10超时率: 0.0
+              骑手T10超时得分: 0.0
+        - df_rename_columns:
+            - 城市: coach_team_name
+              团队ID: vendor_dc_id
+              团队名称: dc_name
+              KPI奖罚得分: kpi_reward_punish_score
+              快送降级单加分: quick_demotion_order_add
+              平均在线骑手数: avg_online_knight
+              人效: utility
+              全量单平均日单量: avg_daily_order
+              全量单: total_order
+              系统接单数: system_order
+              有效完成单: valid_over_order
+              超时数: overtime_order
+              超时率: overtime_ratio
+              超时分数: overtime_score
+              配送原因取消: cancel_order
+              配送原因取消率: cancel_ratio
+              配送原因取消分数: cancel_score
+              坏单: bad_order
+              坏单率: bad_ratio
+              坏单分数: bad_score
+              虚假配送: false_order
+              虚假配送率: false_ratio
+              虚假配送分数: false_score
+              骑手T10超时单: t10_overtime_order
+              骑手T10超时率: t10_overtime_ratio
+              骑手T10超时得分: t10_overtime_score
+        - pad_cols:
+            columns: [ overtime_order,overtime_score,overtime_score,t10_overtime_order,t10_overtime_ratio,t10_overtime_score ]
+            default_value:
+        - fetch_cols:
+            columns: [ coach_team_name,vendor_dc_id,dc_name,kpi_reward_punish_score,quick_demotion_order_add,avg_online_knight,utility,avg_daily_order,total_order,system_order,valid_over_order,overtime_order,overtime_ratio,overtime_score,cancel_order,cancel_ratio,cancel_score,bad_order,bad_ratio,bad_score,false_order,false_ratio,false_score,t10_overtime_order,t10_overtime_ratio,t10_overtime_score ]
+
+        - stash_push_df: [ ]
+
+        - use_df:
+            key: std_qplus_dc_copy
+        - fetch_cols:
+            columns: [ supplier_id,vendor_dc_id ]
+        - stash_push_df: [ ]
+
+        - stash_join_df:
+            on: [ vendor_dc_id ]
+            how: inner
+            drop_stash: true
+        - set_meta_month_column:
+            - book_month
+        - df_to_float:
+            - kpi_reward_punish_score
+        - df_to_float:
+            - quick_demotion_order_add
+        - df_to_float:
+            - utility
+        - df_to_float:
+            - cancel_ratio
+        - df_to_float:
+            - cancel_score
+        - df_to_float:
+            - bad_ratio
+        - df_to_float:
+            - bad_score
+        - df_to_float:
+            - false_ratio
+        - df_to_float:
+            - false_score
+#        - df_to_float:
+#            - overtime_ratio
+#        - df_to_float:
+#            - overtime_score
+#        - df_to_float:
+#            - t10_overtime_ratio
+#        - df_to_float:
+#            - t10_overtime_score
+
+
+    #### 非奖罚得分kPI明细
+    - name: kpi_no_reward_punish_score_detail
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            template_code:  ele_day_61  #kpi计算- 非奖罚(日更新)
+            dataset_cate: raw
+            datakit_pull_way: last_day
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              团队ID: '-'
+              团队名称: '-'
+              融合单有效完成单: 0
+              质选有效完成单: 0
+              星巴克有效完成单: 0
+              淘鲜达有效完成单: 0
+              融合单得分: 0.0
+              质选得分: 0.0
+              星巴克得分: 0.0
+              淘鲜达得分: 0.0
+              x值: 0.0
+              y值: 0.0
+              z值: 0.0
+              全量单: 0
+              得分: 0.0
+        - df_rename_columns:
+            - 城市: coach_team_name
+              团队ID: vendor_dc_id
+              团队名称: dc_name
+              融合单有效完成单: fuse_valid_over_order
+              质选有效完成单: quality_select_valid_over_order
+              星巴克有效完成单: xbk_valid_over_order
+              淘鲜达有效完成单: txd_valid_over_order
+              融合单得分: fuse_score
+              质选得分: quality_select_score
+              星巴克得分: xbk_score
+              淘鲜达得分: txd_score
+              x值: x_score
+              y值: y_score
+              z值: z_score
+              全量单: total_order
+              得分: score
+        - pad_cols:
+            columns: [ quality_select_valid_over_order,quality_select_score,x_score ]
+            default_value:
+        - fetch_cols:
+            columns: [ coach_team_name,vendor_dc_id,dc_name,fuse_valid_over_order,quality_select_valid_over_order,xbk_valid_over_order,txd_valid_over_order,fuse_score,quality_select_score,xbk_score,txd_score,x_score,y_score,z_score,total_order,score ]
+        - stash_push_df: []
+        - use_df:
+            key: std_qplus_dc_copy
+        - fetch_cols:
+            columns: [ supplier_id,vendor_dc_id ]
+        - stash_push_df: []
+
+        - stash_join_df:
+            on: [ vendor_dc_id ]
+            how: inner
+            drop_stash: true
+        - set_meta_month_column:
+            - book_month
+        - df_to_float:
+            - fuse_score
+        - df_to_float:
+            - xbk_score
+        - df_to_float:
+            - txd_score
+        - df_to_float:
+            - y_score
+        - df_to_float:
+            - z_score
+        - df_to_float:
+            - score
+#        - df_to_float:
+#            - quality_select_score
+#        - df_to_float:
+#            - x_score
+
+
+
+####  商评分各项得分明细
+    - name: merchant_grade_item_score_detail
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            template_code:  ele_day_66   # 商评分--商评结果 （日更新）
+            dataset_cate: raw
+            datakit_pull_way: last_day
+            columns: [ 城市,大区,有《食品经营许可证》,尾部站点整改不达标,站长评级,骑手出勤率,非奖罚得分,难度站点,单量占比增长,多业务承接,加分项,减分项,合计得分,折和100分后得分,评级,城市内排名,全量标品运营天数日均有效完成单,城市下限,城市规模上限,单量区间判定,城市商数量,城市单量区间,商数量上限,尾部强排规则]
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              大区: '-'
+              有《食品经营许可证》: 0.0
+              尾部站点整改不达标: 0.0
+              站长评级: 0.0
+              骑手出勤率: 0.0
+              非奖罚得分: 0.0
+              难度站点: 0.0
+              单量占比增长: 0.0
+              多业务承接: 0.0
+              加分项: '-'
+              减分项: '-'
+              合计得分: 0.0
+              折和100分后得分: 0.0
+              评级: '-'
+              城市内排名: 0
+              全量标品运营天数日均有效完成单: 0.0
+              城市下限: 0.0
+              城市规模上限: 0.0
+              单量区间判定: '-'
+              城市商数量: 0
+              城市单量区间: 0.0
+              商数量上限: 0.0
+              尾部强排规则: '-'
+        - df_rename_columns:
+            - 城市: city_name
+              大区: theater_team_name
+              有《食品经营许可证》: have_licence
+              尾部站点整改不达标: low_change
+              站长评级: dc_lead_level
+              骑手出勤率: knight_attendance_score
+              非奖罚得分: no_reward_punish_score
+              难度站点: difficulty_level
+              单量占比增长: order_ration_growth
+              多业务承接: multi_business
+              加分项: add_option
+              减分项: sub_option
+              合计得分: total_score
+              折和100分后得分: equal_100_score
+              评级: level
+              城市内排名: rank_in_city
+              全量标品运营天数日均有效完成单: avg_valid_order_num
+              城市下限: city_floor
+              城市规模上限: city_ceil
+              单量区间判定: single_section
+              城市商数量: dc_count
+              城市单量区间: city_order_section
+              商数量上限: dc_order_ceil
+              尾部强排规则: tail_rule
+        - stash_push_df: []
+        - use_df:
+            key: city_coach_map
+        - stash_push_df: []
+        - stash_join_df:
+            on: [city_name]
+            how: inner
+            drop_stash: true
+        - stash_push_df: []
+
+        - use_df:
+            key: ele_day_60_dc_std
+            columns: [ supplier_id,城市 ]
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              supplier_id: '-'
+        - df_rename_columns:
+            - 城市: coach_team_name
+        - drop_duplicates:
+            - [ supplier_id,coach_team_name ]
+        - stash_push_df: [ ]
+
+        - stash_join_df:
+            on: [ coach_team_name ]
+            how: inner
+            drop_stash: true
+        - set_meta_month_column:
+            - book_month
+
+##### 清退预警
+    - name: clean_warning
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            template_code: ele_day_60
+            dataset_cate: raw
+            datakit_pull_way: last_day
+            columns: [城市,团队ID]
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              团队ID: '-'
+            rename:
+              城市: coach_team_name
+              团队ID: vendor_dc_id
+        - run_py:
+            - |
+              df = df[df['vendor_dc_id'].notnull()]
+              result = df
+        - drop_duplicates:
+            subset: [ coach_team_name,vendor_dc_id ]
+        - stash_push_df:  []
+
+        - fetch_dataset:
+            template_code : ele_day_79    #  ele站点考核项
+            dataset_cate: raw
+            datakit_pull_way: last_day
+            ignore_null_error: true
+            empty_df_record:
+              站点名称: '-'
+              站点ID: '-'
+              站点质量不达标清退: '-'
+              站点评级体系: '-'
+              上海商圈专项优化方案: '-'
+            rename:
+               站点ID: vendor_dc_id
+               站点名称: dc_name
+        - run_py:
+            - |
+              df = to_df(df)
+              for i in df.columns:
+                if i not in ['vendor_dc_id','dc_name','meta_month','meta_day']:
+                  df[u'%s'%(i)] = np.where(df[u'%s'%(i)].str.contains(u"安全"),u"安全",np.where(df[u'%s'%(i)].str.contains(u'不参与'),'-',u'危险'))
+              result = to_dd(df)
+#              df[u'站点质量不达标清退'] = np.where(df[u'站点质量不达标清退'].str.contains(u"安全"),u"安全",np.where(df[u'站点质量不达标清退'].str.contains(u'不参与'),'-',u'危险'))
+#              df[u'站点评级体系'] = np.where(df[u'站点评级体系'].str.contains(u"安全"),u"安全",np.where(df[u'站点评级体系'].str.contains(u'不参与'),'-',u'危险'))
+#              df[u'上海商圈专项优化方案'] = np.where(df[u'上海商圈专项优化方案'].str.contains(u"安全"),u"安全",np.where(df[u'上海商圈专项优化方案'].str.contains(u'不参与'),'-',u'危险'))
+        - stash_push_df: []
+        - stash_join_df:
+            on: vendor_dc_id
+            how: inner
+            drop_stash: true
+        - add_cols:
+            - dimension: 'D'
+        - stash_push_df: [ ]
+        - use_df:
+            key: std_qplus_dc_copy
+            columns: [ supplier_id,vendor_dc_id ]
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ vendor_dc_id ]
+            how: inner
+            drop_stash: true
+        - set_meta_month_column:
+            - book_month
+
+####other
+
+    ### 主体匹配表
+    - name: supplier_vendor_dc
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            dataset_type_code: std_qplus_dc
+            dataset_cate: std
+            ignore_null_error: true
+            columns: [supplier_id,vendor_dc_id]
+        - when_empty_fetch_dataset:
+            dataset_type_code: std_qplus_dc
+            dataset_cate: std
+            month_offset: -1
+            ignore_null_error: true
+            columns: [supplier_id,vendor_dc_id]
+        - run_py:
+            - |
+              df=to_df(df)
+              df=df[df['vendor_dc_id'].notnull()]
+              result= to_dd(df)
+        - drop_duplicates:
+            subset: [ supplier_id,vendor_dc_id  ]
+
+
+    ###  骑手影响站点分布
+
+    - name: knight_kpi_std
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            dataset_cate: raw
+            template_code: ele_day_63
+            datakit_pull_way: last_day
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              团队ID: 0
+              团队名称: '-'
+              人员ID: '-'
+              KPI奖惩得分: 0
+            columns:
+              - 城市
+              - 团队ID
+              - 团队名称
+              - 人员ID
+              - KPI奖惩得分
+            rename:
+              城市: coach_team_name
+              团队ID: vendor_dc_id
+              团队名称: dc_name
+              人员ID: knight_id
+              KPI奖惩得分: knight_kpi
+        - df_to_int:
+            - vendor_dc_id
+        - stash_push_df: []
+        ### 导入目标线与安全线
+        - fetch_dataset:
+            template_code: ele_day_60
+            dataset_cate: raw
+            datakit_pull_way: last_day
+            ignore_null_error: true
+            empty_df_record:
+              团队ID: 0
+              目标线: 0
+              安全线: 0
+            columns: [团队ID,目标线,安全线]
+            rename:
+              团队ID: vendor_dc_id
+              目标线: object_line
+              安全线: secure_line
+        - df_to_int:
+            - vendor_dc_id
+
+        - stash_push_df: []
+        - stash_join_df:
+            how: right
+            on: vendor_dc_id
+            drop_stash: True
+        - run_py:
+            - |
+              df=to_df(df)
+              df['vendor_dc_id']=[u'%s' % i for i in df[u'vendor_dc_id']]
+              result=to_dd(df)
+        - stash_push_df: []
+        ### 使用主体匹配表
+        - use_df:
+            key: supplier_vendor_dc
+        - stash_push_df: []
+
+        - stash_join_df:
+            how: right
+            on: vendor_dc_id
+            drop_stash: True
+        - add_cols:
+            - over_object_line_knight: 0
+        - add_cols:
+            - between_knight: 0
+        - add_cols:
+            - low_secure_line_knightt: 0
+    - name: knight_kpi_percent
+      sync_result: true
+      cooks:
+        - use_df:
+            key: knight_kpi_std
+        - df_select:
+            - '[knight_kpi]>=[object_line]'
+        - df_eval:
+            - '[over_object_line_knight]=1'
+        - stash_push_df: []
+
+        - use_df:
+            key: knight_kpi_std
+        - df_select:
+            - '[knight_kpi]<[object_line]&[knight_kpi]>=[secure_line]'
+        - df_eval:
+            - '[between_knight]=1'
+        - stash_push_df: []
+
+        - use_df:
+            key: knight_kpi_std
+        - df_select:
+            - '[knight_kpi]<[secure_line]'
+        - df_eval:
+            - '[low_secure_line_knight]=1'
+        - stash_push_df: []
+        - stash_concat_df:
+            stash_drop: True
+        - df_groupby:
+            by: [supplier_id,coach_team_name,vendor_dc_id,dc_name]
+        - df_sum:
+            column: [over_object_line_knight,between_knight,low_secure_line_knight]
+        - df_reset_index: []
+        - add_cols:
+            - over_object_line_knight_ratio: 0
+        - add_cols:
+            - between_knight_ratio: 0
+        - add_cols:
+            - low_secure_line_knight_ratio: 0
+        - df_eval:
+            - '[over_object_line_knight_ratio]=[over_object_line_knight]/([over_object_line_knight]+[between_knight]+[low_secure_line_knight])'
+        - df_eval:
+            - '[between_knight_ratio]=[between_knight]/([over_object_line_knight]+[between_knight]+[low_secure_line_knight])'
+        - df_eval:
+            - '[low_secure_line_knight_ratio]=[low_secure_line_knight]/([over_object_line_knight]+[between_knight]+[low_secure_line_knight])'
+        - df_sum_with_columns:
+            dest_column: total_knight
+            src_columns: [over_object_line_knight,between_knight,low_secure_line_knight]
+    - name: knight_affect_dc_score
+      sync_result: true
+      cooks:
+        - use_df:
+            key: knight_kpi_percent
+            columns:
+              - supplier_id
+              - coach_team_name
+              - vendor_dc_id
+              - dc_name
+              - total_knight
+              - over_object_line_knight
+              - over_object_line_knight_ratio
+              - between_knight
+              - between_knight_ratio
+              - low_secure_line_knight
+              - low_secure_line_knight_ratio
+        - set_meta_month_column:
+            - book_month
+        - df_to_int:
+            - total_knight
+        - df_to_int:
+            - over_object_line_knight
+        - df_to_int:
+            - between_knight
+        - df_to_int:
+            - low_secure_line_knight
+        - df_to_float:
+            - over_object_line_knight_ratio
+        - df_to_float:
+            - between_knight_ratio
+        - df_to_float:
+            - low_secure_line_knight_ratio
+
+
+    ### 商评分各项问题商圈明细
+    - name: dc_question_detail_mini
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            dataset_cate: raw
+            template_code: ele_day_67
+            datakit_pull_way: last_day
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              团队ID: 0
+              团队名称: '-'
+              难度等级: '-'
+              达标情况: '-'
+              KPI得分: 0
+              目标线: 0
+              安全线: 0
+              得分: 0
+              非奖罚-单量（站点）: 0
+              非奖罚-单量（商ID）: 0
+              单量权重: 0.0
+            columns:
+              - 城市
+              - 团队ID
+              - 团队名称
+              - 难度等级
+              - 达标情况
+              - KPI得分
+              - 目标线
+              - 安全线
+              - 得分
+              - 非奖罚-单量（站点）
+              - 非奖罚-单量（商ID）
+              - 单量权重
+            rename:
+              城市: city_name
+              团队ID: vendor_dc_id
+              团队名称: dc_name
+              难度等级: difficulty_level
+              达标情况: reach_the_standard
+              KPI得分: kpi_score
+              目标线: object_line
+              安全线: secure_line
+              得分: score
+              非奖罚-单量（站点）: dc_order_no_reward
+              非奖罚-单量（商ID）: id_order_no_reward
+              单量权重: weight
+        - df_to_int:
+            - vendor_dc_id
+        - add_cols:
+            - dimension: ND
+        - stash_push_df: []
+
+        - fetch_dataset:
+            dataset_cate: raw
+            template_code: ele_day_65
+            datakit_pull_way: last_day
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              团队名称: '-'
+              团队ID: 0
+              活跃骑手数: 0
+              周活跃骑手数: 0
+              日均出勤率: 0.0
+              得分: 0.0
+            columns:
+              - 城市
+              - 团队名称
+              - 团队ID
+              - 活跃骑手数
+              - 周活跃骑手数
+              - 日均出勤率
+              - 得分
+            rename:
+              城市: city_name
+              团队名称: dc_name
+              团队ID: vendor_dc_id
+              活跃骑手数: active_knight
+              周活跃骑手数: weekly_active_knight
+              日均出勤率: single_avg_attendance_score
+              得分: score
+        - df_to_int:
+            - vendor_dc_id
+        - add_cols:
+            - dimension: CQ
+        - stash_push_df: []
+        - stash_concat_df:
+            drop_stash: True
+        - stash_push_df: []
+
+        - fetch_dataset:
+            dataset_cate: raw
+            template_code: ele_day_68
+            datakit_pull_way: last_day
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              团队名称: '-'
+              团队ID: 0
+              站长评级得分: 0.0
+              账号有效完成单: 0
+              得分: 0.0
+            columns:
+              - 城市
+              - 团队名称
+              - 团队ID
+              - 站长评级得分
+              - 账号有效完成单
+              - 得分
+            rename:
+              城市: city_name
+              团队名称: dc_name
+              团队ID: vendor_dc_id
+              站长评级得分: grade_score
+              账号有效完成单: account_valid_order
+              得分: score
+        - df_to_int:
+            - vendor_dc_id
+        - add_cols:
+            - dimension: PJ
+        - stash_push_df: []
+        - stash_concat_df:
+            drop_stash: True
+
+
+    - name: dc_question_detail
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            dataset_cate: raw
+            template_code: ele_day_60
+#            month_offset: -1
+            datakit_pull_way: last_day
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              团队ID: 0
+            columns: [城市,团队ID]
+            rename:
+              城市: coach_team_name
+              团队ID: vendor_dc_id
+        - run_py:
+            - |
+              df=to_df(df)
+              df=df[df['vendor_dc_id'].notnull()]
+              result= to_dd(df)
+        - drop_duplicates:
+            subset:
+              - coach_team_name
+              - vendor_dc_id
+        - push_dataset:
+            key: team_coach_team_name
+        - fetch_dataset:
+            dataset_cate: raw
+            template_code: ele_day_64
+            columns: [ 城市,团队ID,团队名称,全量单,融合单有效完成单,质选有效完成单,星巴克有效完成单,淘鲜达有效完成单,融合单得分,质选得分,星巴克得分,淘鲜达得分,x值,y值,z值,得分 ]
+            datakit_pull_way: last_day
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              团队ID: 0
+              团队名称: '-'
+              全量单: 0
+              融合单有效完成单: 0
+              质选有效完成单: 0
+              星巴克有效完成单: 0
+              淘鲜达有效完成单: 0
+              融合单得分: 0.0
+              质选得分: 0.0
+              星巴克得分: 0.0
+              淘鲜达得分: 0.0
+              x值: 0.0
+              y值: 0.0
+              z值: 0.0
+              得分: 0.0
+            rename:
+              城市: city_name
+              团队ID: vendor_dc_id
+              团队名称: dc_name
+              全量单: total_order
+              融合单有效完成单: fuse_valid_over_order
+              质选有效完成单: quality_select_valid_over_order
+              星巴克有效完成单: xbk_valid_over_order
+              淘鲜达有效完成单: txd_valid_over_order
+              融合单得分: fuse_score
+              质选得分: quality_select_score
+              星巴克得分: xbk_score
+              淘鲜达得分: txd_score
+              x值: x_score
+              y值: y_score
+              z值: z_score
+              得分: score
+        - run_py:
+            - |
+              df = df[df['vendor_dc_id'].notnull()]
+              result = df
+        - df_to_int:
+            - vendor_dc_id
+        - add_cols:
+            - dimension: FJF
+        - stash_push_df: []
+        - fetch_dataset:
+            dataset_cate: raw
+            template_code: ele_day_60
+            datakit_pull_way: last_day
+            columns: [城市,团队ID,目标线]
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              团队ID: 0
+              目标线: 0
+            rename:
+              城市: city_name
+              团队ID: vendor_dc_id
+              目标线: object_line
+        - run_py:
+            - |
+              df = df[df['vendor_dc_id'].isnull()]
+              result = df
+        - fetch_cols:
+            columns: [city_name,object_line]
+        - stash_push_df: []
+        - stash_join_df:
+            on: [city_name]
+            how: right
+            drop_stash: true
+        - stash_push_df: []
+        - use_df:
+            key: dc_question_detail_mini
+        - stash_push_df: []
+        - stash_concat_df:
+            drop_stash: true
+        - run_py:
+            - |
+              df=to_df(df)
+              df['vendor_dc_id']=[u'%s' % i for i in df[u'vendor_dc_id']]
+              result=to_dd(df)
+        - stash_push_df: []
+        ### 使用主体匹配表
+        - use_df:
+            key: supplier_vendor_dc
+        - run_py:
+            - |
+              df=to_df(df)
+              df['vendor_dc_id']=[u'%s' % i for i in df[u'vendor_dc_id']]
+              result=to_dd(df)
+        - stash_push_df: [ ]
+        - stash_join_df:
+            how: inner
+            on: vendor_dc_id
+            drop_stash: True
+        - stash_push_df: [ ]
+        ### 使用私教匹配表
+        - use_df:
+            key: team_coach_team_name
+        - run_py:
+            - |
+              df=to_df(df)
+              df['vendor_dc_id']=[u'%s' % i for i in df[u'vendor_dc_id']]
+              result=to_dd(df)
+        - stash_push_df: [ ]
+        - stash_join_df:
+            how: right
+            on: vendor_dc_id
+            drop_stash: True
+        - set_meta_month_column:
+            - book_month
+
+
+    ### 骑手明细
+    - name: knight_detail
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            dataset_cate: raw
+            template_code: ele_day_75
+            datakit_pull_way: last_day
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              站点ID: 0
+              站点名称: '-'
+              骑手ID: '-'
+              骑手名称: '-'
+              1-5出勤天数: 0
+              6-10出勤天数: 0
+              11-15出勤天数: 0
+              新老骑手判定: '-'
+              是否为高价骑手: '-'
+              是否有离职倾向: '-'
+            columns:
+              - 城市
+              - 站点ID
+              - 站点名称
+              - 骑手ID
+              - 骑手名称
+              - 1-5出勤天数
+              - 6-10出勤天数
+              - 11-15出勤天数
+              - 新老骑手判定
+              - 是否为高价骑手
+              - 是否有离职倾向
+            rename:
+              城市: coach_team_name
+              站点ID: vendor_dc_id
+              站点名称: dc_name
+              骑手ID: knight_id
+              骑手名称: knight_name
+              1-5出勤天数: 1-5_attendance_day
+              6-10出勤天数: 6-10_attendance_day
+              11-15出勤天数: 11-15_attendance_day
+              新老骑手判定: new_old_knight
+              是否为高价骑手: high_price_decide
+              是否有离职倾向: leave_decide
+        - run_py:
+            - |
+              df=to_df(df)
+              df['vendor_dc_id']=[u'%s' % i for i in df[u'vendor_dc_id']]
+              result=to_dd(df)
+        - add_cols:
+            - dimension: CQ
+        - stash_push_df: []
+        - fetch_dataset:
+            dataset_cate: raw
+            template_code: ele_day_63
+            datakit_pull_way: last_day
+            ignore_null_error: true
+            empty_df_record:
+              城市: '-'
+              团队ID: 0
+              团队名称: '-'
+              人员ID: '-'
+              人员姓名: '-'
+              骑手影响站点分数: 0.0
+              全职/高价骑手: 0.0
+              KPI奖惩得分: 0.0
+            columns:
+              - 城市
+              - 团队名称
+              - 人员姓名
+              - 团队ID
+              - 人员ID
+              - 骑手影响站点分数
+              - 全职/高价骑手
+              - KPI奖惩得分
+            rename:
+              城市: coach_team_name
+              团队名称: dc_name
+              团队ID: vendor_dc_id
+              人员ID: knight_id
+              人员姓名:  knight_name
+              骑手影响站点分数: knight_affect_dc_score
+              全职/高价骑手: knight_type
+              KPI奖惩得分: reward_punish_score
+        - run_py:
+            - |
+              df=to_df(df)
+              df['vendor_dc_id']=[u'%s' % i for i in df[u'vendor_dc_id']]
+              result=to_dd(df)
+        - add_cols:
+            - dimension: KPI
+        - stash_push_df: []
+        - stash_concat_df:
+            drop_stash: True
+        - stash_push_df: []
+        ### 导入目标线与安全线
+        - fetch_dataset:
+            template_code: ele_day_60
+            dataset_cate: raw
+            datakit_pull_way: last_day
+            ignore_null_error: true
+            empty_df_record:
+              团队ID: 0
+              目标线: 0
+              安全线: 0
+            columns: [团队ID,目标线,安全线]
+            rename:
+              团队ID: vendor_dc_id
+              目标线: object_line
+              安全线: secure_line
+        - run_py:
+            - |
+              df=to_df(df)
+              df['vendor_dc_id']=[u'%s' % i for i in df[u'vendor_dc_id']]
+              result=to_dd(df)
+        - stash_push_df: []
+        - stash_join_df:
+            how: right
+            on: [vendor_dc_id]
+            drop_stash: True
+        - stash_push_df: []
+        ### 使用主体匹配表
+        - use_df:
+            key: supplier_vendor_dc
+        - run_py:
+            - |
+              df=to_df(df)
+              df['vendor_dc_id']=[u'%s' % i for i in df[u'vendor_dc_id']]
+              result=to_dd(df)
+        - stash_push_df: []
+        - stash_join_df:
+            how: inner
+            on: [vendor_dc_id]
+            drop_stash: True
+
+        - set_meta_month_column:
+            - book_month
+        - df_fillna:
+            columns: [reward_punish_score]
+            value: 0
+
+
+    ### 离职率趋势分析
+    - name: dimission_tendency_analysis_dc
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            dataset_cate: raw
+            template_code: ele_day_74
+            ignore_null_error: true
+            empty_df_record:
+              meta_day: 0
+              城市: '-'
+              站点ID: 0
+              站点名称: '-'
+              新骑手离职率（不含高价）: 0.0
+              老骑手离职率（不含高价）: 0.0
+              骑手离职率（不含高价）: 0.0
+            columns:
+              - meta_day
+              - 城市
+              - 站点ID
+              - 站点名称
+              - 新骑手离职率（不含高价）
+              - 老骑手离职率（不含高价）
+              - 骑手离职率（不含高价）
+            rename:
+              城市: coach_team_name
+              站点ID: vendor_dc_id
+              站点名称: dc_name
+              新骑手离职率（不含高价）: new_knight_leave_ratio
+              老骑手离职率（不含高价）: old_knight_leave_ratio
+              骑手离职率（不含高价）: leave_ratio
+        - run_py:
+            - |
+              df = to_df(df)
+              df=df[df['leave_ratio'].notnull()]
+              need2 = df[df['leave_ratio'].map(str).str.contains('-')]
+              need2['leave_ratio']=0
+              need = df[df['leave_ratio'].map(str).str.contains('%')]
+              need['leave_ratio'] = need['leave_ratio'].map(str).str.strip('%').map(float)/100
+              need_1 =  df[(~df['leave_ratio'].map(str).str.contains('%')) & (~df['leave_ratio'].map(str).str.contains('-')) ]
+              need_1['leave_ratio'] = need_1['leave_ratio'].map(str).map(float)
+              result = pd.concat([need_1,need,need2])
+        - run_py:
+            - |
+              df=to_df(df)
+              df['vendor_dc_id']=[u'%s' % i for i in df[u'vendor_dc_id']]
+              result=to_dd(df)
+        - stash_push_df: []
+          ### 使用主体匹配表
+        - use_df:
+            key: supplier_vendor_dc
+        - run_py:
+            - |
+              df=to_df(df)
+              df['vendor_dc_id']=[u'%s' % i for i in df[u'vendor_dc_id']]
+              result=to_dd(df)
+        - stash_push_df: []
+        - stash_join_df:
+            how: right
+            on: vendor_dc_id
+            drop_stash: True
+        - df_to_float:
+            - leave_ratio
+        - df_fillna:
+            columns: [supplier_id]
+            value: 0
+        - run_py:
+            - |
+              df=to_df(df)
+              df[u'leave_ratio_rank']=df.groupby([u'meta_day','supplier_id'])[u'leave_ratio'].rank(method='min',ascending=True)
+              result=to_dd(df)
+        - set_meta_month_column:
+            - book_month
+        - add_cols:
+            - dimension: "D"
+    - name: dimission_tendency_analysis_city
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            dataset_cate: raw
+            template_code: ele_day_73
+            ignore_null_error: true
+            empty_df_record:
+              meta_day: 0
+              城市: '-'
+              新骑手离职率（不含高价）: 0.0
+              老骑手离职率（不含高价）: 0.0
+              骑手离职率（不含高价）: 0.0
+            columns:
+              - meta_day
+              - 城市
+              - 新骑手离职率（不含高价）
+              - 老骑手离职率（不含高价）
+              - 骑手离职率（不含高价）
+            rename:
+              城市: coach_team_name
+              新骑手离职率（不含高价）: new_knight_leave_ratio
+              老骑手离职率（不含高价）: old_knight_leave_ratio
+              骑手离职率（不含高价）: leave_ratio
+        - run_py:
+            - |
+              df = to_df(df)
+              df=df[df['leave_ratio'].notnull()]
+              need2 = df[df['leave_ratio'].map(str).str.contains('-')]
+              need2['leave_ratio']=0
+              need = df[df['leave_ratio'].map(str).str.contains('%')]
+              need['leave_ratio'] = need['leave_ratio'].map(str).str.strip('%').map(float)/100
+              need_1 =  df[(~df['leave_ratio'].map(str).str.contains('%')) & (~df['leave_ratio'].map(str).str.contains('-')) ]
+              need_1['leave_ratio'] = need_1['leave_ratio'].map(str).map(float)
+              result = pd.concat([need_1,need,need2])
+        - df_to_float:
+            - leave_ratio
+        - stash_push_df: []
+        - use_df:
+            key: dimission_tendency_analysis_dc
+            columns: [supplier_id,coach_team_name]
+        - drop_duplicates:
+            subset: [ supplier_id,coach_team_name  ]
+        - stash_push_df: []
+        - stash_join_df:
+            how: inner
+            on: coach_team_name
+            drop_stash: True
+        - df_fillna:
+            columns: [supplier_id]
+            value: 0
+        - run_py:
+            - |
+              df=to_df(df)
+              df[u'leave_ratio_rank']=df.groupby([u'meta_day',u'supplier_id'])[u'leave_ratio'].rank(method='min',ascending=True)
+              result=to_dd(df)
+        - set_meta_month_column:
+            - book_month
+        - add_cols:
+            - dimension: "C"
+
+    - name: dimission_tendency_analysis
+      sync_result: true
+      cooks:
+        - use_df:
+            key: dimission_tendency_analysis_dc
+        - stash_push_df: []
+        - use_df:
+            key: dimission_tendency_analysis_city
+        - stash_push_df: []
+        - stash_concat_df:
+            drop_stash: true
