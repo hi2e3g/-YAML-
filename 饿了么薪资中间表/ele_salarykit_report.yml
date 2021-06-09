@@ -6,7 +6,8 @@ ele_month_env:
     sync_result_from_cluster: true
     dask_client_set_as_default: true
     debug: true
-    cluster_client_address: 'tcp://172.31.54.193:8786'
+    cluster_client_address: 'dask-scheduler-service.databus:8786'
+#     cluster_client_address: 'tcp://172.31.54.193:8786'
 #    cluster_client_address: 'tcp://172.31.44.61:8786'
   pre_load_dataset:
     # 34b 财务账单-账单下载-配送费累计账单
