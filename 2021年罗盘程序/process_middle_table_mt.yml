@@ -6,7 +6,7 @@ mt_daily_env:
     play_on_dask_cluster: true
     platform_code: meituan
     dask_client_set_as_default: true
-    cluster_client_address: tcp://172.31.54.193:8786
+    cluster_client_address: 'dask-scheduler-service.databus:8786'
 
   play:
     - name: mt_dc_cum_month    #月累计站点数据
@@ -320,8 +320,8 @@ mt_daily_env:
               total_utility_rank: total_utility_rank_before
         - run_py:
             - |
-               df['meta_day'] = df['meta_day'] + 1
-               result =  df
+              df['meta_day'] = df['meta_day'] + 1
+              result =  df
         - stash_push_df: []
 
         - use_df:
@@ -745,8 +745,8 @@ mt_daily_env:
               total_utility_rank: total_utility_rank_before
         - run_py:
             - |
-               df['meta_day'] = df['meta_day'] + 1
-               result =  df
+              df['meta_day'] = df['meta_day'] + 1
+              result =  df
         - stash_push_df: []
 
         - use_df:
@@ -1281,7 +1281,6 @@ mt_daily_env:
         - fetch_dataset:
             template_code: mt_month_60
             dataset_cate: raw
-            datakit_pull_way: last_day
             ignore_null_error: true
             empty_df_record:
               站点ID: '-'
@@ -1456,9 +1455,9 @@ mt_daily_env:
             - 当月总天数
         - run_py:
             - |
-                df=to_df(df)
-                df['days'] = df['book_day'].map(str).str[6:8].map(int)
-                result = to_dd(df)
+              df=to_df(df)
+              df['days'] = df['book_day'].map(str).str[6:8].map(int)
+              result = to_dd(df)
         - push_dataset:
             key: mt_kpi_detail_mini
 
@@ -1868,10 +1867,10 @@ mt_daily_env:
             - attendance_std_line: 0.75
         - run_py:
             - |
-                df=to_df(df)
-                df['max_days']=df['book_day'].max()
-                df['days'] = df['max_days'].map(str).str[6:8].map(int)
-                result = to_dd(df)
+              df=to_df(df)
+              df['max_days']=df['book_day'].max()
+              df['days'] = df['max_days'].map(str).str[6:8].map(int)
+              result = to_dd(df)
         - push_dataset:
             key: mt_day_18_knight_detail
         - use_df:
@@ -1926,9 +1925,9 @@ mt_daily_env:
             - '[attendance] = [出勤天数] / [days]'
         - run_py:
             - |
-                df = to_df(df)
-                df=df[df['book_day']==df['book_day'].max()]
-                result = to_dd(df)
+              df = to_df(df)
+              df=df[df['book_day']==df['book_day'].max()]
+              result = to_dd(df)
 
 
 mt_month_env:
@@ -1938,7 +1937,7 @@ mt_month_env:
     play_on_dask_cluster: true
     platform_code: meituan
     dask_client_set_as_default: true
-    cluster_client_address: tcp://172.31.54.193:8786
+    cluster_client_address: 'dask-scheduler-service.databus:8786'
 
   play:
     - name: mt_dc_cum_month    #月累计站点数据
@@ -2252,8 +2251,8 @@ mt_month_env:
               total_utility_rank: total_utility_rank_before
         - run_py:
             - |
-               df['meta_day'] = df['meta_day'] + 1
-               result =  df
+              df['meta_day'] = df['meta_day'] + 1
+              result =  df
         - stash_push_df: []
 
         - use_df:
@@ -2677,8 +2676,8 @@ mt_month_env:
               total_utility_rank: total_utility_rank_before
         - run_py:
             - |
-               df['meta_day'] = df['meta_day'] + 1
-               result =  df
+              df['meta_day'] = df['meta_day'] + 1
+              result =  df
         - stash_push_df: []
 
         - use_df:
@@ -3213,7 +3212,6 @@ mt_month_env:
         - fetch_dataset:
             template_code: mt_month_60
             dataset_cate: raw
-            datakit_pull_way: last_day
             ignore_null_error: true
             empty_df_record:
               站点ID: '-'
@@ -3388,9 +3386,9 @@ mt_month_env:
             - 当月总天数
         - run_py:
             - |
-                df=to_df(df)
-                df['days'] = df['book_day'].map(str).str[6:8].map(int)
-                result = to_dd(df)
+              df=to_df(df)
+              df['days'] = df['book_day'].map(str).str[6:8].map(int)
+              result = to_dd(df)
         - push_dataset:
             key: mt_kpi_detail_mini
 
@@ -3800,10 +3798,10 @@ mt_month_env:
             - attendance_std_line: 0.75
         - run_py:
             - |
-                df=to_df(df)
-                df['max_days']=df['book_day'].max()
-                df['days'] = df['max_days'].map(str).str[6:8].map(int)
-                result = to_dd(df)
+              df=to_df(df)
+              df['max_days']=df['book_day'].max()
+              df['days'] = df['max_days'].map(str).str[6:8].map(int)
+              result = to_dd(df)
         - push_dataset:
             key: mt_day_18_knight_detail
         - use_df:
@@ -3858,6 +3856,6 @@ mt_month_env:
             - '[attendance] = [出勤天数] / [days]'
         - run_py:
             - |
-                df = to_df(df)
-                df=df[df['book_day']==df['book_day'].max()]
-                result = to_dd(df)
+              df = to_df(df)
+              df=df[df['book_day']==df['book_day'].max()]
+              result = to_dd(df)
