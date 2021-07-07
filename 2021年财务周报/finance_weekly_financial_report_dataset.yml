@@ -1,0 +1,1160 @@
+new_financial_form_snap_env:
+  context_defaults:
+    delay_compute: true
+    sync_result_from_cluster: true
+    play_on_dask_cluster: true
+    dask_client_set_as_default: true
+    cluster_client_address: 'dask-scheduler-service.databus:8786'
+
+  play:
+    - name: financial_report_details_new    # 财报明细数据表-最新封版的
+      sync_result: true
+      cooks:
+        - fetch_datasource:   # 财报封版记录表
+            datasource: datahub
+            table: qcode.finance_seal
+            columns: [book_month,state]
+            month_offset: -2
+            ignore_null_error: true
+        - drop_duplicates:
+            subset: [book_month,state]
+        - stash_push_df: []
+        - fetch_datasource:
+            datasource: qcode-finance-databook
+            month_offset: -2
+            ignore_null_error: true
+        - stash_push_df: []
+        - stash_join_df:
+            on: book_month
+            how: left
+            drop_stash: true
+        - push_dataset:
+            key: result_mini
+
+        - fetch_datasource:   # 财报封版记录表
+            datasource: datahub
+            table: qcode.finance_seal
+            columns: [book_month,state]
+            month_offset: -1
+            ignore_null_error: true
+        - drop_duplicates:
+            subset: [book_month,state]
+        - stash_push_df: []
+        - fetch_datasource:
+            datasource: qcode-finance-databook
+            month_offset: -1
+            ignore_null_error: true
+        - stash_push_df: []
+        - stash_join_df:
+            on: book_month
+            how: left
+            drop_stash: true
+        - stash_push_df: []
+        - use_df:
+            key: result_mini
+        - stash_push_df: []
+        - stash_concat_df:
+            drop_stash: true
+        - df_to_int:
+            - state
+        - df_to_int:
+            - book_month
+        - df_select:
+            - '[state] == @p1'
+            - p1: 100
+        - run_py:
+            - |
+              df = df[df['book_month'] == df['book_month'].max()]
+              result = df
+
+
+
+    - name: ele_pluralistic_service_day  # Q-2010102（一线服务费（兼职））按天累计存储，后面按周计算用到
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            dataset_type_code: ele_pluralistic_service_day
+            dataset_cate: std
+            ignore_null_error: true
+            empty_df_record:
+              tc_name: '-'
+              Q-2010102: 0
+              book_day:
+        - stash_push_df: []
+        - fetch_datasource:      # Q-2010102（一线服务费（兼职）） 所取的是实时数据
+            datasource: qcode-finance-databook
+            ignore_null_error: true
+            empty_df_record:
+              industry_id: 'wai_mai'
+              platform_id: 'elem'
+              ac_rule_kind: 'code'
+              tc_name: '-'
+              ac_code: 'Q-2010102'
+              money: 0
+        - df_select:
+            - '([industry_id] == @v1) & ([platform_id] == @v2) & ([ac_rule_kind] == @v3)'
+            - v1: wai_mai
+              v2: elem
+              v3: code
+        - df_pivot_table:
+            values: money
+            index: [ tc_name ]
+            columns: [ ac_code ]
+            aggfunc: sum
+        - run_py:
+            - |
+              df = to_df(df)
+              df.loc['其他'] = df.apply(lambda x:x.sum())
+              df['Q-2010102'] = df['Q-2010102']/100
+              df['book_day'] = pd.datetime.now()
+              df['book_day'] = df['book_day'].apply(lambda x:str(x)[:10].replace('-',''))
+              result = to_dd(df)
+        - df_fillna:
+            columns: [ Q-2010102 ]
+            value: 0.0
+        - df_reset_index: [ ]
+        - fetch_cols:
+            columns: [ 'tc_name','Q-2010102','book_day' ]
+        - stash_push_df: []
+        - stash_concat_df:
+            drop_stash: true
+        - drop_duplicates:
+            subset: [ tc_name,Q-2010102,book_day ]
+
+
+
+    - name: ele_pluralistic_service_week    # Q-2010102（一线服务费（兼职））计算出最近一周的数据
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            dataset_type_code: ele_pluralistic_service_day
+            dataset_cate: std
+            month_offset: -1
+            ignore_null_error: true
+            empty_df_record:
+              tc_name: '-'
+              Q-2010102: 0
+              book_day: 19790101
+        - df_to_str:
+            - book_day
+        - push_dataset:
+            key: ele_pluralistic_service_day_before
+        - use_df:
+            key: ele_pluralistic_service_day_before
+            rename:
+              Q-2010102: Q-2010102_berfore
+        - run_py:
+            - |
+              df = to_df(df)
+              df = df[df['book_day'] != 'None']
+              df['book_day'] = pd.to_datetime(df['book_day'],format = '%Y%m%d')
+              df['book_day'] = df['book_day'] + pd.DateOffset(1)
+              df['book_day'] = df['book_day'].apply(lambda x:str(x)[:10].replace('-',''))
+              result =  to_dd(df)
+        - stash_push_df: [ ]
+        - use_df:
+            key: ele_pluralistic_service_day_before
+            rename:
+              Q-2010102: Q-2010102_now
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ tc_name,book_day ]
+            how: left
+            drop_stash: true
+        - df_fillna:
+            value: 0
+        - run_py:
+            - |
+              df['Q-2010102'] = df['Q-2010102_now'] - df['Q-2010102_berfore']
+              result = df
+        - fetch_cols:
+            columns: [ tc_name,Q-2010102,book_day ]
+        - push_dataset:
+            key: result_mini
+
+        - use_df:
+            key: ele_pluralistic_service_day
+            rename:
+              Q-2010102: Q-2010102_berfore
+        - df_to_str:
+            - book_day
+        - run_py:
+            - |
+              df = to_df(df)
+              df = df[df['book_day'] != 'None']
+              df['book_day'] = pd.to_datetime(df['book_day'],format = '%Y%m%d')
+              df['book_day'] = df['book_day'] + pd.DateOffset(1)
+              df['book_day'] = df['book_day'].apply(lambda x:str(x)[:10].replace('-',''))
+              result =  to_dd(df)
+        - stash_push_df: []
+        - use_df:
+            key: ele_pluralistic_service_day
+            rename:
+              Q-2010102: Q-2010102_now
+        - df_to_str:
+            - book_day
+        - stash_push_df: []
+        - stash_join_df:
+            on: [ tc_name,book_day ]
+            how: left
+            drop_stash: true
+        - df_fillna:
+            value: 0
+        - run_py:
+            - |
+              df['Q-2010102'] = df['Q-2010102_now'] - df['Q-2010102_berfore']
+              result = df
+        - fetch_cols:
+            columns: [ tc_name,Q-2010102,book_day ]
+        - stash_push_df: []
+        - use_df:
+            key: result_mini
+        - stash_push_df: []
+        - stash_concat_df:
+            drop_stash: true
+        - drop_duplicates:
+            subset: [ tc_name,book_day,Q-2010102 ]
+        - run_py:
+            - |
+              df = to_df(df)
+              df = df[df['book_day'] != 'None']
+              df['days'] = pd.datetime.now()
+              df['book_day'] = pd.to_datetime(df['book_day'],format = '%Y%m%d')
+              df['data_days'] = ((df['days'] - df['book_day'])/pd.Timedelta(1, 'D')).map(int)
+              df=df[df['data_days']<=7]
+              result = to_dd(df)
+        - df_groupby:
+            by: [ tc_name ]
+        - df_sum:
+            column: Q-2010102
+        - df_reset_index: [ ]
+
+
+
+    - name: ele_financial_report_part    # 饿了么周报所用到的部分财报数据
+      sync_result: true
+      cooks:
+        - use_df:
+            key: financial_report_details_new
+        - df_select:             # 主要根据 wai_mai、code 维度 进行筛选所需要的数据
+            - '([industry_id] == @v1) & ([platform_id] == @v2) & ([ac_rule_kind] == @v3)'
+            - v1: wai_mai
+              v2: elem
+              v3: code
+        - df_pivot_table:       # 透视表
+            values: money
+            index: [ tc_name ]
+            columns: [ ac_code ]
+            aggfunc: sum
+
+        - pad_cols:
+            columns: [ 'Q-1010101','C-101','Q-2010101','C-10101','Q-2010102' ]
+            default_value: 0.0
+        - run_py: # Q-1010101 money类型存储都是以分为单位，计算时要除100 周报要求有些code名称匹配不到数据，取合计数据
+            - |
+              df = to_df(df)
+              df.loc['其他'] = df.apply(lambda x:x.sum())
+              df['QAO-1010101'] = ((df['Q-1010101']/100) / df['C-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['QAO-2010101'] = ((df['Q-2010101']/100) / df['C-10101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['QAO-2010102'] = ((df['Q-2010102']/100) / (df['C-101'] - df['C-10101'])).replace([np.inf, -np.inf, "", np.nan],0)
+              result = to_dd(df)
+        - df_reset_index: [ ]
+        - fetch_cols:
+            columns: [ 'tc_name','QAO-1010101','QAO-2010101','QAO-2010102' ]
+        - df_fillna:
+            value: 0.0
+        - stash_push_df: []
+        - use_df:
+            key: ele_pluralistic_service_week
+        - stash_push_df: []
+        - stash_join_df:
+            on: [ tc_name ]
+            how: outer
+            fillna: 0.0
+            drop_stash: true
+        - df_rename_columns:
+            - tc_name: code名称
+              QAO-1010101: 单均基础收入
+              QAO-2010101: 上月全职单成本
+              QAO-2010102: 上月兼职单成本
+              Q-2010102: 一线服务费（兼职）
+
+
+
+    - name: ele_financial_report_part_backups    # 饿了么周报所用到的部分财报数据
+      sync_result: true
+      cooks:
+        - use_df:
+            key: financial_report_details_new
+        - df_select:             # 主要根据 wai_mai、code 维度 进行筛选所需要的数据
+            - '([industry_id] == @v1) & ([platform_id] == @v2) & ([ac_rule_kind] == @v3)'
+            - v1: wai_mai
+              v2: elem
+              v3: code
+        - df_pivot_table:       # 透视表
+            values: money
+            index: [ tc_name ]
+            columns: [ ac_code ]
+            aggfunc: sum
+
+        - pad_cols:
+            columns: [ 'Q-1010101','C-101','Q-2010101','C-10101','Q-2010102' ]
+            default_value: 0.0
+        - run_py: # Q-1010101 money类型存储都是以分为单位，计算时要除100 周报要求有些code名称匹配不到数据，取合计数据
+            - |
+              df = to_df(df)
+              df.loc['其他'] = df.apply(lambda x:x.sum())
+              df['QAO-1010101'] = ((df['Q-1010101']/100) / df['C-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['QAO-2010101'] = ((df['Q-2010101']/100) / df['C-10101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['QAO-2010102'] = ((df['Q-2010102']/100) / (df['C-101'] - df['C-10101'])).replace([np.inf, -np.inf, "", np.nan],0)
+              result = to_dd(df)
+        - df_reset_index: [ ]
+        - fetch_cols:
+            columns: [ 'tc_name','QAO-1010101','QAO-2010101','QAO-2010102' ]
+        - df_fillna:
+            value: 0.0
+        - stash_push_df: []
+        - use_df:
+            key: ele_pluralistic_service_day
+        - df_to_int:
+            - book_day
+        - run_py:
+            - |
+              df = df[df['book_day'] == df['book_day'].max()]
+              df['Q-2010102'] = df['Q-2010102'] / 2
+              result = df
+        - fetch_cols:
+            columns: [ tc_name,Q-2010102 ]
+        - stash_push_df: []
+        - stash_join_df:
+            on: [ tc_name ]
+            how: outer
+            fillna: 0.0
+            drop_stash: true
+        - df_rename_columns:
+            - tc_name: code名称
+              QAO-1010101: 单均基础收入
+              QAO-2010101: 上月全职单成本
+              QAO-2010102: 上月兼职单成本
+              Q-2010102: 一线服务费（兼职）
+
+
+
+    - name: mt_pluralistic_service_day_xd  # Q-2010102（一线服务费（兼职））按天累计存储，后面按周计算用到
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            dataset_type_code: mt_pluralistic_service_day_xd
+            dataset_cate: std
+            ignore_null_error: true
+            empty_df_record:
+              tc_name: '-'
+              Q-2010102: 0
+              book_day:
+        - stash_push_df: []
+        - fetch_datasource:
+            datasource: qcode-finance-databook
+            ignore_null_error: true
+            empty_df_record:
+              industry_id: 'wai_mai'
+              platform_id: 'meituan'
+              ac_rule_kind: 'code'
+              tc_name: '-'
+              ac_code: 'Q-2010102'
+              supplier_id: '5c8f38ae887d1f1c43bfc06e'
+              money: 0
+        - df_select:
+            - '([platform_id] == @v1) & ([supplier_id] == @v2) & ([ac_rule_kind] == @v3) & ([industry_id] == @v4)'
+            - v1: meituan
+              v2: 5c8f38ae887d1f1c43bfc06e
+              v3: code
+              v4: wai_mai
+        - df_pivot_table:
+            values: money
+            index: [ tc_name ]
+            columns: [ ac_code ]
+            aggfunc: sum
+        - run_py:
+            - |
+              df = to_df(df)
+              df.loc['其他'] = df.apply(lambda x:x.sum())
+              df['Q-2010102'] = df['Q-2010102']/100
+              df['book_day'] = pd.datetime.now()
+              df['book_day'] = df['book_day'].apply(lambda x:str(x)[:10].replace('-',''))
+              result = to_dd(df)
+        - df_fillna:
+            columns: [ Q-2010102 ]
+            value: 0.0
+        - df_reset_index: [ ]
+        - fetch_cols:
+            columns: [ 'tc_name','Q-2010102','book_day' ]
+        - stash_push_df: []
+        - stash_concat_df:
+            drop_stash: true
+        - drop_duplicates:
+            subset: [ tc_name,Q-2010102,book_day ]
+
+
+
+    - name: mt_pluralistic_service_week_xd    # Q-2010102（一线服务费（兼职））计算出最近一周的数据
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            dataset_type_code: mt_pluralistic_service_day_xd
+            dataset_cate: std
+            month_offset: -1
+            ignore_null_error: true
+            empty_df_record:
+              tc_name: '-'
+              Q-2010102: 0
+              book_day: 19790101
+        - df_to_str:
+            - book_day
+        - push_dataset:
+            key: mt_pluralistic_service_day_xd_before
+        - use_df:
+            key: mt_pluralistic_service_day_xd_before
+            rename:
+              Q-2010102: Q-2010102_berfore
+        - run_py:
+            - |
+              df = to_df(df)
+              df = df[df['book_day'] != 'None']
+              df['book_day'] = pd.to_datetime(df['book_day'],format = '%Y%m%d')
+              df['book_day'] = df['book_day'] + pd.DateOffset(1)
+              df['book_day'] = df['book_day'].apply(lambda x:str(x)[:10].replace('-',''))
+              result =  to_dd(df)
+        - stash_push_df: [ ]
+        - use_df:
+            key: mt_pluralistic_service_day_xd_before
+            rename:
+              Q-2010102: Q-2010102_now
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ tc_name,book_day ]
+            how: left
+            drop_stash: true
+        - df_fillna:
+            value: 0
+        - run_py:
+            - |
+              df['Q-2010102'] = df['Q-2010102_now'] - df['Q-2010102_berfore']
+              result = df
+        - fetch_cols:
+            columns: [ tc_name,Q-2010102,book_day ]
+        - push_dataset:
+            key: result_mini
+
+        - use_df:
+            key: mt_pluralistic_service_day_xd
+            rename:
+              Q-2010102: Q-2010102_berfore
+        - df_to_str:
+            - book_day
+        - run_py:
+            - |
+              df = to_df(df)
+              df = df[df['book_day'] != 'None']
+              df['book_day'] = pd.to_datetime(df['book_day'],format = '%Y%m%d')
+              df['book_day'] = df['book_day'] + pd.DateOffset(1)
+              df['book_day'] = df['book_day'].apply(lambda x:str(x)[:10].replace('-',''))
+              result =  to_dd(df)
+        - stash_push_df: [ ]
+        - use_df:
+            key: mt_pluralistic_service_day_xd
+            rename:
+              Q-2010102: Q-2010102_now
+        - df_to_str:
+            - book_day
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ tc_name,book_day ]
+            how: left
+            drop_stash: true
+        - df_fillna:
+            value: 0
+        - run_py:
+            - |
+              df['Q-2010102'] = df['Q-2010102_now'] - df['Q-2010102_berfore']
+              result = df
+        - fetch_cols:
+            columns: [ tc_name,Q-2010102,book_day ]
+        - stash_push_df: [ ]
+        - use_df:
+            key: result_mini
+        - stash_push_df: [ ]
+        - stash_concat_df:
+            drop_stash: true
+        - drop_duplicates:
+            subset: [ tc_name,book_day,Q-2010102 ]
+        - run_py:
+            - |
+              df = to_df(df)
+              df = df[df['book_day'] != 'None']
+              df['days'] = pd.datetime.now()
+              df['book_day'] = pd.to_datetime(df['book_day'],format = '%Y%m%d')
+              df['data_days'] = ((df['days'] - df['book_day'])/pd.Timedelta(1, 'D')).map(int)
+              df=df[df['data_days']<=7]
+              result = to_dd(df)
+        - df_groupby:
+            by: [ tc_name ]
+        - df_sum:
+            column: Q-2010102
+        - df_reset_index: [ ]
+
+
+
+
+
+    - name: mt_financial_report_part_xd    # 美团（兴达）周报所用到的部分财报数据
+      sync_result: true
+      cooks:
+        - use_df:
+            key: financial_report_details_new
+        - df_select:
+            - '([platform_id] == @v1) & ([supplier_id] == @v2) & ([ac_rule_kind] == @v3) & ([industry_id] == @v4)'
+            - v1: meituan
+              v2: 5c8f38ae887d1f1c43bfc06e         # 兴达
+              v3: code
+              v4: wai_mai
+        - df_pivot_table:
+            values: money
+            index: [ tc_name ]
+            columns: [ ac_code ]
+            aggfunc: sum
+        - pad_cols:
+            columns: [ 'Q-1010101','C-101','Q-2010101','C-10101','Q-2010102' ]
+            default_value: 0.0
+        - run_py: # Q-1010101 money类型存储都是以分为单位，计算时要除100 周报要求有些code名称匹配不到数据，取合计数据
+            - |
+              df = to_df(df)
+              df.loc['其他'] = df.apply(lambda x:x.sum())
+              df['QAO-1010101'] = ((df['Q-1010101']/100) / df['C-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['QAO-2010101'] = ((df['Q-2010101']/100) / df['C-10101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['QAO-2010102'] = ((df['Q-2010102']/100) / (df['C-101'] - df['C-10101'])).replace([np.inf, -np.inf, "", np.nan],0)
+              result = to_dd(df)
+        - df_reset_index: [ ]
+        - fetch_cols:
+            columns: [ 'tc_name','QAO-1010101','QAO-2010101','QAO-2010102' ]
+        - df_fillna:
+            value: 0.0
+        - stash_push_df: [ ]
+        - use_df:
+            key: mt_pluralistic_service_week_xd
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ tc_name ]
+            how: outer
+            fillna: 0.0
+            drop_stash: true
+        - df_rename_columns:
+            - tc_name: code名称
+              QAO-1010101: 单均基础收入
+              QAO-2010101: 上月全职单成本
+              QAO-2010102: 上月兼职单成本
+              Q-2010102: 一线服务费（兼职）
+
+
+
+    - name: mt_financial_report_part_xd_backups    # 美团（兴达）周报所用到的部分财报数据
+      sync_result: true
+      cooks:
+        - use_df:
+            key: financial_report_details_new
+        - df_select:
+            - '([platform_id] == @v1) & ([supplier_id] == @v2) & ([ac_rule_kind] == @v3) & ([industry_id] == @v4)'
+            - v1: meituan
+              v2: 5c8f38ae887d1f1c43bfc06e         # 兴达
+              v3: code
+              v4: wai_mai
+        - df_pivot_table:
+            values: money
+            index: [ tc_name ]
+            columns: [ ac_code ]
+            aggfunc: sum
+        - pad_cols:
+            columns: [ 'Q-1010101','C-101','Q-2010101','C-10101','Q-2010102' ]
+            default_value: 0.0
+        - run_py: # Q-1010101 money类型存储都是以分为单位，计算时要除100 周报要求有些code名称匹配不到数据，取合计数据
+            - |
+              df = to_df(df)
+              df.loc['其他'] = df.apply(lambda x:x.sum())
+              df['QAO-1010101'] = ((df['Q-1010101']/100) / df['C-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['QAO-2010101'] = ((df['Q-2010101']/100) / df['C-10101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['QAO-2010102'] = ((df['Q-2010102']/100) / (df['C-101'] - df['C-10101'])).replace([np.inf, -np.inf, "", np.nan],0)
+              result = to_dd(df)
+        - df_reset_index: [ ]
+        - fetch_cols:
+            columns: [ 'tc_name','QAO-1010101','QAO-2010101','QAO-2010102' ]
+        - df_fillna:
+            value: 0.0
+        - stash_push_df: []
+
+        - use_df:
+            key: mt_pluralistic_service_day_xd
+        - df_to_int:
+            - book_day
+        - run_py:
+            - |
+              df = df[df['book_day'] == df['book_day'].max()]
+              df['Q-2010102'] = df['Q-2010102'] / 2
+              result = df
+        - fetch_cols:
+            columns: [ tc_name,Q-2010102 ]
+        - stash_push_df: []
+        - stash_join_df:
+            on: [ tc_name ]
+            how: outer
+            fillna: 0.0
+            drop_stash: true
+        - df_rename_columns:
+            - tc_name: code名称
+              QAO-1010101: 单均基础收入
+              QAO-2010101: 上月全职单成本
+              QAO-2010102: 上月兼职单成本
+              Q-2010102: 一线服务费（兼职）
+
+
+    - name: mt_pluralistic_service_day_yjd  # Q-2010102（一线服务费（兼职））按天累计存储，后面按周计算用到
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            dataset_type_code: mt_pluralistic_service_day_yjd
+            dataset_cate: std
+            ignore_null_error: true
+            empty_df_record:
+              tc_name: '-'
+              Q-2010102: 0
+              book_day:
+        - stash_push_df: []
+        - fetch_datasource:
+            datasource: qcode-finance-databook
+            ignore_null_error: true
+            empty_df_record:
+              industry_id: 'wai_mai'
+              platform_id: 'meituan'
+              ac_rule_kind: 'code'
+              tc_name: '-'
+              ac_code: 'Q-2010102'
+              supplier_id: '5b9738f4ce6d2abdaed16a8e'
+              money: 0
+        - df_select:
+            - '([platform_id] == @v1) & ([supplier_id] == @v2) & ([ac_rule_kind] == @v3) & ([industry_id] == @v4)'
+            - v1: meituan
+              v2: 5b9738f4ce6d2abdaed16a8e
+              v3: code
+              v4: wai_mai
+        - df_pivot_table:
+            values: money
+            index: [ tc_name ]
+            columns: [ ac_code ]
+            aggfunc: sum
+        - run_py:
+            - |
+              df = to_df(df)
+              df.loc['其他'] = df.apply(lambda x:x.sum())
+              df['Q-2010102'] = df['Q-2010102']/100
+              df['book_day'] = pd.datetime.now()
+              df['book_day'] = df['book_day'].apply(lambda x:str(x)[:10].replace('-',''))
+              result = to_dd(df)
+        - df_fillna:
+            columns: [ Q-2010102 ]
+            value: 0.0
+        - df_reset_index: [ ]
+        - fetch_cols:
+            columns: [ 'tc_name','Q-2010102','book_day' ]
+        - stash_push_df: []
+        - stash_concat_df:
+            drop_stash: true
+        - drop_duplicates:
+            subset: [ tc_name,Q-2010102,book_day ]
+
+
+    - name: mt_pluralistic_service_week_yjd    # Q-2010102（一线服务费（兼职））计算出最近一周的数据
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            dataset_type_code: mt_pluralistic_service_day_yjd
+            dataset_cate: std
+            month_offset: -1
+            ignore_null_error: true
+            empty_df_record:
+              tc_name: '-'
+              Q-2010102: 0
+              book_day: 19790101
+        - df_to_str:
+            - book_day
+        - push_dataset:
+            key: mt_pluralistic_service_day_yjd_before
+        - use_df:
+            key: mt_pluralistic_service_day_yjd_before
+            rename:
+              Q-2010102: Q-2010102_berfore
+        - run_py:
+            - |
+              df = to_df(df)
+              df = df[df['book_day'] != 'None']
+              df['book_day'] = pd.to_datetime(df['book_day'],format = '%Y%m%d')
+              df['book_day'] = df['book_day'] + pd.DateOffset(1)
+              df['book_day'] = df['book_day'].apply(lambda x:str(x)[:10].replace('-',''))
+              result =  to_dd(df)
+        - stash_push_df: [ ]
+        - use_df:
+            key: mt_pluralistic_service_day_yjd_before
+            rename:
+              Q-2010102: Q-2010102_now
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ tc_name,book_day ]
+            how: left
+            drop_stash: true
+        - df_fillna:
+            value: 0
+        - run_py:
+            - |
+              df['Q-2010102'] = df['Q-2010102_now'] - df['Q-2010102_berfore']
+              result = df
+        - fetch_cols:
+            columns: [ tc_name,Q-2010102,book_day ]
+        - push_dataset:
+            key: result_mini
+
+        - use_df:
+            key: mt_pluralistic_service_day_yjd
+            rename:
+              Q-2010102: Q-2010102_berfore
+        - df_to_str:
+            - book_day
+        - run_py:
+            - |
+              df = to_df(df)
+              df = df[df['book_day'] != 'None']
+              df['book_day'] = pd.to_datetime(df['book_day'],format = '%Y%m%d')
+              df['book_day'] = df['book_day'] + pd.DateOffset(1)
+              df['book_day'] = df['book_day'].apply(lambda x:str(x)[:10].replace('-',''))
+              result =  to_dd(df)
+        - stash_push_df: [ ]
+        - use_df:
+            key: mt_pluralistic_service_day_yjd
+            rename:
+              Q-2010102: Q-2010102_now
+        - df_to_str:
+            - book_day
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ tc_name,book_day ]
+            how: left
+            drop_stash: true
+        - df_fillna:
+            value: 0
+        - run_py:
+            - |
+              df['Q-2010102'] = df['Q-2010102_now'] - df['Q-2010102_berfore']
+              result = df
+        - fetch_cols:
+            columns: [ tc_name,Q-2010102,book_day ]
+        - stash_push_df: [ ]
+        - use_df:
+            key: result_mini
+        - stash_push_df: [ ]
+        - stash_concat_df:
+            drop_stash: true
+        - drop_duplicates:
+            subset: [ tc_name,book_day,Q-2010102 ]
+        - run_py:
+            - |
+              df = to_df(df)
+              df = df[df['book_day'] != 'None']
+              df['days'] = pd.datetime.now()
+              df['book_day'] = pd.to_datetime(df['book_day'],format = '%Y%m%d')
+              df['data_days'] = ((df['days'] - df['book_day'])/pd.Timedelta(1, 'D')).map(int)
+              df=df[df['data_days']<=7]
+              result = to_dd(df)
+        - df_groupby:
+            by: [ tc_name ]
+        - df_sum:
+            column: Q-2010102
+        - df_reset_index: [ ]
+
+
+
+
+    - name: mt_financial_report_part_yjd    # 美团（易即达）周报所用到的部分财报数据
+      sync_result: true
+      cooks:
+        - use_df:
+            key: financial_report_details_new
+        - df_select:
+            - '([platform_id] == @v1) & ([supplier_id] == @v2) & ([ac_rule_kind] == @v3) & ([industry_id] == @v4)'
+            - v1: meituan
+              v2: 5b9738f4ce6d2abdaed16a8e         # 易即达
+              v3: code
+              v4: wai_mai
+        - df_pivot_table:
+            values: money
+            index: [ tc_name ]
+            columns: [ ac_code ]
+            aggfunc: sum
+        - pad_cols:
+            columns: [ 'Q-1010101','C-101','Q-2010101','C-10101','Q-2010102' ]
+            default_value: 0.0
+        - run_py: # Q-1010101 money类型存储都是以分为单位，计算时要除100 周报要求有些code名称匹配不到数据，取合计数据
+            - |
+              df = to_df(df)
+              df.loc['其他'] = df.apply(lambda x:x.sum())
+              df['QAO-1010101'] = ((df['Q-1010101']/100) / df['C-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['QAO-2010101'] = ((df['Q-2010101']/100) / df['C-10101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['QAO-2010102'] = ((df['Q-2010102']/100) / (df['C-101'] - df['C-10101'])).replace([np.inf, -np.inf, "", np.nan],0)
+              result = to_dd(df)
+        - df_reset_index: [ ]
+        - fetch_cols:
+            columns: [ 'tc_name','QAO-1010101','QAO-2010101','QAO-2010102' ]
+        - df_fillna:
+            value: 0.0
+        - stash_push_df: [ ]
+        - use_df:
+            key: mt_pluralistic_service_week_yjd
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ tc_name ]
+            how: outer
+            fillna: 0.0
+            drop_stash: true
+        - df_rename_columns:
+            - tc_name: code名称
+              QAO-1010101: 单均基础收入
+              QAO-2010101: 上月全职单成本
+              QAO-2010102: 上月兼职单成本
+              Q-2010102: 一线服务费（兼职）
+
+
+
+    - name: mt_financial_report_part_yjd_backups    # 美团（易即达）周报所用到的部分财报数据
+      sync_result: true
+      cooks:
+        - use_df:
+            key: financial_report_details_new
+        - df_select:
+            - '([platform_id] == @v1) & ([supplier_id] == @v2) & ([ac_rule_kind] == @v3) & ([industry_id] == @v4)'
+            - v1: meituan
+              v2: 5b9738f4ce6d2abdaed16a8e         # 易即达
+              v3: code
+              v4: wai_mai
+        - df_pivot_table:
+            values: money
+            index: [ tc_name ]
+            columns: [ ac_code ]
+            aggfunc: sum
+        - pad_cols:
+            columns: [ 'Q-1010101','C-101','Q-2010101','C-10101','Q-2010102' ]
+            default_value: 0.0
+        - run_py: # Q-1010101 money类型存储都是以分为单位，计算时要除100 周报要求有些code名称匹配不到数据，取合计数据
+            - |
+              df = to_df(df)
+              df.loc['其他'] = df.apply(lambda x:x.sum())
+              df['QAO-1010101'] = ((df['Q-1010101']/100) / df['C-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['QAO-2010101'] = ((df['Q-2010101']/100) / df['C-10101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['QAO-2010102'] = ((df['Q-2010102']/100) / (df['C-101'] - df['C-10101'])).replace([np.inf, -np.inf, "", np.nan],0)
+              result = to_dd(df)
+        - df_reset_index: [ ]
+        - fetch_cols:
+            columns: [ 'tc_name','QAO-1010101','QAO-2010101','QAO-2010102' ]
+        - df_fillna:
+            value: 0.0
+        - stash_push_df: []
+        - use_df:
+            key: mt_pluralistic_service_day_yjd
+        - df_to_int:
+            - book_day
+        - run_py:
+            - |
+              df = df[df['book_day'] == df['book_day'].max()]
+              df['Q-2010102'] = df['Q-2010102'] / 2
+              result = df
+        - fetch_cols:
+            columns: [ tc_name,Q-2010102 ]
+        - stash_push_df: []
+        - stash_join_df:
+            on: [ tc_name ]
+            how: outer
+            fillna: 0.0
+            drop_stash: true
+        - df_rename_columns:
+            - tc_name: code名称
+              QAO-1010101: 单均基础收入
+              QAO-2010101: 上月全职单成本
+              QAO-2010102: 上月兼职单成本
+              Q-2010102: 一线服务费（兼职）
+
+
+    - name: mt_pluralistic_service_day_rd  # Q-2010102（一线服务费（兼职））按天累计存储，后面按周计算用到
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            dataset_type_code: mt_pluralistic_service_day_rd
+            dataset_cate: std
+            ignore_null_error: true
+            empty_df_record:
+              tc_name: '-'
+              Q-2010102: 0
+              book_day:
+        - stash_push_df: []
+        - fetch_datasource:
+            datasource: qcode-finance-databook
+            ignore_null_error: true
+            empty_df_record:
+              industry_id: 'wai_mai'
+              platform_id: 'meituan'
+              ac_rule_kind: 'code'
+              tc_name: '-'
+              ac_code: 'Q-2010102'
+              supplier_id: '5b9738f5ce6d2abdaed16e09'
+              money: 0
+        - df_select:
+            - '([platform_id] == @v1) & ([supplier_id] == @v2) & ([ac_rule_kind] == @v3) & ([industry_id] == @v4)'
+            - v1: meituan
+              v2: 5b9738f5ce6d2abdaed16e09
+              v3: code
+              v4: wai_mai
+        - df_pivot_table:
+            values: money
+            index: [ tc_name ]
+            columns: [ ac_code ]
+            aggfunc: sum
+        - run_py:
+            - |
+              df = to_df(df)
+              df.loc['其他'] = df.apply(lambda x:x.sum())
+              df['Q-2010102'] = df['Q-2010102']/100
+              df['book_day'] = pd.datetime.now()
+              df['book_day'] = df['book_day'].apply(lambda x:str(x)[:10].replace('-',''))
+              result = to_dd(df)
+        - df_fillna:
+            columns: [ Q-2010102 ]
+            value: 0.0
+        - df_reset_index: [ ]
+        - fetch_cols:
+            columns: [ 'tc_name','Q-2010102','book_day' ]
+        - stash_push_df: []
+        - stash_concat_df:
+            drop_stash: true
+        - drop_duplicates:
+            subset: [ tc_name,Q-2010102,book_day ]
+
+
+
+    - name: mt_pluralistic_service_week_rd    # Q-2010102（一线服务费（兼职））计算出最近一周的数据
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            dataset_type_code: mt_pluralistic_service_day_rd
+            dataset_cate: std
+            month_offset: -1
+            ignore_null_error: true
+            empty_df_record:
+              tc_name: '-'
+              Q-2010102: 0
+              book_day: 19790101
+        - df_to_str:
+            - book_day
+        - push_dataset:
+            key: mt_pluralistic_service_day_rd_before
+        - use_df:
+            key: mt_pluralistic_service_day_rd_before
+            rename:
+              Q-2010102: Q-2010102_berfore
+        - run_py:
+            - |
+              df = to_df(df)
+              df = df[df['book_day'] != 'None']
+              df['book_day'] = pd.to_datetime(df['book_day'],format = '%Y%m%d')
+              df['book_day'] = df['book_day'] + pd.DateOffset(1)
+              df['book_day'] = df['book_day'].apply(lambda x:str(x)[:10].replace('-',''))
+              result =  to_dd(df)
+        - stash_push_df: [ ]
+        - use_df:
+            key: mt_pluralistic_service_day_rd_before
+            rename:
+              Q-2010102: Q-2010102_now
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ tc_name,book_day ]
+            how: left
+            drop_stash: true
+        - df_fillna:
+            value: 0
+        - run_py:
+            - |
+              df['Q-2010102'] = df['Q-2010102_now'] - df['Q-2010102_berfore']
+              result = df
+        - fetch_cols:
+            columns: [ tc_name,Q-2010102,book_day ]
+        - push_dataset:
+            key: result_mini
+
+        - use_df:
+            key: mt_pluralistic_service_day_rd
+            rename:
+              Q-2010102: Q-2010102_berfore
+        - df_to_str:
+            - book_day
+        - run_py:
+            - |
+              df = to_df(df)
+              df = df[df['book_day'] != 'None']
+              df['book_day'] = pd.to_datetime(df['book_day'],format = '%Y%m%d')
+              df['book_day'] = df['book_day'] + pd.DateOffset(1)
+              df['book_day'] = df['book_day'].apply(lambda x:str(x)[:10].replace('-',''))
+              result =  to_dd(df)
+        - stash_push_df: [ ]
+        - use_df:
+            key: mt_pluralistic_service_day_rd
+            rename:
+              Q-2010102: Q-2010102_now
+        - df_to_str:
+            - book_day
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ tc_name,book_day ]
+            how: left
+            drop_stash: true
+        - df_fillna:
+            value: 0
+        - run_py:
+            - |
+              df['Q-2010102'] = df['Q-2010102_now'] - df['Q-2010102_berfore']
+              result = df
+        - fetch_cols:
+            columns: [ tc_name,Q-2010102,book_day ]
+        - stash_push_df: [ ]
+        - use_df:
+            key: result_mini
+        - stash_push_df: [ ]
+        - stash_concat_df:
+            drop_stash: true
+        - drop_duplicates:
+            subset: [ tc_name,book_day,Q-2010102 ]
+        - run_py:
+            - |
+              df = to_df(df)
+              df = df[df['book_day'] != 'None']
+              df['days'] = pd.datetime.now()
+              df['book_day'] = pd.to_datetime(df['book_day'],format = '%Y%m%d')
+              df['data_days'] = ((df['days'] - df['book_day'])/pd.Timedelta(1, 'D')).map(int)
+              df=df[df['data_days']<=7]
+              result = to_dd(df)
+        - df_groupby:
+            by: [ tc_name ]
+        - df_sum:
+            column: Q-2010102
+        - df_reset_index: [ ]
+
+
+
+    - name: mt_financial_report_part_rd    # 美团（润达）周报所用到的部分财报数据
+      sync_result: true
+      cooks:
+        - use_df:
+            key: financial_report_details_new
+        - df_select:
+            - '([platform_id] == @v1) & ([supplier_id] == @v2) & ([ac_rule_kind] == @v3) & ([industry_id] == @v4)'
+            - v1: meituan
+              v2: 5b9738f5ce6d2abdaed16e09         # 润达
+              v3: code
+              v4: wai_mai
+        - df_pivot_table:
+            values: money
+            index: [ tc_name ]
+            columns: [ ac_code ]
+            aggfunc: sum
+        - pad_cols:
+            columns: [ 'Q-1010101','C-101','Q-2010101','C-10101','Q-2010102' ]
+            default_value: 0.0
+        - run_py: # Q-1010101 money类型存储都是以分为单位，计算时要除100 周报要求有些code名称匹配不到数据，取合计数据
+            - |
+              df = to_df(df)
+              df.loc['其他'] = df.apply(lambda x:x.sum())
+              df['QAO-1010101'] = ((df['Q-1010101']/100) / df['C-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['QAO-2010101'] = ((df['Q-2010101']/100) / df['C-10101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['QAO-2010102'] = ((df['Q-2010102']/100) / (df['C-101'] - df['C-10101'])).replace([np.inf, -np.inf, "", np.nan],0)
+              result = to_dd(df)
+        - df_reset_index: [ ]
+        - fetch_cols:
+            columns: [ 'tc_name','QAO-1010101','QAO-2010101','QAO-2010102' ]
+        - df_fillna:
+            value: 0.0
+        - stash_push_df: [ ]
+        - use_df:
+            key: mt_pluralistic_service_week_rd
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ tc_name ]
+            how: outer
+            fillna: 0.0
+            drop_stash: true
+        - df_rename_columns:
+            - tc_name: code名称
+              QAO-1010101: 单均基础收入
+              QAO-2010101: 上月全职单成本
+              QAO-2010102: 上月兼职单成本
+              Q-2010102: 一线服务费（兼职）
+
+
+
+    - name: mt_financial_report_part_rd_backups    # 美团（润达）周报所用到的部分财报数据
+      sync_result: true
+      cooks:
+        - use_df:
+            key: financial_report_details_new
+        - df_select:
+            - '([platform_id] == @v1) & ([supplier_id] == @v2) & ([ac_rule_kind] == @v3) & ([industry_id] == @v4)'
+            - v1: meituan
+              v2: 5b9738f5ce6d2abdaed16e09         # 润达
+              v3: code
+              v4: wai_mai
+        - df_pivot_table:
+            values: money
+            index: [ tc_name ]
+            columns: [ ac_code ]
+            aggfunc: sum
+
+        - pad_cols:
+            columns: [ 'Q-1010101','C-101','Q-2010101','C-10101','Q-2010102' ]
+            default_value: 0.0
+        - run_py: # Q-1010101 money类型存储都是以分为单位，计算时要除100 周报要求有些code名称匹配不到数据，取合计数据
+            - |
+              df = to_df(df)
+              df.loc['其他'] = df.apply(lambda x:x.sum())
+              df['QAO-1010101'] = ((df['Q-1010101']/100) / df['C-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['QAO-2010101'] = ((df['Q-2010101']/100) / df['C-10101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['QAO-2010102'] = ((df['Q-2010102']/100) / (df['C-101'] - df['C-10101'])).replace([np.inf, -np.inf, "", np.nan],0)
+              result = to_dd(df)
+        - df_reset_index: [ ]
+        - fetch_cols:
+            columns: [ 'tc_name','QAO-1010101','QAO-2010101','QAO-2010102' ]
+        - df_fillna:
+            value: 0.0
+        - stash_push_df: []
+        - use_df:
+            key: mt_pluralistic_service_day_rd
+        - df_to_int:
+            - book_day
+        - run_py:
+            - |
+              df = df[df['book_day'] == df['book_day'].max()]
+              df['Q-2010102'] = df['Q-2010102'] / 2
+              result = df
+        - fetch_cols:
+            columns: [ tc_name,Q-2010102 ]
+        - stash_push_df: []
+        - stash_join_df:
+            on: [ tc_name ]
+            how: outer
+            fillna: 0.0
+            drop_stash: true
+        - df_rename_columns:
+            - tc_name: code名称
+              QAO-1010101: 单均基础收入
+              QAO-2010101: 上月全职单成本
+              QAO-2010102: 上月兼职单成本
+              Q-2010102: 一线服务费（兼职）
