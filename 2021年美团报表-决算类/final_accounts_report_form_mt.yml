@@ -1,0 +1,2961 @@
+cookbook: true
+mt_report_from_final_accounts_daily_env:
+  context_defaults:
+    delay_compute: true
+    sync_result_from_cluster: true
+    play_on_dask_cluster: true
+    platform_code: meituan
+    dask_client_set_as_default: true
+    cluster_client_address: 'dask-scheduler-service.databus:8786'
+
+  play:
+    - name: wages_copy     # 工资表标准化，获取我们所需数据
+      sync_result: true
+      cooks:
+        - fetch_datasource:   # 工资表
+            datasource: datahub
+            table: salaryflow.batch_data_log
+            ignore_null_error: true
+            month_offset: -1
+            empty_df_record:
+              staff_id: '-'
+              staff_id_card_num: '-'
+              supplier_id: '-'
+              cost_center_type: '-'
+              platform_code: '-'
+              city_code: 0
+              dc_id: '-'
+              data.month: 999999
+              data.商圈: '-'
+              data.商圈ID: '-'
+              data.Team编码: '-'
+              data.Code编码: '-'
+              data.人员性质: '-'
+              data.payable_money: 0.0
+              data.完成单量: 0
+              data.外单单量: 0
+              team_code: '-'
+              team_id: '-'
+              ac_code: '-'
+              ac_id: '-'
+              code_id: '-'
+              code_code: '-'
+              data: '-'
+            rename:
+              data.商圈: dc_name
+              data.商圈ID: vendor_dc_id
+              data.Team编码: team_name
+              data.Code编码: code_name
+              data.人员性质: 人员性质
+              data.payable_money: payable_money
+              data.完成单量: 完成单量
+              data.外单单量: 外单单量
+
+        - fetch_cols:
+            columns: [ city_code,cost_center_type,staff_id_card_num,platform_code,supplier_id,team_code,team_id,book_month,ac_code,ac_id,code_id,code_code,dc_id,payable_money,人员性质,完成单量,外单单量,dc_name,vendor_dc_id ]
+        - df_to_int:
+            - 完成单量
+        - df_to_int:
+            - 外单单量
+        - df_to_float:
+            - payable_money
+
+
+
+    - name: add_wages_copy
+      sync_result: true
+      cooks:
+        - fetch_datasource:   # 追加工资表
+            datasource: datahub
+            table: datasource.biz_ext_salaryflow_log
+            ignore_null_error: true
+            month_offset: -1
+            empty_df_record:
+              staff_id: '-'
+              staff_id_card_num: '-'
+              supplier_id: '-'
+              cost_center_type: '-'
+              platform_code: '-'
+              city_code: 0
+              dc_id: '-'
+              data.month: 999999
+              data.商圈: '-'
+              data.商圈ID: '-'
+              data.Team编码: '-'
+              data.Code编码: '-'
+              data.人员性质: '-'
+              data.payable_money: 0.0
+              data.完成单量: 0
+              data.外单单量: 0
+              team_code: '-'
+              team_id: '-'
+              ac_code: '-'
+              ac_id: '-'
+              code_id: '-'
+              code_code: '-'
+              data: '-'
+              data.收款人身份证号: '-'
+              data.收款银行卡号: '-'
+              data.收款开户银行: '-'
+              data.开户所在地: '-'
+        - df_to_str:
+            - data.收款人身份证号
+        - df_to_str:
+            - data.收款银行卡号
+        - df_to_str:
+            - data.收款开户银行
+        - df_to_str:
+            - data.开户所在地
+        - df_rename_columns:
+            - data.商圈: dc_name
+              data.商圈ID: vendor_dc_id
+              data.Team编码: team_name
+              data.Code编码: code_name
+              data.人员性质: 人员性质
+              data.决算应发服务费: payable_money
+              data.完成单量: 完成单量
+              data.外单单量: 外单单量
+
+        - fetch_cols:
+            columns: [ city_code,cost_center_type,staff_id_card_num,platform_code,supplier_id,team_code,team_id,book_month,ac_code,ac_id,code_id,code_code,dc_id,payable_money,人员性质,完成单量,外单单量,dc_name,vendor_dc_id ]
+        - df_to_int:
+            - 完成单量
+        - df_to_int:
+            - 外单单量
+        - df_to_float:
+            - payable_money
+
+
+
+    - name: biz_ext_data_log_copy     # 收入表标准化，获取我们所需数据
+      sync_result: true
+      cooks:
+        - fetch_datasource:    # 收入表，四张所需原始数据集汇总表
+            datasource: datahub
+            table: datasource.biz_ext_data_log
+            ignore_null_error: true
+            month_offset: -1
+            empty_df_record:
+              datasource_kind: '-'
+              dc_id: '-'
+              dc_name: '-'
+              industry_code: '-'
+              platform_code: '-'
+              supplier_id: '-'
+              city_code: '-'
+              custom_id: '-'
+              identity_card_id: '-'
+              ac_id: '-'
+              ac_code: '-'
+              ac_name: '-'
+              team_id: '-'
+              team_code: '-'
+              team_name: '-'
+              code_id: '-'
+              code_code: '-'
+              code_name: '-'
+              money: '-'
+              data.cost_mode: 0
+              data.cost_type: 0
+              book_month: 999999
+              data.worker_num: 0
+              data.child_ac_code: '-'
+            rename:
+              custom_id: vendor_dc_id
+              identity_card_id: staff_id_card_num
+              data.cost_mode: cost_mode
+              data.cost_type: cost_type
+              data.child_ac_code: child_ac_code
+              data.worker_num: worker_num
+        - fetch_cols:
+            columns: [datasource_kind,supplier_id,dc_id,dc_name,cost_mode,money,cost_type,child_ac_code,worker_num,staff_id_card_num,vendor_dc_id,book_month,ac_code,ac_name,team_id,team_code,team_name]
+        - df_to_float:
+            - money
+
+
+    - name: biz_monthly_map_copy     # 转换表标准化，获取我们所需数据
+      sync_result: true
+      cooks:
+        - fetch_datasource:    # 三张转化表合并
+            datasource: datahub
+            table: datasource.biz_monthly_map
+            meta_month_column_name: month
+            ignore_null_error: true
+            month_offset: -1
+            empty_df_record:
+              map_name: '-'
+              value1: '-'
+              value2: '-'
+              month: 999999
+              data.dc_id: '-'
+              data.dc_name: '-'
+              data.industry_code: '-'
+              data.platform_code: '-'
+              data.supplier_id: '-'
+              data.city_code: '-'
+              data.custom_id: '-'
+              data.code_id: '-'
+              data.code_code: '-'
+              data.code_name: '-'
+              data.人员性质: '-'
+              data.人员姓名: '-'
+              data.收款人身份证号: '-'
+              data.team编码: '-'
+              data.岗位名称: '-'
+            rename:
+              data.dc_id: dc_id
+              data.dc_name: dc_name
+              data.industry_code: industry_code
+              data.platform_code: platform_code
+              data.supplier_id: supplier_id
+              data.city_code: city_code
+              data.custom_id: vendor_dc_id
+              data.code_id: code_id
+              data.code_code: code_code
+              data.code_name: code_name
+              data.人员性质: 人员性质
+              data.人员姓名: 人员姓名
+              data.收款人身份证号: staff_id_card_num
+              data.team编码: team_name
+              data.岗位名称: 岗位名称
+        - fetch_cols:
+            columns: [map_name,value1,value2,month,dc_id,dc_name,industry_code,platform_code,supplier_id,city_code,vendor_dc_id,code_id,code_code,code_name,人员性质,人员姓名,staff_id_card_num,team_name,岗位名称]
+
+
+    - name: dc_supplier_switch_table     # 商圈主体转换表
+      sync_result: true
+      cooks:
+        - use_df:
+            key: biz_ext_data_log_copy
+            columns: [ supplier_id,dc_name ]
+        - stash_push_df: []
+        - use_df:
+            key: wages_copy
+            columns: [ supplier_id,dc_name ]
+        - stash_push_df: []
+        - stash_concat_df:
+            drop_stash: true
+        - stash_push_df: []
+        - use_df:
+            key: add_wages_copy
+            columns: [ supplier_id,dc_name ]
+        - stash_push_df: []
+        - stash_concat_df:
+            drop_stash: true
+        - drop_duplicates:
+            subset: [ supplier_id,dc_name ]
+
+
+    - name: final_accounts_result_table_code_assets    # 结果项-code-资产
+      sync_result: true
+      cooks:
+        - use_df:    # 标准化收入表
+            key: biz_ext_data_log_copy
+            columns: [ dc_name,dc_id,cost_mode,datasource_kind,money,cost_type,child_ac_code ]
+        - df_select:
+            - '([datasource_kind] in @p1) & ([cost_mode] == @p2) & ([child_ac_code] in @p3) & ([cost_type] == @p4)'
+            - p1: [ ext_mt_cost_append,ext_mt_cost_oa ]     # 美团追加拆分模版 & boss费用拆分表
+              p2: 30     # 商圈
+              p3: [ Z-02,Z-01,A10104,A206,C101,C701,C102,C103,C104,C105,C201-1,C201-101,C201-201,C201-202,C201-301,C201-302,C202-1,C202-2,C202-3,C202-4,C202-5,C203,C301,C302,C303,C304,C305,C306,C401,C402,C403,C501,C502,C503,C504,C601,C602 ]
+              p4: 10    # 资产
+        - df_pivot_table: # 透视表
+            values: money
+            index: [ dc_name ]
+            columns: [ child_ac_code ]
+            aggfunc: sum
+        - df_reset_index: []
+        - pad_cols:
+            columns: [ Z-02,Z-01,A10104,A206,C101,C701,C102,C103,C104,C105,C201-1,C201-101,C201-201,C201-202,C201-301,C201-302,C202-1,C202-2,C202-3,C202-4,C202-5,C203,C301,C302,C303,C304,C305,C306,C401,C402,C403,C501,C502,C503,C504,C601,C602 ]
+            default_value: 0
+        - stash_push_df: []
+        - use_df:
+            key: biz_ext_data_log_copy
+            columns: [ac_code,datasource_kind,money,dc_name]
+        - df_select:      # 标准化收入表
+            - '([ac_code] in @p1) & ([datasource_kind] == @p2)'
+            - p1: [ D-101,M-1010101,M-1010102,M-1010103-1,M-1010103-2,M-1010103-3,M-1010104-1,M-1010104-2,M-1010104-3,M-1010104-4,M-70102,M-70105 ]
+              p2: ext_mt_revenue_dc      # 美团收入（商圈）
+        - df_pivot_table: # 透视表
+            values: money
+            index: [ dc_name ]
+            columns: [ ac_code ]
+            aggfunc: sum
+        - df_reset_index: []
+        - pad_cols:
+            columns: [ 'D-101','M-1010101','M-1010102','M-1010103-1','M-1010103-2','M-1010103-3','M-1010104-1','M-1010104-2','M-1010104-3','M-1010104-4','M-70102','M-70105' ]
+            default_value: 0
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: dc_name
+            how: outer
+            drop_stash: true
+        - push_dataset:
+            key: final_accounts_result_table_code_assets_mini
+
+        - use_df: # 标准化工资表
+            key: wages_copy
+            columns: [ dc_id,dc_name,人员性质,完成单量,外单单量,payable_money,cost_center_type ]
+        - stash_push_df: [ ]
+        - use_df: # 追加工资表
+            key: add_wages_copy
+        - fetch_cols:
+            columns: [ dc_id,dc_name,人员性质,完成单量,外单单量,payable_money,cost_center_type ]
+        - stash_push_df: [ ]
+        - stash_concat_df:
+            drop_stash: true
+        - df_select:
+            - '[cost_center_type] == @p1'
+            - p1: A1010101             # 一线城市
+        - df_eval:
+            - |
+              [单量] = [完成单量] + [外单单量]
+        - stash_push_df: [ ]
+        - use_df:
+            key: biz_monthly_map_copy
+            columns: [ map_name,value1,value2 ]
+        - df_select:
+            - '[map_name] == @P1'
+            - P1: ext_mt_staff_cate    # 美团人员性质清单表
+        - df_rename_columns:
+            - value1: 人员性质
+              value2: 骑手分类
+        - drop_duplicates:
+            subset: [ 人员性质,骑手分类 ]
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: 人员性质
+            how: right
+            drop_stash: true
+        - add_cols:
+            - number: 1
+        - push_dataset: # 标准化工资表与追加工资表汇总
+            key: wages_collect_table_copy
+        - use_df:
+            key: wages_collect_table_copy
+        - df_pivot_table: # 透视表
+            values: number
+            index: [ dc_name ]
+            columns: [ 骑手分类 ]
+            aggfunc: sum
+        - df_reset_index: []
+        - df_rename_columns:
+            - 特定兼职: A101031
+              兼职: A101021
+              全职: A101011
+        - stash_push_df: [ ]
+        - use_df:
+            key: wages_collect_table_copy
+        - df_pivot_table: # 透视表
+            values: 单量
+            index: [ dc_name ]
+            columns: [ 骑手分类 ]
+            aggfunc: sum
+        - df_reset_index: []
+        - df_rename_columns:
+            - 特定兼职: A101032
+              兼职: A101022
+              全职: A101012
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: dc_name
+            how: outer
+            drop_stash: true
+        - stash_push_df: [ ]
+        - use_df:
+            key: wages_collect_table_copy
+        - df_pivot_table: # 透视表
+            values: payable_money
+            index: [ dc_name ]
+            columns: [ 骑手分类 ]
+            aggfunc: sum
+        - df_reset_index: []
+        - df_rename_columns:
+            - 特定兼职: A10103
+              兼职: A10102
+              全职: A10101
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: dc_name
+            how: outer
+            drop_stash: true
+        - stash_push_df: [ ]
+        - use_df:
+            key: final_accounts_result_table_code_assets_mini
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: dc_name
+            how: outer
+            drop_stash: true
+        - stash_push_df: [ ]
+        - use_df: # 收入表    盛世工伤险费用字段
+            key: biz_ext_data_log_copy
+            columns: [ dc_name,dc_id,cost_mode,datasource_kind,money,cost_type ]
+        - df_select:
+            - '([datasource_kind] == @p1) & ([cost_type] == @p4)'
+            - p1: ext_mt_worker_insur    # 盛世工伤险费用明细表
+              p4: 10    # 资产
+        - df_groupby:
+            by: dc_name
+        - df_sum:
+            column: money
+            rename: B4
+        - df_reset_index: [ ]
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: dc_name
+            how: outer
+            drop_stash: true
+        - stash_push_df: [ ]
+        - use_df: # 收入表    总人数字段
+            key: biz_ext_data_log_copy
+            columns: [ dc_name,dc_id,cost_mode,datasource_kind,cost_type,staff_id_card_num ]
+        - df_select:
+            - '([datasource_kind] == @p1) & ([cost_type] == @p4)'
+            - p1: ext_mt_worker_insur    # 盛世工伤险费用明细表
+              p4: 10    # 资产
+        - drop_duplicates:
+            subset: staff_id_card_num
+        - df_groupby:
+            by: dc_name
+        - df_count:
+            column: staff_id_card_num
+            rename: B401
+        - df_reset_index: [ ]
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: dc_name
+            how: outer
+            drop_stash: true
+        - stash_push_df: []
+        - use_df:   # 收入表      内荐人数、  三方推荐人数
+            key: biz_ext_data_log_copy
+            columns: [dc_name,dc_id,child_ac_code,cost_mode,datasource_kind,worker_num,cost_type]
+        - df_select:
+            - '([datasource_kind] in @p1) & ([cost_mode] == @p2) & ([child_ac_code] in @p3) & ([cost_type] == @p4)'
+            - p1: [ext_mt_cost_append,ext_mt_cost_oa]  # 取值boss拆分模板&追加模板
+              p2: 30
+              p3: [C50101,C50201,C101]
+              p4: 10
+        - df_pivot_table: # 透视表
+            values: worker_num
+            index: [ dc_name ]
+            columns: [ child_ac_code ]
+            aggfunc: sum
+        - df_reset_index: []
+        - pad_cols:
+            columns: [C50101,C50201]
+            default_value: 0
+        - fetch_cols:
+            columns: [dc_name,C50101,C50201]
+        - stash_push_df: []
+        - stash_join_df:
+            on: dc_name
+            how: outer
+            drop_stash: true
+        - run_py:
+            - |
+              df = to_df(df)
+              df["S6"] = (pd.datetime.now()-pd.Timedelta(days=pd.datetime.now().day)).day
+              result = to_dd(df)
+        - df_fillna:
+            value: 0
+        - add_cols:
+            - S9: 0
+              S8: 1
+              S2: 0
+              S3: 0
+              S301: 0
+              S302: 0
+              S303: 0
+              S304: 0
+              S305: 0
+              S306: 0
+              S307: 0
+              S4: 0
+              S411: 0
+              S412: 0
+              S421: 0
+              S422: 0
+              S423: 0
+              S424: 0
+              S425: 0
+              S426: 0
+              S427: 0
+              S428: 0
+              S429: 0
+              S5: 0
+              M-1010102-2: 0
+              M-70103: 0
+              M-70104: 0
+              M-70106: 0
+              A10105: 0
+              B1: 0
+              B2: 0
+              B5: 0
+              B402: 0
+              B403: 0
+              A201: 0
+              A202: 0
+              3-1: 0
+              3-101: 0
+              3-102: 0
+              3-103: 0
+              3-104: 0
+              3-2: 0
+              3-201: 0
+              3-202: 0
+              3-203: 0
+              3-204: 0
+              3-3: 0
+              3-301: 0
+              3-302: 0
+              3-303: 0
+              3-304: 0
+              3-4: 0
+              3-401: 0
+              3-402: 0
+              3-403: 0
+              3-404: 0
+              3-5: 0
+              3-501: 0
+              3-502: 0
+              3-503: 0
+              3-504: 0
+              3-6: 0
+              3-601: 0
+              3-602: 0
+              3-603: 0
+              3-604: 0
+              3-7: 0
+              3-701: 0
+              3-702: 0
+              3-703: 0
+              3-704: 0
+              4-1-1: 0
+              4-1-101: 0
+              4-1-102: 0
+              4-1-103: 0
+              4-1-104: 0
+              4-1-2: 0
+              4-1-201: 0
+              4-1-202: 0
+              4-1-203: 0
+              4-1-204: 0
+              4-2-1: 0
+              4-2-101: 0
+              4-2-102: 0
+              4-2-103: 0
+              4-2-104: 0
+              4-2-2: 0
+              4-2-201: 0
+              4-2-202: 0
+              4-2-203: 0
+              4-2-204: 0
+              4-2-3: 0
+              4-2-301: 0
+              4-2-302: 0
+              4-2-303: 0
+              4-2-304: 0
+              4-2-4: 0
+              4-2-401: 0
+              4-2-402: 0
+              4-2-403: 0
+              4-2-404: 0
+              4-2-5: 0
+              4-2-501: 0
+              4-2-502: 0
+              4-2-503: 0
+              4-2-504: 0
+              4-2-6: 0
+              4-2-601: 0
+              4-2-602: 0
+              4-2-603: 0
+              4-2-604: 0
+              4-2-7: 0
+              4-2-701: 0
+              4-2-702: 0
+              4-2-703: 0
+              4-2-704: 0
+              4-2-8: 0
+              4-2-801: 0
+              4-2-802: 0
+              4-2-803: 0
+              4-2-804: 0
+              4-2-9: 0
+              4-2-901: 0
+              4-2-902: 0
+              4-2-903: 0
+              4-2-904: 0
+        - df_fillna:
+            value: 0
+        - run_py:
+            - |
+              df['D-10101'] = (df['D-101'] / df['S6']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['S1'] = (df['A101011'] + df['A101021'] + df['A101031']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-1010101-1'] = (df['M-1010101'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-1010102-1'] = (df['M-1010102'] / 1.06).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-1010103'] = (df['M-1010103-1'] + df['M-1010103-2'] + df['M-1010103-3']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-1010104'] = (df['M-1010104-1'] + df['M-1010104-2'] + df['M-1010104-3'] + df['M-1010104-4']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-1010104-5'] = (df['M-1010104'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-1010104-6'] = (df['M-1010104-1'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-10101'] = (df['M-1010101'] + df['M-1010102'] + df['M-1010103'] + df['M-1010104']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-10102'] = (df['M-10101'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-70101'] = (df['M-70102'] - df['M-70105']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-701'] = (df['M-70101'] + df['M-70106']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A101033'] = (df['A10103'] / df['A101032']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A101023'] = (df['A10102'] / df['A101022']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A101'] = (df['A10101'] + df['A101023'] + df['A101033'] + df['A10104']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A1'] = (df['A101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A102'] = (df['A101'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A103'] = (df['A101'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A101013'] = (df['A10101'] / df['A101012']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A11'] = (df['A101012'] + df['A101022'] + df['A101032']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A2'] = (df['A201'] + df['A206']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A203'] = (df['D-10101'] / df['A202']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A204'] = (df['A201'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A205'] = (df['A201'] / df['A202']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C1'] = (df['C101'] + df['C102'] + df['C103'] + df['C104'] + df['C105']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10101'] = (df['C101'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10102'] = (df['C101'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10201'] = (df['C102'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10202'] = (df['C102'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10301'] = (df['C103'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10302'] = (df['C103'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10401'] = (df['C104'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10402'] = (df['C104'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10501'] = (df['C105'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10502'] = (df['C105'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201'] = (df['C201-1'] + df['C201-201'] + df['C201-301']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C20101'] = (df['C201'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C20102'] = (df['C201'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201-102'] = (df['C201-1'] / df['C201-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201-103'] = (df['C201-1'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201-203'] = (df['C201-201'] / df['C201-202']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201-204'] = (df['C201-201'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201-303'] = (df['C201-301'] / df['C201-302']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201-304'] = (df['C201-301'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C202'] = (df['C202-1'] + df['C202-2'] + df['C202-3'] + df['C202-4'] + df['C202-5']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C2'] = (df['C201'] + df['C202'] + df['C203']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C20201'] = (df['C202'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C20202'] = (df['C202'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C20301'] = (df['C203'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C20302'] = (df['C203'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C3'] = (df['C301'] + df['C302'] + df['C303'] + df['C304'] + df['C305'] + df['C306']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30101'] = (df['C301'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30102'] = (df['C301'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30201'] = (df['C302'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30202'] = (df['C302'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30301'] = (df['C303'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30302'] = (df['C303'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30401'] = (df['C304'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30402'] = (df['C304'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30501'] = (df['C305'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30502'] = (df['C305'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30601'] = (df['C306'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30602'] = (df['C306'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C4'] = (df['C401'] + df['C402'] + df['C403']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C40101'] = (df['C401'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C40102'] = (df['C401'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C40201'] = (df['C402'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C40202'] = (df['C402'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C40301'] = (df['C403'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C40302'] = (df['C403'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C5'] = (df['C501'] + df['C502'] + df['C503'] + df['C504']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C50102'] = (df['C501'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C50103'] = (df['C501'] / df['C50101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C50202'] = (df['C502'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C50203'] = (df['C502'] / df['C50201']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C50301'] = (df['C503'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C50302'] = (df['C503'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C50401'] = (df['C504'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C50402'] = (df['C504'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C6'] = (df['C601'] + df['C602']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C60101'] = (df['C601'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C60102'] = (df['C601'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C60201'] = (df['C602'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C60202'] = (df['C602'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C7'] = (df['C701']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C70101'] = (df['C701'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C70102'] = (df['C701'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['B3'] = (df['B1'] / df['B2']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['B404'] = (df['B4'] / df['B401']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['B405'] = (df['B4'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-1'] = (df['M-10101'] + df['M-701']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-2'] = (df['A1'] + df['A2'] + df['C1'] + df['C2'] + df['C3'] + df['C4'] + df['C5'] + df['C6'] + df['C7']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-101'] = (df['M-1'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-102'] = ((df['M-1'] - df['M-2']) / df['M-1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-201'] = (df['M-2'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-3'] = (df['M-1'] - df['M-2']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-301'] = (df['M-3'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-302'] = (df['M-3'] / df['M-1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-103'] = (df['D-10101'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-104'] = (df['M-1'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-105'] = (df['M-3'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-106'] = (df['M-1'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-107'] = (df['M-3'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              result = df
+        - sort_by_columns:
+            sort_list: [ dc_name,D-10101,M-1,M-101,M-102,M-2,M-201,M-3,M-301,Z-02,Z-01,M-302,M-103,M-104,M-105,M-106,M-107,S8,S9,S1,S2,S3,S301,S302,S303,S304,S305,S306,S307,S4,S411,S412,S421,S422,S423,S424,S425,S426,S427,S428,S429,S5,D-101,S6,M-10101,M-10102,M-1010101,M-1010101-1,M-1010102,M-1010102-1,M-1010102-2,M-1010103,M-1010103-1,M-1010103-2,M-1010103-3,M-1010104,M-1010104-5,M-1010104-1,M-1010104-6,M-1010104-2,M-1010104-3,M-1010104-4,M-701,M-70101,M-70102,M-70103,M-70104,M-70105,M-70106,A1,A101,A102,A103,A101011,A101012,A10101,A101013,A101021,A101022,A10102,A101023,A101031,A101032,A10103,A101033,A10105,A10104,A11,A2,A201,A202,A203,A204,A205,3-1,3-101,3-102,3-103,3-104,3-2,3-201,3-202,3-203,3-204,3-3,3-301,3-302,3-303,3-304,3-4,3-401,3-402,3-403,3-404,3-5,3-501,3-502,3-503,3-504,3-6,3-601,3-602,3-603,3-604,3-7,3-701,3-702,3-703,3-704,4-1-1,4-1-101,4-1-102,4-1-103,4-1-104,4-1-2,4-1-201,4-1-202,4-1-203,4-1-204,4-2-1,4-2-101,4-2-102,4-2-103,4-2-104,4-2-2,4-2-201,4-2-202,4-2-203,4-2-204,4-2-3,4-2-301,4-2-302,4-2-303,4-2-304,4-2-4,4-2-401,4-2-402,4-2-403,4-2-404,4-2-5,4-2-501,4-2-502,4-2-503,4-2-504,4-2-6,4-2-601,4-2-602,4-2-603,4-2-604,4-2-7,4-2-701,4-2-702,4-2-703,4-2-704,4-2-8,4-2-801,4-2-802,4-2-803,4-2-804,4-2-9,4-2-901,4-2-902,4-2-903,4-2-904,A206,C1,C101,C10101,C10102,C102,C10201,C10202,C103,C10301,C10302,C104,C10401,C10402,C105,C10501,C10502,C2,C201,C20101,C20102,C201-1,C201-101,C201-102,C201-103,C201-201,C201-202,C201-203,C201-204,C201-301,C201-302,C201-303,C201-304,C202,C20201,C20202,C202-1,C202-2,C202-3,C202-4,C202-5,C203,C20301,C20302,C3,C301,C30101,C30102,C302,C30201,C30202,C303,C30301,C30302,C304,C30401,C30402,C305,C30501,C30502,C306,C30601,C30602,C4,C401,C40101,C40102,C402,C40201,C40202,C403,C40301,C40302,C5,C501,C50101,C50102,C50103,C502,C50201,C50202,C50203,C503,C50301,C50302,C504,C50401,C50402,C6,C601,C60101,C60102,C602,C60201,C60202,C7,C701,C70101,C70102,B1,B2,B3,B4,B401,B402,B403,B404,B405,B5 ]
+
+        - stash_push_df: [ ]
+        - use_df:
+            key: dc_supplier_switch_table
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: dc_name
+            how: right
+            drop_stash: true
+
+
+
+    - name: final_accounts_result_table_code_proprietor    # 结果项-code-业主团队
+      sync_result: true
+      cooks:
+        - use_df: # 标准化收入表
+            key: biz_ext_data_log_copy
+            columns: [ dc_name,dc_id,cost_mode,datasource_kind,money,cost_type,child_ac_code ]
+        - df_select:
+            - '([datasource_kind] in @p1) & ([cost_mode] == @p2) & ([child_ac_code] in @p3) & ([cost_type] == @p4)'
+            - p1: [ ext_mt_cost_append,ext_mt_cost_oa ]     # 美团追加拆分模版 & boss费用拆分表
+              p2: 30     # 商圈
+              p3: [ Z-02,Z-01,A10104,A206,C101,C701,C102,C103,C104,C105,C201-1,C201-101,C201-201,C201-202,C201-301,C201-302,C202-1,C202-2,C202-3,C202-4,C202-5,C203,C301,C302,C303,C304,C305,C306,C401,C402,C403,C501,C502,C503,C504,C601,C602 ]
+              p4: 20    # 业主团队
+        - df_pivot_table: # 透视表
+            values: money
+            index: [ dc_name ]
+            columns: [ child_ac_code ]
+            aggfunc: sum
+        - df_reset_index: []
+        - pad_cols:
+            columns: [ Z-02,Z-01,A10104,A206,C101,C701,C102,C103,C104,C105,C201-1,C201-101,C201-201,C201-202,C201-301,C201-302,C202-1,C202-2,C202-3,C202-4,C202-5,C203,C301,C302,C303,C304,C305,C306,C401,C402,C403,C501,C502,C503,C504,C601,C602 ]
+            default_value: 0
+        - push_dataset:
+            key: final_accounts_result_table_code_proprietor_1
+
+        - use_df:   # 工资表
+            key: wages_copy
+            columns: [ dc_name,dc_id,cost_center_type,staff_id_card_num ]
+        - stash_push_df: []
+        - use_df:   # 追加工资表
+            key: add_wages_copy
+        - fetch_cols:
+            columns: [ dc_name,dc_id,cost_center_type,staff_id_card_num ]
+        - stash_push_df: []
+        - stash_concat_df:
+            drop_stash: true
+        - df_select:
+            - '[cost_center_type] == @p1'
+            - p1: 'B20101'
+        - drop_duplicates:
+            subset: [staff_id_card_num]
+        - df_groupby:
+            by: [dc_name]
+        - df_count:
+            column: staff_id_card_num
+            rename: S2
+        - df_reset_index: []
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: dc_name
+            how: outer
+            drop_stash: true
+        - stash_push_df: [ ]
+        - use_df:
+            key: final_accounts_result_table_code_proprietor_1
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: dc_name
+            how: outer
+            drop_stash: true
+        - push_dataset:
+            key: final_accounts_result_table_code_proprietor_mini
+
+        - use_df: # 标准化工资表
+            key: wages_copy
+            columns: [ dc_id,dc_name,payable_money,cost_center_type,staff_id_card_num ]
+        - stash_push_df: [ ]
+        - use_df: # 追加工资表
+            key: add_wages_copy
+        - fetch_cols:
+            columns: [ dc_id,dc_name,payable_money,cost_center_type,staff_id_card_num ]
+        - stash_push_df: [ ]
+        - stash_concat_df:
+            drop_stash: true
+        - df_select:
+            - '[cost_center_type] == @p1'
+            - p1: B20101
+        - push_dataset:
+            key: final_accounts_wages_table_proprietor_wages
+        - use_df:
+            key: final_accounts_wages_table_proprietor_wages
+        - df_groupby:
+            by: dc_name
+        - df_sum:
+            column: payable_money
+            rename: A201
+        - df_reset_index: []
+        - stash_push_df: []
+        - use_df:
+            key: final_accounts_wages_table_proprietor_wages
+        - drop_duplicates:
+            subset: [ staff_id_card_num ]
+        - df_groupby:
+            by: dc_name
+        - df_count:
+            column: staff_id_card_num
+            rename: A202
+        - df_reset_index: []
+        - stash_push_df: []
+        - stash_join_df:
+            on: dc_name
+            how: outer
+            drop_stash: true
+        - stash_push_df: []
+        - use_df:
+            key: final_accounts_result_table_code_proprietor_mini
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: dc_name
+            how: outer
+            drop_stash: true
+        - stash_push_df: [ ]
+
+        - use_df: # 收入表    盛世工伤险费用字段
+            key: biz_ext_data_log_copy
+            columns: [ dc_name,dc_id,cost_mode,datasource_kind,money,cost_type ]
+        - df_select:
+            - '([datasource_kind] == @p1) & ([cost_type] == @p4)'
+            - p1: ext_mt_worker_insur    # 盛世工伤险费用明细表
+              p4: 20    # 业主团队
+        - df_groupby:
+            by: dc_name
+        - df_sum:
+            column: money
+            rename: B4
+        - df_reset_index: [ ]
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: dc_name
+            how: outer
+            drop_stash: true
+        - stash_push_df: [ ]
+        - use_df: # 收入表    总人数字段
+            key: biz_ext_data_log_copy
+            columns: [ dc_name,dc_id,cost_mode,datasource_kind,cost_type,staff_id_card_num ]
+        - df_select:
+            - '([datasource_kind] == @p1) & ([cost_type] == @p4)'
+            - p1: ext_mt_worker_insur    # 盛世工伤险费用明细表
+              p4: 20    # 业主团队
+        - drop_duplicates:
+            subset: staff_id_card_num
+        - df_groupby:
+            by: dc_name
+        - df_count:
+            column: staff_id_card_num
+            rename: B401
+        - df_reset_index: [ ]
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: dc_name
+            how: outer
+            drop_stash: true
+        - stash_push_df: [ ]
+
+        - use_df: # 收入表      内荐人数、  三方推荐人数
+            key: biz_ext_data_log_copy
+            columns: [ dc_name,dc_id,child_ac_code,cost_mode,datasource_kind,worker_num,cost_type ]
+        - df_select:
+            - '([datasource_kind] in @p1) & ([cost_mode] == @p2) & ([child_ac_code] in @p3) & ([cost_type] == @p4)'
+            - p1: [ ext_mt_cost_append,ext_mt_cost_oa ]  # 取值boss拆分模板&追加模板
+              p2: 30
+              p3: [ C50101,C50201,C101 ]
+              p4: 20
+        - df_pivot_table: # 透视表
+            values: worker_num
+            index: [ dc_name ]
+            columns: [ child_ac_code ]
+            aggfunc: sum
+        - df_reset_index: []
+        - pad_cols:
+            columns: [ C50101,C50201 ]
+            default_value: 0
+        - fetch_cols:
+            columns: [dc_name,C50101,C50201]
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: dc_name
+            how: outer
+            drop_stash: true
+        - run_py:
+            - |
+              df = to_df(df)
+              df["S6"] = (pd.datetime.now()-pd.Timedelta(days=pd.datetime.now().day)).day
+              result = to_dd(df)
+        - df_fillna:
+            value: 0
+        - add_cols:
+            - S9: 0
+              S8: 1
+              S3: 0
+              S301: 0
+              S302: 0
+              S303: 0
+              S304: 0
+              S305: 0
+              S306: 0
+              S307: 0
+              S4: 0
+              S411: 0
+              S412: 0
+              S421: 0
+              S422: 0
+              S423: 0
+              S424: 0
+              S425: 0
+              S426: 0
+              S427: 0
+              S428: 0
+              S429: 0
+              S5: 0
+              D-101: 0
+              M-10101: 0
+              M-10102: 0
+              M-1010101: 0
+              M-1010101-1: 0
+              M-1010102: 0
+              M-1010102-1: 0
+              M-1010102-2: 0
+              M-1010103: 0
+              M-1010103-1: 0
+              M-1010103-2: 0
+              M-1010103-3: 0
+              M-1010104: 0
+              M-1010104-5: 0
+              M-1010104-1: 0
+              M-1010104-6: 0
+              M-1010104-2: 0
+              M-1010104-3: 0
+              M-1010104-4: 0
+              M-701: 0
+              M-70101: 0
+              M-70102: 0
+              M-70103: 0
+              M-70104: 0
+              M-70105: 0
+              M-70106: 0
+              A101011: 0
+              A101012: 0
+              A10101: 0
+              A101021: 0
+              A101022: 0
+              A10102: 0
+              A101031: 0
+              A101032: 0
+              A10103: 0
+              A10105: 0
+              A101013: 0
+              A101023: 0
+              A101033: 0
+              B1: 0
+              B2: 0
+              B5: 0
+              B402: 0
+              B403: 0
+              3-1: 0
+              3-101: 0
+              3-102: 0
+              3-103: 0
+              3-104: 0
+              3-2: 0
+              3-201: 0
+              3-202: 0
+              3-203: 0
+              3-204: 0
+              3-3: 0
+              3-301: 0
+              3-302: 0
+              3-303: 0
+              3-304: 0
+              3-4: 0
+              3-401: 0
+              3-402: 0
+              3-403: 0
+              3-404: 0
+              3-5: 0
+              3-501: 0
+              3-502: 0
+              3-503: 0
+              3-504: 0
+              3-6: 0
+              3-601: 0
+              3-602: 0
+              3-603: 0
+              3-604: 0
+              3-7: 0
+              3-701: 0
+              3-702: 0
+              3-703: 0
+              3-704: 0
+              4-1-1: 0
+              4-1-101: 0
+              4-1-102: 0
+              4-1-103: 0
+              4-1-104: 0
+              4-1-2: 0
+              4-1-201: 0
+              4-1-202: 0
+              4-1-203: 0
+              4-1-204: 0
+              4-2-1: 0
+              4-2-101: 0
+              4-2-102: 0
+              4-2-103: 0
+              4-2-104: 0
+              4-2-2: 0
+              4-2-201: 0
+              4-2-202: 0
+              4-2-203: 0
+              4-2-204: 0
+              4-2-3: 0
+              4-2-301: 0
+              4-2-302: 0
+              4-2-303: 0
+              4-2-304: 0
+              4-2-4: 0
+              4-2-401: 0
+              4-2-402: 0
+              4-2-403: 0
+              4-2-404: 0
+              4-2-5: 0
+              4-2-501: 0
+              4-2-502: 0
+              4-2-503: 0
+              4-2-504: 0
+              4-2-6: 0
+              4-2-601: 0
+              4-2-602: 0
+              4-2-603: 0
+              4-2-604: 0
+              4-2-7: 0
+              4-2-701: 0
+              4-2-702: 0
+              4-2-703: 0
+              4-2-704: 0
+              4-2-8: 0
+              4-2-801: 0
+              4-2-802: 0
+              4-2-803: 0
+              4-2-804: 0
+              4-2-9: 0
+              4-2-901: 0
+              4-2-902: 0
+              4-2-903: 0
+              4-2-904: 0
+        - df_fillna:
+            value: 0
+        - run_py:
+            - |
+              df['D-10101'] = (df['D-101'] / df['S6']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['S1'] = (df['A101011'] + df['A101021'] + df['A101031']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A101'] = (df['A10101'] + df['A101023'] + df['A101033'] + df['A10104']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A1'] = (df['A101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A102'] = (df['A101'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A103'] = (df['A101'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A11'] = (df['A101012'] + df['A101022'] + df['A101032']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A2'] = (df['A201'] + df['A206']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A203'] = (df['D-10101'] / df['A202']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A204'] = (df['A201'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A205'] = (df['A201'] / df['A202']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C1'] = (df['C101'] + df['C102'] + df['C103'] + df['C104'] + df['C105']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10101'] = (df['C101'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10102'] = (df['C101'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10201'] = (df['C102'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10202'] = (df['C102'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10301'] = (df['C103'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10302'] = (df['C103'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10401'] = (df['C104'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10402'] = (df['C104'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10501'] = (df['C105'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10502'] = (df['C105'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201'] = (df['C201-1'] + df['C201-201'] + df['C201-301']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C20101'] = (df['C201'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C20102'] = (df['C201'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201-102'] = (df['C201-1'] / df['C201-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201-103'] = (df['C201-1'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201-203'] = (df['C201-201'] / df['C201-202']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201-204'] = (df['C201-201'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201-303'] = (df['C201-301'] / df['C201-302']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201-304'] = (df['C201-301'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C202'] = (df['C202-1'] + df['C202-2'] + df['C202-3'] + df['C202-4'] + df['C202-5']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C2'] = (df['C201'] + df['C202'] + df['C203']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C20201'] = (df['C202'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C20202'] = (df['C202'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C20301'] = (df['C203'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C20302'] = (df['C203'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C3'] = (df['C301'] + df['C302'] + df['C303'] + df['C304'] + df['C305'] + df['C306']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30101'] = (df['C301'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30102'] = (df['C301'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30201'] = (df['C302'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30202'] = (df['C302'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30301'] = (df['C303'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30302'] = (df['C303'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30401'] = (df['C304'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30402'] = (df['C304'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30501'] = (df['C305'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30502'] = (df['C305'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30601'] = (df['C306'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30602'] = (df['C306'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C4'] = (df['C401'] + df['C402'] + df['C403']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C40101'] = (df['C401'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C40102'] = (df['C401'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C40201'] = (df['C402'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C40202'] = (df['C402'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C40301'] = (df['C403'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C40302'] = (df['C403'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C5'] = (df['C501'] + df['C502'] + df['C503'] + df['C504']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C50102'] = (df['C501'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C50103'] = (df['C501'] / df['C50101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C50202'] = (df['C502'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C50203'] = (df['C502'] / df['C50201']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C50301'] = (df['C503'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C50302'] = (df['C503'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C50401'] = (df['C504'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C50402'] = (df['C504'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C6'] = (df['C601'] + df['C602']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C60101'] = (df['C601'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C60102'] = (df['C601'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C60201'] = (df['C602'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C60202'] = (df['C602'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C7'] = (df['C701']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C70101'] = (df['C701'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C70102'] = (df['C701'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['B3'] = (df['B1'] / df['B2']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['B404'] = (df['B4'] / df['B401']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['B405'] = (df['B4'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-1'] = (df['M-10101'] + df['M-701']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-2'] = (df['A1'] + df['A2'] + df['C1'] + df['C2'] + df['C3'] + df['C4'] + df['C5'] + df['C6'] + df['C7']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-101'] = (df['M-1'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-102'] = ((df['M-1'] - df['M-2']) / df['M-1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-201'] = (df['M-2'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-3'] = (df['M-1'] - df['M-2']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-301'] = (df['M-3'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-302'] = (df['M-3'] / df['M-1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-103'] = (df['D-10101'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-104'] = (df['M-1'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-105'] = (df['M-3'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-106'] = (df['M-1'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-107'] = (df['M-3'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              result =  df
+        - sort_by_columns:
+            sort_list: [ dc_name,D-10101,M-1,M-101,M-102,M-2,M-201,M-3,M-301,Z-02,Z-01,M-302,M-103,M-104,M-105,M-106,M-107,S8,S9,S1,S2,S3,S301,S302,S303,S304,S305,S306,S307,S4,S411,S412,S421,S422,S423,S424,S425,S426,S427,S428,S429,S5,D-101,S6,M-10101,M-10102,M-1010101,M-1010101-1,M-1010102,M-1010102-1,M-1010102-2,M-1010103,M-1010103-1,M-1010103-2,M-1010103-3,M-1010104,M-1010104-5,M-1010104-1,M-1010104-6,M-1010104-2,M-1010104-3,M-1010104-4,M-701,M-70101,M-70102,M-70103,M-70104,M-70105,M-70106,A1,A101,A102,A103,A101011,A101012,A10101,A101013,A101021,A101022,A10102,A101023,A101031,A101032,A10103,A101033,A10105,A10104,A11,A2,A201,A202,A203,A204,A205,3-1,3-101,3-102,3-103,3-104,3-2,3-201,3-202,3-203,3-204,3-3,3-301,3-302,3-303,3-304,3-4,3-401,3-402,3-403,3-404,3-5,3-501,3-502,3-503,3-504,3-6,3-601,3-602,3-603,3-604,3-7,3-701,3-702,3-703,3-704,4-1-1,4-1-101,4-1-102,4-1-103,4-1-104,4-1-2,4-1-201,4-1-202,4-1-203,4-1-204,4-2-1,4-2-101,4-2-102,4-2-103,4-2-104,4-2-2,4-2-201,4-2-202,4-2-203,4-2-204,4-2-3,4-2-301,4-2-302,4-2-303,4-2-304,4-2-4,4-2-401,4-2-402,4-2-403,4-2-404,4-2-5,4-2-501,4-2-502,4-2-503,4-2-504,4-2-6,4-2-601,4-2-602,4-2-603,4-2-604,4-2-7,4-2-701,4-2-702,4-2-703,4-2-704,4-2-8,4-2-801,4-2-802,4-2-803,4-2-804,4-2-9,4-2-901,4-2-902,4-2-903,4-2-904,A206,C1,C101,C10101,C10102,C102,C10201,C10202,C103,C10301,C10302,C104,C10401,C10402,C105,C10501,C10502,C2,C201,C20101,C20102,C201-1,C201-101,C201-102,C201-103,C201-201,C201-202,C201-203,C201-204,C201-301,C201-302,C201-303,C201-304,C202,C20201,C20202,C202-1,C202-2,C202-3,C202-4,C202-5,C203,C20301,C20302,C3,C301,C30101,C30102,C302,C30201,C30202,C303,C30301,C30302,C304,C30401,C30402,C305,C30501,C30502,C306,C30601,C30602,C4,C401,C40101,C40102,C402,C40201,C40202,C403,C40301,C40302,C5,C501,C50101,C50102,C50103,C502,C50201,C50202,C50203,C503,C50301,C50302,C504,C50401,C50402,C6,C601,C60101,C60102,C602,C60201,C60202,C7,C701,C70101,C70102,B1,B2,B3,B4,B401,B402,B403,B404,B405,B5 ]
+
+        - stash_push_df: [ ]
+        - use_df:
+            key: dc_supplier_switch_table
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: dc_name
+            how: right
+            drop_stash: true
+
+
+
+    - name: final_accounts_result_table_code    # 结果项-code
+      sync_result: true
+      cooks:
+        - use_df:
+            key: final_accounts_result_table_code_assets
+            rename:
+              M-1: M-1_as
+              M-101: M-101_as
+              M-102: M-102_as
+              M-2: M-2_as
+              M-201: M-201_as
+              M-3: M-3_as
+              M-301: M-301_as
+              Z-02: Z-02_as
+              Z-01: Z-01_as
+              M-302: M-302_as
+              M-103: M-103_as
+              M-104: M-104_as
+              M-105: M-105_as
+              M-106: M-106_as
+              M-107: M-107_as
+              S8: S8_as
+              S9: S9_as
+              S1: S1_as
+              S2: S2_as
+              S3: S3_as
+              S301: S301_as
+              S302: S302_as
+              S303: S303_as
+              S304: S304_as
+              S305: S305_as
+              S306: S306_as
+              S307: S307_as
+              S4: S4_as
+              S411: S411_as
+              S412: S412_as
+              S421: S421_as
+              S422: S422_as
+              S423: S423_as
+              S424: S424_as
+              S425: S425_as
+              S426: S426_as
+              S427: S427_as
+              S428: S428_as
+              S429: S429_as
+              S5: S5_as
+              D-101: D-101_as
+              S6: S6_as
+              M-10101: M-10101_as
+              M-10102: M-10102_as
+              M-1010101: M-1010101_as
+              M-1010101-1: M-1010101-1_as
+              M-1010102: M-1010102_as
+              M-1010102-1: M-1010102-1_as
+              M-1010102-2: M-1010102-2_as
+              M-1010103: M-1010103_as
+              M-1010103-1: M-1010103-1_as
+              M-1010103-2: M-1010103-2_as
+              M-1010103-3: M-1010103-3_as
+              M-1010104: M-1010104_as
+              M-1010104-5: M-1010104-5_as
+              M-1010104-1: M-1010104-1_as
+              M-1010104-6: M-1010104-6_as
+              M-1010104-2: M-1010104-2_as
+              M-1010104-3: M-1010104-3_as
+              M-1010104-4: M-1010104-4_as
+              M-701: M-701_as
+              M-70101: M-70101_as
+              M-70102: M-70102_as
+              M-70103: M-70103_as
+              M-70104: M-70104_as
+              M-70105: M-70105_as
+              M-70106: M-70106_as
+              A1: A1_as
+              A101: A101_as
+              A102: A102_as
+              A103: A103_as
+              A101011: A101011_as
+              A101012: A101012_as
+              A10101: A10101_as
+              A101013: A101013_as
+              A101021: A101021_as
+              A101022: A101022_as
+              A10102: A10102_as
+              A101023: A101023_as
+              A101031: A101031_as
+              A101032: A101032_as
+              A10103: A10103_as
+              A101033: A101033_as
+              A10105: A10105_as
+              A10104: A10104_as
+              A11: A11_as
+              A2: A2_as
+              A201: A201_as
+              A202: A202_as
+              A203: A203_as
+              A204: A204_as
+              A205: A205_as
+              3-1: 3-1_as
+              3-101: 3-101_as
+              3-102: 3-102_as
+              3-103: 3-103_as
+              3-104: 3-104_as
+              3-2: 3-2_as
+              3-201: 3-201_as
+              3-202: 3-202_as
+              3-203: 3-203_as
+              3-204: 3-204_as
+              3-3: 3-3_as
+              3-301: 3-301_as
+              3-302: 3-302_as
+              3-303: 3-303_as
+              3-304: 3-304_as
+              3-4: 3-4_as
+              3-401: 3-401_as
+              3-402: 3-402_as
+              3-403: 3-403_as
+              3-404: 3-404_as
+              3-5: 3-5_as
+              3-501: 3-501_as
+              3-502: 3-502_as
+              3-503: 3-503_as
+              3-504: 3-504_as
+              3-6: 3-6_as
+              3-601: 3-601_as
+              3-602: 3-602_as
+              3-603: 3-603_as
+              3-604: 3-604_as
+              3-7: 3-7_as
+              3-701: 3-701_as
+              3-702: 3-702_as
+              3-703: 3-703_as
+              3-704: 3-704_as
+              4-1-1: 4-1-1_as
+              4-1-101: 4-1-101_as
+              4-1-102: 4-1-102_as
+              4-1-103: 4-1-103_as
+              4-1-104: 4-1-104_as
+              4-1-2: 4-1-2_as
+              4-1-201: 4-1-201_as
+              4-1-202: 4-1-202_as
+              4-1-203: 4-1-203_as
+              4-1-204: 4-1-204_as
+              4-2-1: 4-2-1_as
+              4-2-101: 4-2-101_as
+              4-2-102: 4-2-102_as
+              4-2-103: 4-2-103_as
+              4-2-104: 4-2-104_as
+              4-2-2: 4-2-2_as
+              4-2-201: 4-2-201_as
+              4-2-202: 4-2-202_as
+              4-2-203: 4-2-203_as
+              4-2-204: 4-2-204_as
+              4-2-3: 4-2-3_as
+              4-2-301: 4-2-301_as
+              4-2-302: 4-2-302_as
+              4-2-303: 4-2-303_as
+              4-2-304: 4-2-304_as
+              4-2-4: 4-2-4_as
+              4-2-401: 4-2-401_as
+              4-2-402: 4-2-402_as
+              4-2-403: 4-2-403_as
+              4-2-404: 4-2-404_as
+              4-2-5: 4-2-5_as
+              4-2-501: 4-2-501_as
+              4-2-502: 4-2-502_as
+              4-2-503: 4-2-503_as
+              4-2-504: 4-2-504_as
+              4-2-6: 4-2-6_as
+              4-2-601: 4-2-601_as
+              4-2-602: 4-2-602_as
+              4-2-603: 4-2-603_as
+              4-2-604: 4-2-604_as
+              4-2-7: 4-2-7_as
+              4-2-701: 4-2-701_as
+              4-2-702: 4-2-702_as
+              4-2-703: 4-2-703_as
+              4-2-704: 4-2-704_as
+              4-2-8: 4-2-8_as
+              4-2-801: 4-2-801_as
+              4-2-802: 4-2-802_as
+              4-2-803: 4-2-803_as
+              4-2-804: 4-2-804_as
+              4-2-9: 4-2-9_as
+              4-2-901: 4-2-901_as
+              4-2-902: 4-2-902_as
+              4-2-903: 4-2-903_as
+              4-2-904: 4-2-904_as
+              A206: A206_as
+              C1: C1_as
+              C101: C101_as
+              C10101: C10101_as
+              C10102: C10102_as
+              C102: C102_as
+              C10201: C10201_as
+              C10202: C10202_as
+              C103: C103_as
+              C10301: C10301_as
+              C10302: C10302_as
+              C104: C104_as
+              C10401: C10401_as
+              C10402: C10402_as
+              C105: C105_as
+              C10501: C10501_as
+              C10502: C10502_as
+              C2: C2_as
+              C201: C201_as
+              C20101: C20101_as
+              C20102: C20102_as
+              C201-1: C201-1_as
+              C201-101: C201-101_as
+              C201-102: C201-102_as
+              C201-103: C201-103_as
+              C201-201: C201-201_as
+              C201-202: C201-202_as
+              C201-203: C201-203_as
+              C201-204: C201-204_as
+              C201-301: C201-301_as
+              C201-302: C201-302_as
+              C201-303: C201-303_as
+              C201-304: C201-304_as
+              C202: C202_as
+              C20201: C20201_as
+              C20202: C20202_as
+              C202-1: C202-1_as
+              C202-2: C202-2_as
+              C202-3: C202-3_as
+              C202-4: C202-4_as
+              C202-5: C202-5_as
+              C203: C203_as
+              C20301: C20301_as
+              C20302: C20302_as
+              C3: C3_as
+              C301: C301_as
+              C30101: C30101_as
+              C30102: C30102_as
+              C302: C302_as
+              C30201: C30201_as
+              C30202: C30202_as
+              C303: C303_as
+              C30301: C30301_as
+              C30302: C30302_as
+              C304: C304_as
+              C30401: C30401_as
+              C30402: C30402_as
+              C305: C305_as
+              C30501: C30501_as
+              C30502: C30502_as
+              C306: C306_as
+              C30601: C30601_as
+              C30602: C30602_as
+              C4: C4_as
+              C401: C401_as
+              C40101: C40101_as
+              C40102: C40102_as
+              C402: C402_as
+              C40201: C40201_as
+              C40202: C40202_as
+              C403: C403_as
+              C40301: C40301_as
+              C40302: C40302_as
+              C5: C5_as
+              C501: C501_as
+              C50101: C50101_as
+              C50102: C50102_as
+              C50103: C50103_as
+              C502: C502_as
+              C50201: C50201_as
+              C50202: C50202_as
+              C50203: C50203_as
+              C503: C503_as
+              C50301: C50301_as
+              C50302: C50302_as
+              C504: C504_as
+              C50401: C50401_as
+              C50402: C50402_as
+              C6: C6_as
+              C601: C601_as
+              C60101: C60101_as
+              C60102: C60102_as
+              C602: C602_as
+              C60201: C60201_as
+              C60202: C60202_as
+              C7: C7_as
+              C701: C701_as
+              C70101: C70101_as
+              C70102: C70102_as
+              B1: B1_as
+              B2: B2_as
+              B4: B4_as
+              B401: B401_as
+              B402: B402_as
+              B403: B403_as
+              B404: B404_as
+              B405: B405_as
+              B5: B5_as
+        - df_fillna:
+            value: 0
+        - stash_push_df: [ ]
+        - use_df:
+            key: final_accounts_result_table_code_proprietor
+            rename:
+              M-1: M-1_pr
+              M-101: M-101_pr
+              M-102: M-102_pr
+              M-2: M-2_pr
+              M-201: M-201_pr
+              M-3: M-3_pr
+              M-301: M-301_pr
+              Z-02: Z-02_pr
+              Z-01: Z-01_pr
+              M-302: M-302_pr
+              M-103: M-103_pr
+              M-104: M-104_pr
+              M-105: M-105_pr
+              M-106: M-106_pr
+              M-107: M-107_pr
+              S8: S8_pr
+              S9: S9_pr
+              S1: S1_pr
+              S2: S2_pr
+              S3: S3_pr
+              S301: S301_pr
+              S302: S302_pr
+              S303: S303_pr
+              S304: S304_pr
+              S305: S305_pr
+              S306: S306_pr
+              S307: S307_pr
+              S4: S4_pr
+              S411: S411_pr
+              S412: S412_pr
+              S421: S421_pr
+              S422: S422_pr
+              S423: S423_pr
+              S424: S424_pr
+              S425: S425_pr
+              S426: S426_pr
+              S427: S427_pr
+              S428: S428_pr
+              S429: S429_pr
+              S5: S5_pr
+              D-101: D-101_pr
+              S6: S6_pr
+              M-10101: M-10101_pr
+              M-10102: M-10102_pr
+              M-1010101: M-1010101_pr
+              M-1010101-1: M-1010101-1_pr
+              M-1010102: M-1010102_pr
+              M-1010102-1: M-1010102-1_pr
+              M-1010102-2: M-1010102-2_pr
+              M-1010103: M-1010103_pr
+              M-1010103-1: M-1010103-1_pr
+              M-1010103-2: M-1010103-2_pr
+              M-1010103-3: M-1010103-3_pr
+              M-1010104: M-1010104_pr
+              M-1010104-5: M-1010104-5_pr
+              M-1010104-1: M-1010104-1_pr
+              M-1010104-6: M-1010104-6_pr
+              M-1010104-2: M-1010104-2_pr
+              M-1010104-3: M-1010104-3_pr
+              M-1010104-4: M-1010104-4_pr
+              M-701: M-701_pr
+              M-70101: M-70101_pr
+              M-70102: M-70102_pr
+              M-70103: M-70103_pr
+              M-70104: M-70104_pr
+              M-70105: M-70105_pr
+              M-70106: M-70106_pr
+              A1: A1_pr
+              A101: A101_pr
+              A102: A102_pr
+              A103: A103_pr
+              A101011: A101011_pr
+              A101012: A101012_pr
+              A10101: A10101_pr
+              A101013: A101013_pr
+              A101021: A101021_pr
+              A101022: A101022_pr
+              A10102: A10102_pr
+              A101023: A101023_pr
+              A101031: A101031_pr
+              A101032: A101032_pr
+              A10103: A10103_pr
+              A101033: A101033_pr
+              A10105: A10105_pr
+              A10104: A10104_pr
+              A11: A11_pr
+              A2: A2_pr
+              A201: A201_pr
+              A202: A202_pr
+              A203: A203_pr
+              A204: A204_pr
+              A205: A205_pr
+              3-1: 3-1_pr
+              3-101: 3-101_pr
+              3-102: 3-102_pr
+              3-103: 3-103_pr
+              3-104: 3-104_pr
+              3-2: 3-2_pr
+              3-201: 3-201_pr
+              3-202: 3-202_pr
+              3-203: 3-203_pr
+              3-204: 3-204_pr
+              3-3: 3-3_pr
+              3-301: 3-301_pr
+              3-302: 3-302_pr
+              3-303: 3-303_pr
+              3-304: 3-304_pr
+              3-4: 3-4_pr
+              3-401: 3-401_pr
+              3-402: 3-402_pr
+              3-403: 3-403_pr
+              3-404: 3-404_pr
+              3-5: 3-5_pr
+              3-501: 3-501_pr
+              3-502: 3-502_pr
+              3-503: 3-503_pr
+              3-504: 3-504_pr
+              3-6: 3-6_pr
+              3-601: 3-601_pr
+              3-602: 3-602_pr
+              3-603: 3-603_pr
+              3-604: 3-604_pr
+              3-7: 3-7_pr
+              3-701: 3-701_pr
+              3-702: 3-702_pr
+              3-703: 3-703_pr
+              3-704: 3-704_pr
+              4-1-1: 4-1-1_pr
+              4-1-101: 4-1-101_pr
+              4-1-102: 4-1-102_pr
+              4-1-103: 4-1-103_pr
+              4-1-104: 4-1-104_pr
+              4-1-2: 4-1-2_pr
+              4-1-201: 4-1-201_pr
+              4-1-202: 4-1-202_pr
+              4-1-203: 4-1-203_pr
+              4-1-204: 4-1-204_pr
+              4-2-1: 4-2-1_pr
+              4-2-101: 4-2-101_pr
+              4-2-102: 4-2-102_pr
+              4-2-103: 4-2-103_pr
+              4-2-104: 4-2-104_pr
+              4-2-2: 4-2-2_pr
+              4-2-201: 4-2-201_pr
+              4-2-202: 4-2-202_pr
+              4-2-203: 4-2-203_pr
+              4-2-204: 4-2-204_pr
+              4-2-3: 4-2-3_pr
+              4-2-301: 4-2-301_pr
+              4-2-302: 4-2-302_pr
+              4-2-303: 4-2-303_pr
+              4-2-304: 4-2-304_pr
+              4-2-4: 4-2-4_pr
+              4-2-401: 4-2-401_pr
+              4-2-402: 4-2-402_pr
+              4-2-403: 4-2-403_pr
+              4-2-404: 4-2-404_pr
+              4-2-5: 4-2-5_pr
+              4-2-501: 4-2-501_pr
+              4-2-502: 4-2-502_pr
+              4-2-503: 4-2-503_pr
+              4-2-504: 4-2-504_pr
+              4-2-6: 4-2-6_pr
+              4-2-601: 4-2-601_pr
+              4-2-602: 4-2-602_pr
+              4-2-603: 4-2-603_pr
+              4-2-604: 4-2-604_pr
+              4-2-7: 4-2-7_pr
+              4-2-701: 4-2-701_pr
+              4-2-702: 4-2-702_pr
+              4-2-703: 4-2-703_pr
+              4-2-704: 4-2-704_pr
+              4-2-8: 4-2-8_pr
+              4-2-801: 4-2-801_pr
+              4-2-802: 4-2-802_pr
+              4-2-803: 4-2-803_pr
+              4-2-804: 4-2-804_pr
+              4-2-9: 4-2-9_pr
+              4-2-901: 4-2-901_pr
+              4-2-902: 4-2-902_pr
+              4-2-903: 4-2-903_pr
+              4-2-904: 4-2-904_pr
+              A206: A206_pr
+              C1: C1_pr
+              C101: C101_pr
+              C10101: C10101_pr
+              C10102: C10102_pr
+              C102: C102_pr
+              C10201: C10201_pr
+              C10202: C10202_pr
+              C103: C103_pr
+              C10301: C10301_pr
+              C10302: C10302_pr
+              C104: C104_pr
+              C10401: C10401_pr
+              C10402: C10402_pr
+              C105: C105_pr
+              C10501: C10501_pr
+              C10502: C10502_pr
+              C2: C2_pr
+              C201: C201_pr
+              C20101: C20101_pr
+              C20102: C20102_pr
+              C201-1: C201-1_pr
+              C201-101: C201-101_pr
+              C201-102: C201-102_pr
+              C201-103: C201-103_pr
+              C201-201: C201-201_pr
+              C201-202: C201-202_pr
+              C201-203: C201-203_pr
+              C201-204: C201-204_pr
+              C201-301: C201-301_pr
+              C201-302: C201-302_pr
+              C201-303: C201-303_pr
+              C201-304: C201-304_pr
+              C202: C202_pr
+              C20201: C20201_pr
+              C20202: C20202_pr
+              C202-1: C202-1_pr
+              C202-2: C202-2_pr
+              C202-3: C202-3_pr
+              C202-4: C202-4_pr
+              C202-5: C202-5_pr
+              C203: C203_pr
+              C20301: C20301_pr
+              C20302: C20302_pr
+              C3: C3_pr
+              C301: C301_pr
+              C30101: C30101_pr
+              C30102: C30102_pr
+              C302: C302_pr
+              C30201: C30201_pr
+              C30202: C30202_pr
+              C303: C303_pr
+              C30301: C30301_pr
+              C30302: C30302_pr
+              C304: C304_pr
+              C30401: C30401_pr
+              C30402: C30402_pr
+              C305: C305_pr
+              C30501: C30501_pr
+              C30502: C30502_pr
+              C306: C306_pr
+              C30601: C30601_pr
+              C30602: C30602_pr
+              C4: C4_pr
+              C401: C401_pr
+              C40101: C40101_pr
+              C40102: C40102_pr
+              C402: C402_pr
+              C40201: C40201_pr
+              C40202: C40202_pr
+              C403: C403_pr
+              C40301: C40301_pr
+              C40302: C40302_pr
+              C5: C5_pr
+              C501: C501_pr
+              C50101: C50101_pr
+              C50102: C50102_pr
+              C50103: C50103_pr
+              C502: C502_pr
+              C50201: C50201_pr
+              C50202: C50202_pr
+              C50203: C50203_pr
+              C503: C503_pr
+              C50301: C50301_pr
+              C50302: C50302_pr
+              C504: C504_pr
+              C50401: C50401_pr
+              C50402: C50402_pr
+              C6: C6_pr
+              C601: C601_pr
+              C60101: C60101_pr
+              C60102: C60102_pr
+              C602: C602_pr
+              C60201: C60201_pr
+              C60202: C60202_pr
+              C7: C7_pr
+              C701: C701_pr
+              C70101: C70101_pr
+              C70102: C70102_pr
+              B1: B1_pr
+              B2: B2_pr
+              B4: B4_pr
+              B401: B401_pr
+              B402: B402_pr
+              B403: B403_pr
+              B404: B404_pr
+              B405: B405_pr
+              B5: B5_pr
+        - df_fillna:
+            value: 0
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: dc_name
+            how: outer
+            drop_stash: true
+        - df_fillna:
+            value: 0
+        - add_cols:
+            - S8: 1
+              S9: 0
+        - run_py:
+            - |
+              df = to_df(df)
+              df["S6"] = (pd.datetime.now()-pd.Timedelta(days=pd.datetime.now().day)).day
+              result = to_dd(df)
+        - df_fillna:
+            value: 0
+        - run_py:
+            - |
+              df['D-101'] = (df['D-101_as'] + df['D-101_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['D-10101'] = (df['D-101'] / df['S6']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-1'] = (df['M-1_as'] + df['M-1_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-101'] = (df['M-1'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-2'] = (df['M-2_as'] + df['M-2_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-102'] = ((df['M-1'] - df['M-2']) / df['M-1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-201'] = (df['M-2'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-3'] = (df['M-1'] - df['M-2']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-301'] = (df['M-3'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['Z-02'] = (df['Z-02_as'] + df['Z-02_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['Z-01'] = (df['Z-01_as'] + df['Z-01_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-302'] = (df['M-3'] / df['M-1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['S1'] = (df['S1_as'] + df['S1_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['S2'] = (df['S2_as'] + df['S2_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['S3'] = (df['S3_as'] + df['S3_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['S4'] = (df['S4_as'] + df['S4_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-103'] = (df['D-10101'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-104'] = (df['M-1'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-105'] = (df['M-3'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-106'] = (df['M-1'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-107'] = (df['M-3'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['S301'] = (df['S301_as'] + df['S301_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['S302'] = (df['S302_as'] + df['S302_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['S303'] = (df['S303_as'] + df['S303_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['S304'] = (df['S304_as'] + df['S304_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['S305'] = (df['S305_as'] + df['S305_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['S306'] = (df['S306_as'] + df['S306_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['S307'] = (df['S307_as'] + df['S307_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['S411'] = (df['S411_as'] + df['S411_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['S412'] = (df['S412_as'] + df['S412_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['S421'] = (df['S421_as'] + df['S421_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['S422'] = (df['S422_as'] + df['S422_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['S423'] = (df['S423_as'] + df['S423_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['S424'] = (df['S424_as'] + df['S424_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['S425'] = (df['S425_as'] + df['S425_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['S426'] = (df['S426_as'] + df['S426_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['S427'] = (df['S427_as'] + df['S427_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['S428'] = (df['S428_as'] + df['S428_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['S429'] = (df['S429_as'] + df['S429_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['S5'] = (df['S5_as'] + df['S5_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-10101'] = (df['M-10101_as'] + df['M-10101_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-10102'] = (df['M-10101'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-1010101'] = (df['M-1010101_as'] + df['M-1010101_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-1010101-1'] = (df['M-1010101'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-1010102'] = (df['M-1010102_as'] + df['M-1010102_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-1010102-1'] = (df['M-1010102'] / 1.06).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-1010102-2'] = (df['M-1010102-2_as'] + df['M-1010102-2_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-1010103'] = (df['M-1010103_as'] + df['M-1010103_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-1010103-1'] = (df['M-1010103-1_as'] + df['M-1010103-1_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-1010103-2'] = (df['M-1010103-2_as'] + df['M-1010103-2_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-1010103-3'] = (df['M-1010103-3_as'] + df['M-1010103-3_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-1010104'] = (df['M-1010104_as'] + df['M-1010104_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-1010104-5'] = (df['M-1010104'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-1010104-1'] = (df['M-1010104-1_as'] + df['M-1010104-1_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-1010104-6'] = (df['M-1010104-1'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-1010104-2'] = (df['M-1010104-2_as'] + df['M-1010104-2_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-1010104-3'] = (df['M-1010104-3_as'] + df['M-1010104-3_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-1010104-4'] = (df['M-1010104-4_as'] + df['M-1010104-4_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-701'] = (df['M-701_as'] + df['M-701_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-70101'] = (df['M-70101_as'] + df['M-70101_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-70102'] = (df['M-70102_as'] + df['M-70102_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-70103'] = (df['M-70103_as'] + df['M-70103_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-70104'] = (df['M-70104_as'] + df['M-70104_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-70105'] = (df['M-70105_as'] + df['M-70105_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-70106'] = (df['M-70106_as'] + df['M-70106_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A1'] = (df['A1_as'] + df['A1_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A101'] = (df['A101_as'] + df['A101_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A102'] = (df['A101'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A103'] = (df['A101'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A101011'] = (df['A101011_as'] + df['A101011_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A101012'] = (df['A101012_as'] + df['A101012_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A10101'] = (df['A10101_as'] + df['A10101_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A101013'] = (df['A10101'] / df['A101012']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A101021'] = (df['A101021_as'] + df['A101021_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A101022'] = (df['A101022_as'] + df['A101022_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A10102'] = (df['A10102_as'] + df['A10102_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A101023'] = (df['A10102'] / df['A101022']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A101031'] = (df['A101031_as'] + df['A101031_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A101032'] = (df['A101032_as'] + df['A101032_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A10103'] = (df['A10103_as'] + df['A10103_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A101033'] = (df['A10103'] / df['A101032']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A10105'] = (df['A10105_as'] + df['A10105_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A10104'] = (df['A10104_as'] + df['A10104_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A11'] = (df['A11_as'] + df['A11_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A2'] = (df['A2_as'] + df['A2_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A201'] = (df['A201_as'] + df['A201_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A202'] = (df['A202_as'] + df['A202_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A203'] = (df['D-10101'] / df['A202']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A204'] = (df['A201'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A205'] = (df['A201'] / df['A202']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-1'] = (df['3-1_as'] + df['3-1_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-101'] = (df['3-101_as'] + df['3-101_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-102'] = (df['3-102_as'] + df['3-102_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-103'] = (df['3-103_as'] + df['3-103_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-104'] = (df['3-104_as'] + df['3-104_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-2'] = (df['3-2_as'] + df['3-2_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-201'] = (df['3-201_as'] + df['3-201_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-202'] = (df['3-202_as'] + df['3-202_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-203'] = (df['3-203_as'] + df['3-203_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-204'] = (df['3-204_as'] + df['3-204_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-3'] = (df['3-3_as'] + df['3-3_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-301'] = (df['3-301_as'] + df['3-301_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-302'] = (df['3-302_as'] + df['3-302_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-303'] = (df['3-303_as'] + df['3-303_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-304'] = (df['3-304_as'] + df['3-304_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-4'] = (df['3-4_as'] + df['3-4_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-401'] = (df['3-401_as'] + df['3-401_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-402'] = (df['3-402_as'] + df['3-402_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-403'] = (df['3-403_as'] + df['3-403_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-404'] = (df['3-404_as'] + df['3-404_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-5'] = (df['3-5_as'] + df['3-5_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-501'] = (df['3-501_as'] + df['3-501_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-502'] = (df['3-502_as'] + df['3-502_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-503'] = (df['3-503_as'] + df['3-503_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-504'] = (df['3-504_as'] + df['3-504_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-6'] = (df['3-6_as'] + df['3-6_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-601'] = (df['3-601_as'] + df['3-601_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-602'] = (df['3-602_as'] + df['3-602_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-603'] = (df['3-603_as'] + df['3-603_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-604'] = (df['3-604_as'] + df['3-604_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-7'] = (df['3-7_as'] + df['3-7_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-701'] = (df['3-701_as'] + df['3-701_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-702'] = (df['3-702_as'] + df['3-702_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-703'] = (df['3-703_as'] + df['3-703_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-704'] = (df['3-704_as'] + df['3-704_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-1-1'] = (df['4-1-1_as'] + df['4-1-1_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-1-101'] = (df['4-1-101_as'] + df['4-1-101_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-1-102'] = (df['4-1-102_as'] + df['4-1-102_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-1-103'] = (df['4-1-103_as'] + df['4-1-103_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-1-104'] = (df['4-1-104_as'] + df['4-1-104_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-1-2'] = (df['4-1-2_as'] + df['4-1-2_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-1-201'] = (df['4-1-201_as'] + df['4-1-201_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-1-202'] = (df['4-1-202_as'] + df['4-1-202_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-1-203'] = (df['4-1-203_as'] + df['4-1-203_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-1-204'] = (df['4-1-204_as'] + df['4-1-204_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-1'] = (df['4-2-1_as'] + df['4-2-1_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-101'] = (df['4-2-101_as'] + df['4-2-101_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-102'] = (df['4-2-102_as'] + df['4-2-102_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-103'] = (df['4-2-103_as'] + df['4-2-103_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-104'] = (df['4-2-104_as'] + df['4-2-104_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-2'] = (df['4-2-2_as'] + df['4-2-2_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-201'] = (df['4-2-201_as'] + df['4-2-201_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-202'] = (df['4-2-202_as'] + df['4-2-202_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-203'] = (df['4-2-203_as'] + df['4-2-203_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-204'] = (df['4-2-204_as'] + df['4-2-204_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-3'] = (df['4-2-3_as'] + df['4-2-3_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-301'] = (df['4-2-301_as'] + df['4-2-301_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-302'] = (df['4-2-302_as'] + df['4-2-302_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-303'] = (df['4-2-303_as'] + df['4-2-303_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-304'] = (df['4-2-304_as'] + df['4-2-304_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-4'] = (df['4-2-4_as'] + df['4-2-4_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-401'] = (df['4-2-401_as'] + df['4-2-401_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-402'] = (df['4-2-402_as'] + df['4-2-402_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-403'] = (df['4-2-403_as'] + df['4-2-403_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-404'] = (df['4-2-404_as'] + df['4-2-404_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-5'] = (df['4-2-5_as'] + df['4-2-5_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-501'] = (df['4-2-501_as'] + df['4-2-501_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-502'] = (df['4-2-502_as'] + df['4-2-502_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-503'] = (df['4-2-503_as'] + df['4-2-503_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-504'] = (df['4-2-504_as'] + df['4-2-504_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-6'] = (df['4-2-6_as'] + df['4-2-6_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-601'] = (df['4-2-601_as'] + df['4-2-601_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-602'] = (df['4-2-602_as'] + df['4-2-602_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-603'] = (df['4-2-603_as'] + df['4-2-603_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-604'] = (df['4-2-604_as'] + df['4-2-604_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-7'] = (df['4-2-7_as'] + df['4-2-7_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-701'] = (df['4-2-701_as'] + df['4-2-701_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-702'] = (df['4-2-702_as'] + df['4-2-702_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-703'] = (df['4-2-703_as'] + df['4-2-703_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-704'] = (df['4-2-704_as'] + df['4-2-704_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-8'] = (df['4-2-8_as'] + df['4-2-8_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-801'] = (df['4-2-801_as'] + df['4-2-801_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-802'] = (df['4-2-802_as'] + df['4-2-802_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-803'] = (df['4-2-803_as'] + df['4-2-803_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-804'] = (df['4-2-804_as'] + df['4-2-804_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-9'] = (df['4-2-9_as'] + df['4-2-9_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-901'] = (df['4-2-901_as'] + df['4-2-901_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-902'] = (df['4-2-902_as'] + df['4-2-902_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-903'] = (df['4-2-903_as'] + df['4-2-903_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-904'] = (df['4-2-904_as'] + df['4-2-904_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A206'] = (df['A206_as'] + df['A206_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C1'] = (df['C1_as'] + df['C1_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C101'] = (df['C101_as'] + df['C101_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10101'] = (df['C101'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10102'] = (df['C101'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C102'] = (df['C102_as'] + df['C102_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10201'] = (df['C102'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10202'] = (df['C102'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C103'] = (df['C103_as'] + df['C103_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10301'] = (df['C103'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10302'] = (df['C103'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C104'] = (df['C104_as'] + df['C104_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10401'] = (df['C104'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10402'] = (df['C104'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C105'] = (df['C105_as'] + df['C105_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10501'] = (df['C105'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10502'] = (df['C105'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C2'] = (df['C2_as'] + df['C2_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201'] = (df['C201_as'] + df['C201_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C20101'] = (df['C201'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C20102'] = (df['C201'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201-1'] = (df['C201-1_as'] + df['C201-1_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201-101'] = (df['C201-101_as'] + df['C201-101_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201-102'] = (df['C201-1'] / df['C201-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201-103'] = (df['C201-1'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201-201'] = (df['C201-201_as'] + df['C201-201_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201-202'] = (df['C201-202_as'] + df['C201-202_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201-203'] = (df['C201-201'] / df['C201-202']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201-204'] = (df['C201-201'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201-301'] = (df['C201-301_as'] + df['C201-301_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201-302'] = (df['C201-302_as'] + df['C201-302_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201-303'] = (df['C201-301'] / df['C201-302']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201-304'] = (df['C201-301'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C202'] = (df['C202_as'] + df['C202_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C20201'] = (df['C202'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C20202'] = (df['C202'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C202-1'] = (df['C202-1_as'] + df['C202-1_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C202-2'] = (df['C202-2_as'] + df['C202-2_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C202-3'] = (df['C202-3_as'] + df['C202-3_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C202-4'] = (df['C202-4_as'] + df['C202-4_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C202-5'] = (df['C202-5_as'] + df['C202-5_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C203'] = (df['C203_as'] + df['C203_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C20301'] = (df['C203'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C20302'] = (df['C203'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C3'] = (df['C3_as'] + df['C3_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C301'] = (df['C301_as'] + df['C301_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30101'] = (df['C301'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30102'] = (df['C301'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C302'] = (df['C302_as'] + df['C302_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30201'] = (df['C302'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30202'] = (df['C302'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C303'] = (df['C303_as'] + df['C303_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30301'] = (df['C303'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30302'] = (df['C303'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C304'] = (df['C304_as'] + df['C304_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30401'] = (df['C304'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30402'] = (df['C304'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C305'] = (df['C305_as'] + df['C305_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30501'] = (df['C305'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30502'] = (df['C305'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C306'] = (df['C306_as'] + df['C306_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30601'] = (df['C306'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30602'] = (df['C306'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C4'] = (df['C4_as'] + df['C4_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C401'] = (df['C401_as'] + df['C401_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C40101'] = (df['C401'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C40102'] = (df['C401'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C402'] = (df['C402_as'] + df['C402_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C40201'] = (df['C402'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C40202'] = (df['C402'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C403'] = (df['C403_as'] + df['C403_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C40301'] = (df['C403'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C40302'] = (df['C403'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C5'] = (df['C5_as'] + df['C5_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C501'] = (df['C501_as'] + df['C501_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C50101'] = (df['C50101_as'] + df['C50101_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C50102'] = (df['C501'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C50103'] = (df['C501'] / df['C50101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C502'] = (df['C502_as'] + df['C502_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C50201'] = (df['C50201_as'] + df['C50201_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C50202'] = (df['C502'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C50203'] = (df['C502'] / df['C50201']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C503'] = (df['C503_as'] + df['C503_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C50301'] = (df['C503'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C50302'] = (df['C503'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C504'] = (df['C504_as'] + df['C504_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C50401'] = (df['C504'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C50402'] = (df['C504'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C6'] = (df['C6_as'] + df['C6_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C601'] = (df['C601_as'] + df['C601_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C60101'] = (df['C601'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C60102'] = (df['C601'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C602'] = (df['C602_as'] + df['C602_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C60201'] = (df['C602'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C60202'] = (df['C602'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C7'] = (df['C7_as'] + df['C7_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C701'] = (df['C701_as'] + df['C701_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C70101'] = (df['C701'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C70102'] = (df['C701'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['B1'] = (df['B1_as'] + df['B1_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['B2'] = (df['B2_as'] + df['B2_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['B3'] = (df['B1'] / df['B2']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['B4'] = (df['B4_as'] + df['B4_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['B401'] = (df['B401_as'] + df['B401_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['B402'] = (df['B402_as'] + df['B402_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['B403'] = (df['B403_as'] + df['B403_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['B404'] = (df['B4'] / df['B401']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['B405'] = (df['B4'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['B5'] = (df['B5_as'] + df['B5_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              result = df
+
+        - fetch_cols:
+            columns: [ dc_name,D-10101,M-1,M-101,M-102,M-2,M-201,M-3,M-301,Z-02,Z-01,M-302,M-103,M-104,M-105,M-106,M-107,S8,S9,S1,S2,S3,S301,S302,S303,S304,S305,S306,S307,S4,S411,S412,S421,S422,S423,S424,S425,S426,S427,S428,S429,S5,D-101,S6,M-10101,M-10102,M-1010101,M-1010101-1,M-1010102,M-1010102-1,M-1010102-2,M-1010103,M-1010103-1,M-1010103-2,M-1010103-3,M-1010104,M-1010104-5,M-1010104-1,M-1010104-6,M-1010104-2,M-1010104-3,M-1010104-4,M-701,M-70101,M-70102,M-70103,M-70104,M-70105,M-70106,A1,A101,A102,A103,A101011,A101012,A10101,A101013,A101021,A101022,A10102,A101023,A101031,A101032,A10103,A101033,A10105,A10104,A11,A2,A201,A202,A203,A204,A205,3-1,3-101,3-102,3-103,3-104,3-2,3-201,3-202,3-203,3-204,3-3,3-301,3-302,3-303,3-304,3-4,3-401,3-402,3-403,3-404,3-5,3-501,3-502,3-503,3-504,3-6,3-601,3-602,3-603,3-604,3-7,3-701,3-702,3-703,3-704,4-1-1,4-1-101,4-1-102,4-1-103,4-1-104,4-1-2,4-1-201,4-1-202,4-1-203,4-1-204,4-2-1,4-2-101,4-2-102,4-2-103,4-2-104,4-2-2,4-2-201,4-2-202,4-2-203,4-2-204,4-2-3,4-2-301,4-2-302,4-2-303,4-2-304,4-2-4,4-2-401,4-2-402,4-2-403,4-2-404,4-2-5,4-2-501,4-2-502,4-2-503,4-2-504,4-2-6,4-2-601,4-2-602,4-2-603,4-2-604,4-2-7,4-2-701,4-2-702,4-2-703,4-2-704,4-2-8,4-2-801,4-2-802,4-2-803,4-2-804,4-2-9,4-2-901,4-2-902,4-2-903,4-2-904,A206,C1,C101,C10101,C10102,C102,C10201,C10202,C103,C10301,C10302,C104,C10401,C10402,C105,C10501,C10502,C2,C201,C20101,C20102,C201-1,C201-101,C201-102,C201-103,C201-201,C201-202,C201-203,C201-204,C201-301,C201-302,C201-303,C201-304,C202,C20201,C20202,C202-1,C202-2,C202-3,C202-4,C202-5,C203,C20301,C20302,C3,C301,C30101,C30102,C302,C30201,C30202,C303,C30301,C30302,C304,C30401,C30402,C305,C30501,C30502,C306,C30601,C30602,C4,C401,C40101,C40102,C402,C40201,C40202,C403,C40301,C40302,C5,C501,C50101,C50102,C50103,C502,C50201,C50202,C50203,C503,C50301,C50302,C504,C50401,C50402,C6,C601,C60101,C60102,C602,C60201,C60202,C7,C701,C70101,C7,C701,C70101,C70102,B1,B2,B3,B4,B401,B402,B403,B404,B405,B5 ]
+        - stash_push_df: [ ]
+        - use_df:
+            key: dc_supplier_switch_table
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: dc_name
+            how: right
+            drop_stash: true
+
+
+
+    - name: final_accounts_result_table_code_collect    # 结果项-code-汇总
+      sync_result: true
+      cooks:
+        - use_df:
+            key: final_accounts_result_table_code
+        - stash_push_df: [ ]
+        - use_df:
+            key: final_accounts_result_table_code_assets
+        - run_py:
+            - |
+              df['dc_name'] = df['dc_name'] + '-资产'
+              result = df
+        - stash_push_df: [ ]
+        - stash_concat_df:
+            drop_stash: true
+        - stash_push_df: [ ]
+        - use_df:
+            key: final_accounts_result_table_code_proprietor
+        - run_py:
+            - |
+              df['dc_name'] = df['dc_name'] + '-业主团队'
+              result = df
+        - stash_push_df: [ ]
+        - stash_concat_df:
+            drop_stash: true
+        - run_py:
+            - |
+              df = df.sort_values('dc_name',inplace=True)
+              result = df
+
+
+    - name: final_accounts_result_table_team    # 结果项-team
+      sync_result: true
+      cooks:
+        - use_df: # 收入表   红冲、预提字段
+            key: biz_ext_data_log_copy
+            columns: [ team_name,team_id,team_code,cost_mode,datasource_kind,money,child_ac_code ]
+        - df_select:
+            - '([datasource_kind] in @p1) & ([cost_mode] == @p2) & ([child_ac_code] in @p3)'
+            - p1: [ ext_mt_cost_append,ext_mt_cost_oa ]     # 美团追加拆分模版 &   boss费用拆分表
+              p2: 10     # team
+              p3: [ Z-02,Z-01,A10104,A206,C101,C701,C102,C103,C104,C105,C201-1,C201-101,C201-201,C201-202,C201-301,C201-302,C202-1,C202-2,C202-3,C202-4,C202-5,C203,C301,C302,C303,C304,C305,C306,C401,C402,C403,C501,C502,C503,C504,C601,C602 ]
+        - df_pivot_table: # 透视表
+            values: money
+            index: [ team_code ]
+            columns: [ child_ac_code ]
+            aggfunc: sum
+        - df_reset_index: []
+        - pad_cols:
+            columns: [ Z-02,Z-01,A10104,A206,C101,C701,C102,C103,C104,C105,C201-1,C201-101,C201-201,C201-202,C201-301,C201-302,C202-1,C202-2,C202-3,C202-4,C202-5,C203,C301,C302,C303,C304,C305,C306,C401,C402,C403,C501,C502,C503,C504,C601,C602 ]
+            default_value: 0
+        - push_dataset:
+            key: final_accounts_result_table_team_mini
+
+        - use_df:    # 标准化工资表
+            key: wages_copy
+            columns: [cost_center_type,staff_id_card_num]
+        - df_select:      # 筛选3、4线人数
+            - '[cost_center_type] in @p1'
+            - p1: [C30101,D40101]
+        - stash_push_df: []
+        - use_df:      # 标准化转换表
+            key: biz_monthly_map_copy
+            columns: [ map_name,value1,value2,岗位名称 ]
+        - df_select:
+            - '[map_name] == @p1'
+            - p1: ext_mt_salary_sheet     # 美团3、4、5线人员花名册
+        - df_rename_columns:
+            - value1: staff_id_card_num
+              value2: team_code
+        - stash_push_df: []
+        - stash_join_df:
+            on: staff_id_card_num
+            how: right
+            drop_stash: true
+        - add_cols:
+            - number: 1
+        - df_pivot_table:    # 透视表
+            values: number
+            index: [ team_code ]
+            columns: [ 岗位名称 ]
+            aggfunc: sum
+        - df_reset_index: []
+        - pad_cols:
+            columns: [ '城市经理','城市招聘','城市运维','城市人事','城市安全','城市商务','教练培训','区域经理','区域其他','主体管理者','商务','薪资','保险','运维','数据','物资','招聘','安全' ]
+            default_value: 0
+        - df_rename_columns:
+            - 城市经理: S301
+              城市招聘: S302
+              城市运维: S303
+              城市人事: S304
+              城市安全: S305
+              城市商务: S306
+              教练培训: S307
+              区域经理: S411
+              区域其他: S412
+              主体管理者: S421
+              商务: S422
+              薪资: S423
+              保险: S424
+              运维: S425
+              数据: S426
+              物资: S427
+              招聘: S428
+              安全: S429
+        - fetch_cols:
+            columns: [ team_code,S301,S302,S303,S304,S305,S306,S307,S411,S412,S421,S422,S423,S424,S425,S426,S427,S428,S429 ]
+        - push_dataset:
+            key: three_four_number
+        - use_df: # 标准化工资表
+            key: wages_copy
+            columns: [ team_code,cost_center_type,staff_id_card_num ]
+        - df_select:
+            - '[cost_center_type] == @p1'
+            - p1: E50101
+        - stash_push_df: [ ]
+        - use_df:
+            key: biz_monthly_map_copy
+            columns: [ map_name,value1,value2 ]
+        - df_select:
+            - '[map_name] == @p1'
+            - p1: ext_mt_salary_sheet     # 美团3、4、5线人员花名册
+        - df_rename_columns:
+            - value1: staff_id_card_num
+              value2: team_code
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: staff_id_card_num
+            how: right
+            drop_stash: true
+        - df_groupby:
+            by: team_code
+        - df_count:
+            column: staff_id_card_num
+            rename: S5
+        - df_reset_index: []
+        - stash_push_df: []
+        - use_df:
+            key: three_four_number
+        - stash_push_df: []
+        - stash_join_df:
+            on: team_code
+            how: outer
+            drop_stash: true
+        - stash_push_df: [ ]
+        - use_df:
+            key: final_accounts_result_table_team_mini
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: team_code
+            how: outer
+            drop_stash: true
+        - push_dataset:
+            key: final_accounts_result_table_team_mini1
+
+        - use_df:      # 工资表
+            key: wages_copy
+            columns: [ team_code,team_id,cost_center_type,staff_id_card_num,payable_money ]
+        - df_select:
+            - '[cost_center_type] in @p1'
+            - p1: [C30101,D40101,E50101]
+        - stash_push_df: []
+        - use_df:    # 转换表
+            key: biz_monthly_map_copy
+            columns: [ map_name,value1,value2,岗位名称 ]
+        - df_select:
+            - '[map_name] == @p1'
+            - p1: ext_mt_salary_sheet     # 美团3、4、5线人员花名册
+        - df_rename_columns:
+            - value1: staff_id_card_num
+              value2: team_code
+        - stash_push_df: []
+        - stash_join_df:
+            on: staff_id_card_num
+            how: right
+            drop_stash: true
+        - add_cols:
+            - number: 1
+        - push_dataset:
+            key: final_accounts_wages_table_team_process_table
+        - use_df:
+            key: final_accounts_wages_table_team_process_table
+        - df_pivot_table: # 透视表
+            values: payable_money
+            index: [ team_code ]
+            columns: [ 岗位名称 ]
+            aggfunc: sum
+        - df_reset_index: []
+        - pad_cols:
+            columns: [ '城市经理','城市招聘','城市运维','城市人事','城市安全','城市商务','教练培训','区域经理','区域其他','主体管理者','商务','薪资','保险','运维','数据','物资','招聘','安全' ]
+            default_value: 0.0
+        - df_fillna:
+            value: 0
+        - df_rename_columns:
+            - 城市经理: 3-1
+              城市招聘: 3-2
+              城市运维: 3-3
+              城市人事: 3-4
+              城市安全: 3-5
+              城市商务: 3-6
+              教练培训: 3-7
+              区域经理: 4-1-1
+              区域其他: 4-1-2
+              主体管理者: 4-2-1
+              商务: 4-2-2
+              薪资: 4-2-3
+              保险: 4-2-4
+              运维: 4-2-5
+              数据: 4-2-6
+              物资: 4-2-7
+              招聘: 4-2-8
+              安全: 4-2-9
+        - stash_push_df: []
+        - use_df:
+            key: final_accounts_wages_table_team_process_table
+        - drop_duplicates:
+            subset: [staff_id_card_num]
+        - df_pivot_table: # 透视表
+            values: number
+            index: [ team_code ]
+            columns: [ 岗位名称 ]
+            aggfunc: sum
+        - df_reset_index: []
+        - pad_cols:
+            columns: [ '城市经理','城市招聘','城市运维','城市人事','城市安全','城市商务','教练培训','区域经理','区域其他','主体管理者','商务','薪资','保险','运维','数据','物资','招聘','安全' ]
+            default_value: 0.0
+        - df_rename_columns:
+            - 城市经理: 3-101
+              城市招聘: 3-201
+              城市运维: 3-301
+              城市人事: 3-401
+              城市安全: 3-501
+              城市商务: 3-601
+              教练培训: 3-701
+              区域经理: 4-1-101
+              区域其他: 4-1-201
+              主体管理者: 4-2-101
+              商务: 4-2-201
+              薪资: 4-2-301
+              保险: 4-2-401
+              运维: 4-2-501
+              数据: 4-2-601
+              物资: 4-2-701
+              招聘: 4-2-801
+              安全: 4-2-901
+        - stash_push_df: []
+        - stash_join_df:
+            on: team_code
+            how: outer
+            drop_stash: true
+        - stash_push_df: [ ]
+
+        - use_df: # 收入表      内荐人数、  三方推荐人数
+            key: biz_ext_data_log_copy
+            columns: [ team_name,team_id,team_code,child_ac_code,cost_mode,datasource_kind,worker_num ]
+        - df_select:
+            - '([datasource_kind] in @p1) & ([cost_mode] == @p2) & ([child_ac_code] in @p3)'
+            - p1: [ext_mt_cost_append,ext_mt_cost_oa]
+              p2: 10
+              p3: [ C50101,C50201,C104 ]
+        - df_pivot_table: # 透视表
+            values: worker_num
+            index: [ team_code ]
+            columns: [ child_ac_code ]
+            aggfunc: sum
+        - df_reset_index: []
+        - pad_cols:
+            columns: [ C50101,C50201 ]
+            default_value: 0
+        - fetch_cols:
+            columns: [team_code,C50101,C50201]
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: team_code
+            how: outer
+            drop_stash: true
+        - stash_push_df: [ ]
+        - use_df: # 标准化工资表      工资金额
+            key: wages_copy
+            columns: [ team_code,人员性质,完成单量,外单单量,payable_money,cost_center_type,staff_id_card_num ]
+        - df_select:
+            - '[cost_center_type] in @p1'
+            - p1: [ C30101,D40101 ]
+        - df_groupby:
+            by: team_code
+        - df_sum:
+            column: payable_money
+            rename: A201
+        - df_reset_index: []
+        - stash_push_df: []
+        - stash_join_df:
+            on: team_code
+            how: outer
+            drop_stash: true
+        - stash_push_df: [ ]
+        - use_df: # 标准化工资表    结算人数
+            key: wages_copy
+            columns: [ team_code,人员性质,完成单量,外单单量,payable_money,cost_center_type,staff_id_card_num ]
+        - df_select:
+            - '[cost_center_type] in @p1'
+            - p1: [ C30101,D40101,E50101 ]
+        - drop_duplicates:
+            subset: [ staff_id_card_num ]
+        - df_groupby:
+            by: team_code
+        - df_count:
+            column: staff_id_card_num
+            rename: A202
+        - df_reset_index: []
+        - stash_push_df: []
+        - stash_join_df:
+            on: team_code
+            how: outer
+            drop_stash: true
+        - stash_push_df: []
+        - use_df:
+            key: final_accounts_result_table_team_mini1
+        - stash_push_df: []
+        - stash_join_df:
+            on: team_code
+            how: outer
+            drop_stash: true
+
+        - run_py:
+            - |
+              df = to_df(df)
+              df["S6"] = (pd.datetime.now()-pd.Timedelta(days=pd.datetime.now().day)).day
+              result = to_dd(df)
+        - add_cols:
+            - S9: 0
+              S8: 0
+              S1: 0
+              S2: 0
+              M-1010102-2: 0
+              A10105: 0
+              B1: 0
+              B2: 0
+              B5: 0
+              B402: 0
+              B403: 0
+              M-102: 0
+              D-101: 0
+              M-10101: 0
+              M-10102: 0
+              M-1010101: 0
+              M-1010101-1: 0
+              M-1010102: 0
+              M-1010102-1: 0
+              M-1010103: 0
+              M-1010103-1: 0
+              M-1010103-2: 0
+              M-1010103-3: 0
+              M-1010104: 0
+              M-1010104-5: 0
+              M-1010104-1: 0
+              M-1010104-6: 0
+              M-1010104-2: 0
+              M-1010104-3: 0
+              M-1010104-4: 0
+              M-701: 0
+              M-70101: 0
+              M-70102: 0
+              M-70103: 0
+              M-70104: 0
+              M-70105: 0
+              M-70106: 0
+              A101011: 0
+              A101012: 0
+              A10101: 0
+              A101013: 0
+              A101021: 0
+              A101022: 0
+              A10102: 0
+              A101023: 0
+              A101031: 0
+              A101032: 0
+              A10103: 0
+              A101033: 0
+              D-10101: 0
+              B4: 0
+              B401: 0
+        - df_fillna:
+            value: 0
+        - run_py:
+            - |
+              df['S3'] = (df['S301'] + df['S302'] + df['S303'] + df['S304'] + df['S305'] + df['S306'] + df['S307']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['S4'] = (df['S411'] + df['S412'] + df['S421'] + df['S422'] + df['S423'] + df['S424'] + df['S425'] + df['S426'] + df['S427'] + df['S428'] + df['S429']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A101'] = (df['A10101'] + df['A101023'] + df['A101033'] + df['A10104']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A1'] = (df['A101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A102'] = (df['A101'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A103'] = (df['A101'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A11'] = (df['A101012'] + df['A101022'] + df['A101032']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A2'] = (df['A201'] + df['A206']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A203'] = (df['D-10101'] / df['A202']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A204'] = (df['A201'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A205'] = (df['A201'] / df['A202']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-102'] = (df['D-10101'] / df['3-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-103'] = (df['3-1'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-104'] = (df['3-1'] / df['3-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-202'] = (df['D-10101'] / df['3-201']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-203'] = (df['3-2'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-204'] = (df['3-2'] / df['3-201']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-302'] = (df['D-10101'] / df['3-301']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-303'] = (df['3-3'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-304'] = (df['3-3'] / df['3-301']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-402'] = (df['D-10101'] / df['3-401']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-403'] = (df['3-4'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-404'] = (df['3-4'] / df['3-401']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-502'] = (df['D-10101'] / df['3-501']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-503'] = (df['3-5'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-504'] = (df['3-5'] / df['3-501']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-602'] = (df['D-10101'] / df['3-601']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-603'] = (df['3-6'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-604'] = (df['3-6'] / df['3-601']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-702'] = (df['D-10101'] / df['3-701']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-703'] = (df['3-7'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-704'] = (df['3-7'] / df['3-701']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-1-102'] = (df['D-10101'] / df['4-1-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-1-103'] = (df['4-1-1'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-1-104'] = (df['4-1-1'] / df['4-1-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-1-202'] = (df['D-10101'] / df['4-1-201']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-1-203'] = (df['4-1-2'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-1-204'] = (df['4-1-2'] / df['4-1-201']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-102'] = (df['D-10101'] / df['4-2-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-103'] = (df['4-2-1'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-104'] = (df['4-2-1'] / df['4-2-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-202'] = (df['D-10101'] / df['4-2-201']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-203'] = (df['4-2-2'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-204'] = (df['4-2-2'] / df['4-2-201']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-302'] = (df['D-10101'] / df['4-2-301']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-303'] = (df['4-2-3'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-304'] = (df['4-2-3'] / df['4-2-301']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-402'] = (df['D-10101'] / df['4-2-401']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-403'] = (df['4-2-4'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-404'] = (df['4-2-4'] / df['4-2-401']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-502'] = (df['D-10101'] / df['4-2-501']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-503'] = (df['4-2-5'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-504'] = (df['4-2-5'] / df['4-2-501']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-602'] = (df['D-10101'] / df['4-2-601']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-603'] = (df['4-2-6'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-604'] = (df['4-2-6'] / df['4-2-601']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-702'] = (df['D-10101'] / df['4-2-701']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-703'] = (df['4-2-7'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-704'] = (df['4-2-7'] / df['4-2-701']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-802'] = (df['D-10101'] / df['4-2-801']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-803'] = (df['4-2-8'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-804'] = (df['4-2-8'] / df['4-2-801']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-902'] = (df['D-10101'] / df['4-2-901']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-903'] = (df['4-2-9'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['4-2-904'] = (df['4-2-9'] / df['4-2-901']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C1'] = (df['C101'] + df['C102'] + df['C103'] + df['C104'] + df['C105']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10101'] = (df['C101'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10102'] = (df['C101'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10201'] = (df['C102'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10202'] = (df['C102'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10301'] = (df['C103'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10302'] = (df['C103'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10401'] = (df['C104'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10402'] = (df['C104'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10501'] = (df['C105'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C10502'] = (df['C105'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201'] = (df['C201-1'] + df['C201-201'] + df['C201-301']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C20101'] = (df['C201'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C20102'] = (df['C201'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201-102'] = (df['C201-1'] / df['C201-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201-103'] = (df['C201-1'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201-203'] = (df['C201-201'] / df['C201-202']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201-204'] = (df['C201-201'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201-303'] = (df['C201-301'] / df['C201-302']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201-304'] = (df['C201-301'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C202'] = (df['C202-1'] + df['C202-2'] + df['C202-3'] + df['C202-4'] + df['C202-5']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C2'] = (df['C201'] + df['C202'] + df['C203']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C20201'] = (df['C202'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C20202'] = (df['C202'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C20301'] = (df['C203'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C20302'] = (df['C203'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C3'] = (df['C301'] + df['C302'] + df['C303'] + df['C304'] + df['C305'] + df['C306']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30101'] = (df['C301'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30102'] = (df['C301'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30201'] = (df['C302'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30202'] = (df['C302'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30301'] = (df['C303'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30302'] = (df['C303'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30401'] = (df['C304'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30402'] = (df['C304'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30501'] = (df['C305'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30502'] = (df['C305'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30601'] = (df['C306'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C30602'] = (df['C306'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C4'] = (df['C401'] + df['C402'] + df['C403']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C40101'] = (df['C401'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C40102'] = (df['C401'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C40201'] = (df['C402'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C40202'] = (df['C402'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C40301'] = (df['C403'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C40302'] = (df['C403'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C5'] = (df['C501'] + df['C502'] + df['C503'] + df['C504']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C50102'] = (df['C501'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C50103'] = (df['C501'] / df['C50101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C50202'] = (df['C502'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C50203'] = (df['C502'] / df['C50201']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C50301'] = (df['C503'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C50302'] = (df['C503'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C50401'] = (df['C504'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C50402'] = (df['C504'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C6'] = (df['C601'] + df['C602']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C60101'] = (df['C601'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C60102'] = (df['C601'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C60201'] = (df['C602'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C60202'] = (df['C602'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C7'] = (df['C701']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C70101'] = (df['C701'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C70102'] = (df['C701'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['B3'] = (df['B1'] / df['B2']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['B404'] = (df['B4'] / df['B401']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['B405'] = (df['B4'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-1'] = (df['M-10101'] + df['M-701']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-2'] = (df['A1'] + df['A2'] + df['C1'] + df['C2'] + df['C3'] + df['C4'] + df['C5'] + df['C6'] + df['C7']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-101'] = (df['M-1'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-201'] = (df['M-2'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-3'] = (df['M-1'] - df['M-2']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-301'] = (df['M-3'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-302'] = (df['M-3'] / df['M-1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-103'] = (df['D-10101'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-104'] = (df['M-1'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-105'] = (df['M-3'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-106'] = (df['M-1'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-107'] = (df['M-3'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
+              result = df
+        - fetch_cols:
+            columns: [team_code,D-10101,M-1,M-101,M-102,M-2,M-201,M-3,M-301,Z-02,Z-01,M-302,M-103,M-104,M-105,M-106,M-107,S8,S9,S1,S2,S3,S301,S302,S303,S304,S305,S306,S307,S4,S411,S412,S421,S422,S423,S424,S425,S426,S427,S428,S429,S5,D-101,S6,M-10101,M-10102,M-1010101,M-1010101-1,M-1010102,M-1010102-1,M-1010102-2,M-1010103,M-1010103-1,M-1010103-2,M-1010103-3,M-1010104,M-1010104-5,M-1010104-1,M-1010104-6,M-1010104-2,M-1010104-3,M-1010104-4,M-701,M-70101,M-70102,M-70103,M-70104,M-70105,M-70106,A1,A101,A102,A103,A101011,A101012,A10101,A101013,A101021,A101022,A10102,A101023,A101031,A101032,A10103,A101033,A10105,A10104,A11,A2,A201,A202,A203,A204,A205,3-1,3-101,3-102,3-103,3-104,3-2,3-201,3-202,3-203,3-204,3-3,3-301,3-302,3-303,3-304,3-4,3-401,3-402,3-403,3-404,3-5,3-501,3-502,3-503,3-504,3-6,3-601,3-602,3-603,3-604,3-7,3-701,3-702,3-703,3-704,4-1-1,4-1-101,4-1-102,4-1-103,4-1-104,4-1-2,4-1-201,4-1-202,4-1-203,4-1-204,4-2-1,4-2-101,4-2-102,4-2-103,4-2-104,4-2-2,4-2-201,4-2-202,4-2-203,4-2-204,4-2-3,4-2-301,4-2-302,4-2-303,4-2-304,4-2-4,4-2-401,4-2-402,4-2-403,4-2-404,4-2-5,4-2-501,4-2-502,4-2-503,4-2-504,4-2-6,4-2-601,4-2-602,4-2-603,4-2-604,4-2-7,4-2-701,4-2-702,4-2-703,4-2-704,4-2-8,4-2-801,4-2-802,4-2-803,4-2-804,4-2-9,4-2-901,4-2-902,4-2-903,4-2-904,A206,C1,C101,C10101,C10102,C102,C10201,C10202,C103,C10301,C10302,C104,C10401,C10402,C105,C10501,C10502,C2,C201,C20101,C20102,C201-1,C201-101,C201-102,C201-103,C201-201,C201-202,C201-203,C201-204,C201-301,C201-302,C201-303,C201-304,C202,C20201,C20202,C202-1,C202-2,C202-3,C202-4,C202-5,C203,C20301,C20302,C3,C301,C30101,C30102,C302,C30201,C30202,C303,C30301,C30302,C304,C30401,C30402,C305,C30501,C30502,C306,C30601,C30602,C4,C401,C40101,C40102,C402,C40201,C40202,C403,C40301,C40302,C5,C501,C50101,C50102,C50103,C502,C50201,C50202,C50203,C503,C50301,C50302,C504,C50401,C50402,C6,C601,C60101,C60102,C602,C60201,C60202,C7,C701,C70101,C70102,B1,B2,B3,B4,B401,B402,B403,B404,B405,B5]
+
+
+
+#   商圈维度按照主体导出表进行分表
+    - name: final_accounts_result_table_code_yjd    # code-易即达
+      sync_result: true
+      cooks:
+        - use_df:
+            key: final_accounts_result_table_code_collect
+        - df_select:
+            - '[supplier_id] == @p1'
+            - p1: 5b9738f4ce6d2abdaed16a8e
+        - fetch_cols:
+            columns: [dc_name,D-10101,M-1,M-101,M-102,M-2,M-201,M-3,M-301,Z-02,Z-01,M-302,M-103,M-104,M-105,M-106,M-107,S8,S9,S1,S2,S3,S301,S302,S303,S304,S305,S306,S307,S4,S411,S412,S421,S422,S423,S424,S425,S426,S427,S428,S429,S5,D-101,S6,M-10101,M-10102,M-1010101,M-1010101-1,M-1010102,M-1010102-1,M-1010102-2,M-1010103,M-1010103-1,M-1010103-2,M-1010103-3,M-1010104,M-1010104-5,M-1010104-1,M-1010104-6,M-1010104-2,M-1010104-3,M-1010104-4,M-701,M-70101,M-70102,M-70103,M-70104,M-70105,M-70106,A1,A101,A102,A103,A101011,A101012,A10101,A101013,A101021,A101022,A10102,A101023,A101031,A101032,A10103,A101033,A10105,A10104,A11,A2,A201,A202,A203,A204,A205,3-1,3-101,3-102,3-103,3-104,3-2,3-201,3-202,3-203,3-204,3-3,3-301,3-302,3-303,3-304,3-4,3-401,3-402,3-403,3-404,3-5,3-501,3-502,3-503,3-504,3-6,3-601,3-602,3-603,3-604,3-7,3-701,3-702,3-703,3-704,4-1-1,4-1-101,4-1-102,4-1-103,4-1-104,4-1-2,4-1-201,4-1-202,4-1-203,4-1-204,4-2-1,4-2-101,4-2-102,4-2-103,4-2-104,4-2-2,4-2-201,4-2-202,4-2-203,4-2-204,4-2-3,4-2-301,4-2-302,4-2-303,4-2-304,4-2-4,4-2-401,4-2-402,4-2-403,4-2-404,4-2-5,4-2-501,4-2-502,4-2-503,4-2-504,4-2-6,4-2-601,4-2-602,4-2-603,4-2-604,4-2-7,4-2-701,4-2-702,4-2-703,4-2-704,4-2-8,4-2-801,4-2-802,4-2-803,4-2-804,4-2-9,4-2-901,4-2-902,4-2-903,4-2-904,A206,C1,C101,C10101,C10102,C102,C10201,C10202,C103,C10301,C10302,C104,C10401,C10402,C105,C10501,C10502,C2,C201,C20101,C20102,C201-1,C201-101,C201-102,C201-103,C201-201,C201-202,C201-203,C201-204,C201-301,C201-302,C201-303,C201-304,C202,C20201,C20202,C202-1,C202-2,C202-3,C202-4,C202-5,C203,C20301,C20302,C3,C301,C30101,C30102,C302,C30201,C30202,C303,C30301,C30302,C304,C30401,C30402,C305,C30501,C30502,C306,C30601,C30602,C4,C401,C40101,C40102,C402,C40201,C40202,C403,C40301,C40302,C5,C501,C50101,C50102,C50103,C502,C50201,C50202,C50203,C503,C50301,C50302,C504,C50401,C50402,C6,C601,C60101,C60102,C602,C60201,C60202,C7,C701,C70101,C70102,B1,B2,B3,B4,B401,B402,B403,B404,B405,B5]
+
+        - run_py:
+            - |
+              df = to_df(df)
+              df = df.set_index(['dc_name'])
+              df = df.transpose()
+              df.reset_index(drop=False, inplace=True)
+              result = to_dd(df)
+        - df_rename_columns:
+            - index: ac_code
+        - sort_by_index:
+            sort_list: [ D-10101,M-1,M-101,M-102,M-2,M-201,M-3,M-301,Z-02,Z-01,M-302,M-103,M-104,M-105,M-106,M-107,S8,S9,S1,S2,S3,S301,S302,S303,S304,S305,S306,S307,S4,S411,S412,S421,S422,S423,S424,S425,S426,S427,S428,S429,S5,D-101,S6,M-10101,M-10102,M-1010101,M-1010101-1,M-1010102,M-1010102-1,M-1010102-2,M-1010103,M-1010103-1,M-1010103-2,M-1010103-3,M-1010104,M-1010104-5,M-1010104-1,M-1010104-6,M-1010104-2,M-1010104-3,M-1010104-4,M-701,M-70101,M-70102,M-70103,M-70104,M-70105,M-70106,A1,A101,A102,A103,A101011,A101012,A10101,A101013,A101021,A101022,A10102,A101023,A101031,A101032,A10103,A101033,A10105,A10104,A11,A2,A201,A202,A203,A204,A205,3-1,3-101,3-102,3-103,3-104,3-2,3-201,3-202,3-203,3-204,3-3,3-301,3-302,3-303,3-304,3-4,3-401,3-402,3-403,3-404,3-5,3-501,3-502,3-503,3-504,3-6,3-601,3-602,3-603,3-604,3-7,3-701,3-702,3-703,3-704,4-1-1,4-1-101,4-1-102,4-1-103,4-1-104,4-1-2,4-1-201,4-1-202,4-1-203,4-1-204,4-2-1,4-2-101,4-2-102,4-2-103,4-2-104,4-2-2,4-2-201,4-2-202,4-2-203,4-2-204,4-2-3,4-2-301,4-2-302,4-2-303,4-2-304,4-2-4,4-2-401,4-2-402,4-2-403,4-2-404,4-2-5,4-2-501,4-2-502,4-2-503,4-2-504,4-2-6,4-2-601,4-2-602,4-2-603,4-2-604,4-2-7,4-2-701,4-2-702,4-2-703,4-2-704,4-2-8,4-2-801,4-2-802,4-2-803,4-2-804,4-2-9,4-2-901,4-2-902,4-2-903,4-2-904,A206,C1,C101,C10101,C10102,C102,C10201,C10202,C103,C10301,C10302,C104,C10401,C10402,C105,C10501,C10502,C2,C201,C20101,C20102,C201-1,C201-101,C201-102,C201-103,C201-201,C201-202,C201-203,C201-204,C201-301,C201-302,C201-303,C201-304,C202,C20201,C20202,C202-1,C202-2,C202-3,C202-4,C202-5,C203,C20301,C20302,C3,C301,C30101,C30102,C302,C30201,C30202,C303,C30301,C30302,C304,C30401,C30402,C305,C30501,C30502,C306,C30601,C30602,C4,C401,C40101,C40102,C402,C40201,C40202,C403,C40301,C40302,C5,C501,C50101,C50102,C50103,C502,C50201,C50202,C50203,C503,C50301,C50302,C504,C50401,C50402,C6,C601,C60101,C60102,C602,C60201,C60202,C7,C701,C70101,C70102,B1,B2,B3,B4,B401,B402,B403,B404,B405,B5 ]
+        - df_rename_columns:
+            - ac_code: 编号
+        - run_py:
+            - |
+              df = to_df(df)
+              df['指标名称'] = ['日均单量','总收入(税后)','单均收入','毛利率','总成本','单均成本','净利润','单均利润','红冲','预提','净利润率','人效','人创收入(团队)','人创利润（团队）','人创收入（骑士）','人创利润（骑士）','商圈数量','城市数量','骑手人数','商圈管理人数','城市管理人数','城市经理','城市招聘','城市运维','城市人事','城市安全','城市商务','教练培训','项目主体总部人数','区域经理','区域其他','主体管理者','商务','薪资','保险','运维','数据','物资','招聘','安全','项目总部人数','单量','营业天数','主营业务收入（税后）','综合单均收入（税后）','基础收入（税后）','单均基础收入（税后）','KPI奖励收入（税后）','单均奖励（税后）','加权平均星级/星级','政策收入（税后）','政策性收入-商权益','政策性收入-强分摊','政策性收入-其他','运营罚款收入（税后）','运营罚款单均','履约扣罚','履约扣罚单均','骑手活动扣罚','其他常态扣罚','其他非常态扣罚','营业外收入（税后）','站点变卖损益','站点变卖值','卖站体量（单）','市单率','站点收购原值','物资变卖收入','骑士配送费','骑士工资','单均工资','人均工资','全职骑士人数','全职骑士单量','全职骑士工资','全职单均工资','兼职骑士人数','兼职骑士单量','兼职骑士工资','兼职单均工资','特定兼职人数','特定兼职单量','特定兼职工资','特定兼职单均工资','缓发冲抵工资','预提工资','单量合计','工资','工资金额','结算人数','管理带宽','单成本','人均工资','城市经理','结算人数','管理带宽','单成本','人均工资','城市招聘','结算人数','管理带宽','单成本','人均工资','城市运维','结算人数','管理带宽','单成本','人均工资','城市人事','结算人数','管理带宽','单成本','人均工资','城市安全','结算人数','管理带宽','单成本','人均工资','城市商务','结算人数','管理带宽','单成本','人均工资','教练培训','结算人数','管理带宽','单成本','人均工资','区域经理','结算人数','管理带宽','单成本','人均工资','区域其他','结算人数','管理带宽','单成本','人均工资','主体管理者','结算人数','管理带宽','单成本','人均工资','商务','结算人数','管理带宽','单成本','人均工资','薪资','结算人数','管理带宽','单成本','人均工资','保险','结算人数','管理带宽','单成本','人均工资','运维','结算人数','管理带宽','单成本','人均工资','数据','结算人数','管理带宽','单成本','人均工资','物资','结算人数','管理带宽','单成本','人均工资','招聘','结算人数','管理带宽','单成本','人均工资','安全','结算人数','管理带宽','单成本','人均工资','外包结算款','人员类','平台意外险（资产）','单均成本','人均成本','平台意外险（团队）','单均成本','人均成本','社会保险费、住房公积金（资产）','单均成本','人均成本','社会保险费、住房公积金（团队）','单均成本','人均成本','线下工伤险','单均成本','人均成本','房屋类','房屋租金','单均成本','人均成本','办公房屋租金','办公房屋数量','办公房屋单价','办公房屋单均','城市办公房屋租金','城市办公房屋数量','城市办公房屋单价','城市办公房屋单均','住宿房屋租金','住宿房屋数量','住宿房屋单价','住宿房屋单均','房屋物业其他费用','单均成本','人均成本','水电成本','中介成本','物业成本','其他（盛世库房）','税金成本','房屋押金损失','单均成本','人均成本','管理费用类','骑手团建福利费','单均成本','人均成本','管理团建福利费','单均成本','人均成本','差旅费','单均成本','人均成本','招待费','单均成本','人均成本','办公费','单均成本','人均成本','站点资产','单均成本','人均成本','装备类','车辆/装备/电瓶押金损失','单均成本','人均成本','电动车及电池','单均成本','人均成本','骑士装备','单均成本','人均成本','招聘类','内部推荐费','内荐人数','单均成本','人均内荐费','三方推荐费','三方推荐人数','单均成本','人均三方推荐费','招聘平台费用','单均成本','人均成本','招聘其他费用','单均成本','人均成本','意外类','意外支出','单均成本','人均成本','仲裁支出','单均成本','人均成本','商圈管理类','平台保证金损失','单均成本','人均成本','上月发薪全职骑手数','上月发薪全职骑手离职数','离职率','盛世工伤险费用','总人数','增员人数','减员人数','人均成本','单均成本','管理费用率']
+              result = to_dd(df)
+        - sort_by_columns:
+            sort_list: [ 指标名称,编号 ]
+
+
+
+
+    - name: final_accounts_result_table_code_xd    # code-兴达
+      sync_result: true
+      cooks:
+        - use_df:
+            key: final_accounts_result_table_code_collect
+        - df_select:
+            - '[supplier_id] == @p1'
+            - p1: 5c8f38ae887d1f1c43bfc06e
+        - fetch_cols:
+            columns: [dc_name,D-10101,M-1,M-101,M-102,M-2,M-201,M-3,M-301,Z-02,Z-01,M-302,M-103,M-104,M-105,M-106,M-107,S8,S9,S1,S2,S3,S301,S302,S303,S304,S305,S306,S307,S4,S411,S412,S421,S422,S423,S424,S425,S426,S427,S428,S429,S5,D-101,S6,M-10101,M-10102,M-1010101,M-1010101-1,M-1010102,M-1010102-1,M-1010102-2,M-1010103,M-1010103-1,M-1010103-2,M-1010103-3,M-1010104,M-1010104-5,M-1010104-1,M-1010104-6,M-1010104-2,M-1010104-3,M-1010104-4,M-701,M-70101,M-70102,M-70103,M-70104,M-70105,M-70106,A1,A101,A102,A103,A101011,A101012,A10101,A101013,A101021,A101022,A10102,A101023,A101031,A101032,A10103,A101033,A10105,A10104,A11,A2,A201,A202,A203,A204,A205,3-1,3-101,3-102,3-103,3-104,3-2,3-201,3-202,3-203,3-204,3-3,3-301,3-302,3-303,3-304,3-4,3-401,3-402,3-403,3-404,3-5,3-501,3-502,3-503,3-504,3-6,3-601,3-602,3-603,3-604,3-7,3-701,3-702,3-703,3-704,4-1-1,4-1-101,4-1-102,4-1-103,4-1-104,4-1-2,4-1-201,4-1-202,4-1-203,4-1-204,4-2-1,4-2-101,4-2-102,4-2-103,4-2-104,4-2-2,4-2-201,4-2-202,4-2-203,4-2-204,4-2-3,4-2-301,4-2-302,4-2-303,4-2-304,4-2-4,4-2-401,4-2-402,4-2-403,4-2-404,4-2-5,4-2-501,4-2-502,4-2-503,4-2-504,4-2-6,4-2-601,4-2-602,4-2-603,4-2-604,4-2-7,4-2-701,4-2-702,4-2-703,4-2-704,4-2-8,4-2-801,4-2-802,4-2-803,4-2-804,4-2-9,4-2-901,4-2-902,4-2-903,4-2-904,A206,C1,C101,C10101,C10102,C102,C10201,C10202,C103,C10301,C10302,C104,C10401,C10402,C105,C10501,C10502,C2,C201,C20101,C20102,C201-1,C201-101,C201-102,C201-103,C201-201,C201-202,C201-203,C201-204,C201-301,C201-302,C201-303,C201-304,C202,C20201,C20202,C202-1,C202-2,C202-3,C202-4,C202-5,C203,C20301,C20302,C3,C301,C30101,C30102,C302,C30201,C30202,C303,C30301,C30302,C304,C30401,C30402,C305,C30501,C30502,C306,C30601,C30602,C4,C401,C40101,C40102,C402,C40201,C40202,C403,C40301,C40302,C5,C501,C50101,C50102,C50103,C502,C50201,C50202,C50203,C503,C50301,C50302,C504,C50401,C50402,C6,C601,C60101,C60102,C602,C60201,C60202,C7,C701,C70101,C70102,B1,B2,B3,B4,B401,B402,B403,B404,B405,B5]
+
+        - run_py:
+            - |
+              df = to_df(df)
+              df = df.set_index(['dc_name'])
+              df = df.transpose()
+              df.reset_index(drop=False, inplace=True)
+              result = to_dd(df)
+        - df_rename_columns:
+            - index: ac_code
+        - sort_by_index:
+            sort_list: [ D-10101,M-1,M-101,M-102,M-2,M-201,M-3,M-301,Z-02,Z-01,M-302,M-103,M-104,M-105,M-106,M-107,S8,S9,S1,S2,S3,S301,S302,S303,S304,S305,S306,S307,S4,S411,S412,S421,S422,S423,S424,S425,S426,S427,S428,S429,S5,D-101,S6,M-10101,M-10102,M-1010101,M-1010101-1,M-1010102,M-1010102-1,M-1010102-2,M-1010103,M-1010103-1,M-1010103-2,M-1010103-3,M-1010104,M-1010104-5,M-1010104-1,M-1010104-6,M-1010104-2,M-1010104-3,M-1010104-4,M-701,M-70101,M-70102,M-70103,M-70104,M-70105,M-70106,A1,A101,A102,A103,A101011,A101012,A10101,A101013,A101021,A101022,A10102,A101023,A101031,A101032,A10103,A101033,A10105,A10104,A11,A2,A201,A202,A203,A204,A205,3-1,3-101,3-102,3-103,3-104,3-2,3-201,3-202,3-203,3-204,3-3,3-301,3-302,3-303,3-304,3-4,3-401,3-402,3-403,3-404,3-5,3-501,3-502,3-503,3-504,3-6,3-601,3-602,3-603,3-604,3-7,3-701,3-702,3-703,3-704,4-1-1,4-1-101,4-1-102,4-1-103,4-1-104,4-1-2,4-1-201,4-1-202,4-1-203,4-1-204,4-2-1,4-2-101,4-2-102,4-2-103,4-2-104,4-2-2,4-2-201,4-2-202,4-2-203,4-2-204,4-2-3,4-2-301,4-2-302,4-2-303,4-2-304,4-2-4,4-2-401,4-2-402,4-2-403,4-2-404,4-2-5,4-2-501,4-2-502,4-2-503,4-2-504,4-2-6,4-2-601,4-2-602,4-2-603,4-2-604,4-2-7,4-2-701,4-2-702,4-2-703,4-2-704,4-2-8,4-2-801,4-2-802,4-2-803,4-2-804,4-2-9,4-2-901,4-2-902,4-2-903,4-2-904,A206,C1,C101,C10101,C10102,C102,C10201,C10202,C103,C10301,C10302,C104,C10401,C10402,C105,C10501,C10502,C2,C201,C20101,C20102,C201-1,C201-101,C201-102,C201-103,C201-201,C201-202,C201-203,C201-204,C201-301,C201-302,C201-303,C201-304,C202,C20201,C20202,C202-1,C202-2,C202-3,C202-4,C202-5,C203,C20301,C20302,C3,C301,C30101,C30102,C302,C30201,C30202,C303,C30301,C30302,C304,C30401,C30402,C305,C30501,C30502,C306,C30601,C30602,C4,C401,C40101,C40102,C402,C40201,C40202,C403,C40301,C40302,C5,C501,C50101,C50102,C50103,C502,C50201,C50202,C50203,C503,C50301,C50302,C504,C50401,C50402,C6,C601,C60101,C60102,C602,C60201,C60202,C7,C701,C70101,C70102,B1,B2,B3,B4,B401,B402,B403,B404,B405,B5 ]
+        - df_rename_columns:
+            - ac_code: 编号
+        - run_py:
+            - |
+              df = to_df(df)
+              df['指标名称'] = ['日均单量','总收入(税后)','单均收入','毛利率','总成本','单均成本','净利润','单均利润','红冲','预提','净利润率','人效','人创收入(团队)','人创利润（团队）','人创收入（骑士）','人创利润（骑士）','商圈数量','城市数量','骑手人数','商圈管理人数','城市管理人数','城市经理','城市招聘','城市运维','城市人事','城市安全','城市商务','教练培训','项目主体总部人数','区域经理','区域其他','主体管理者','商务','薪资','保险','运维','数据','物资','招聘','安全','项目总部人数','单量','营业天数','主营业务收入（税后）','综合单均收入（税后）','基础收入（税后）','单均基础收入（税后）','KPI奖励收入（税后）','单均奖励（税后）','加权平均星级/星级','政策收入（税后）','政策性收入-商权益','政策性收入-强分摊','政策性收入-其他','运营罚款收入（税后）','运营罚款单均','履约扣罚','履约扣罚单均','骑手活动扣罚','其他常态扣罚','其他非常态扣罚','营业外收入（税后）','站点变卖损益','站点变卖值','卖站体量（单）','市单率','站点收购原值','物资变卖收入','骑士配送费','骑士工资','单均工资','人均工资','全职骑士人数','全职骑士单量','全职骑士工资','全职单均工资','兼职骑士人数','兼职骑士单量','兼职骑士工资','兼职单均工资','特定兼职人数','特定兼职单量','特定兼职工资','特定兼职单均工资','缓发冲抵工资','预提工资','单量合计','工资','工资金额','结算人数','管理带宽','单成本','人均工资','城市经理','结算人数','管理带宽','单成本','人均工资','城市招聘','结算人数','管理带宽','单成本','人均工资','城市运维','结算人数','管理带宽','单成本','人均工资','城市人事','结算人数','管理带宽','单成本','人均工资','城市安全','结算人数','管理带宽','单成本','人均工资','城市商务','结算人数','管理带宽','单成本','人均工资','教练培训','结算人数','管理带宽','单成本','人均工资','区域经理','结算人数','管理带宽','单成本','人均工资','区域其他','结算人数','管理带宽','单成本','人均工资','主体管理者','结算人数','管理带宽','单成本','人均工资','商务','结算人数','管理带宽','单成本','人均工资','薪资','结算人数','管理带宽','单成本','人均工资','保险','结算人数','管理带宽','单成本','人均工资','运维','结算人数','管理带宽','单成本','人均工资','数据','结算人数','管理带宽','单成本','人均工资','物资','结算人数','管理带宽','单成本','人均工资','招聘','结算人数','管理带宽','单成本','人均工资','安全','结算人数','管理带宽','单成本','人均工资','外包结算款','人员类','平台意外险（资产）','单均成本','人均成本','平台意外险（团队）','单均成本','人均成本','社会保险费、住房公积金（资产）','单均成本','人均成本','社会保险费、住房公积金（团队）','单均成本','人均成本','线下工伤险','单均成本','人均成本','房屋类','房屋租金','单均成本','人均成本','办公房屋租金','办公房屋数量','办公房屋单价','办公房屋单均','城市办公房屋租金','城市办公房屋数量','城市办公房屋单价','城市办公房屋单均','住宿房屋租金','住宿房屋数量','住宿房屋单价','住宿房屋单均','房屋物业其他费用','单均成本','人均成本','水电成本','中介成本','物业成本','其他（盛世库房）','税金成本','房屋押金损失','单均成本','人均成本','管理费用类','骑手团建福利费','单均成本','人均成本','管理团建福利费','单均成本','人均成本','差旅费','单均成本','人均成本','招待费','单均成本','人均成本','办公费','单均成本','人均成本','站点资产','单均成本','人均成本','装备类','车辆/装备/电瓶押金损失','单均成本','人均成本','电动车及电池','单均成本','人均成本','骑士装备','单均成本','人均成本','招聘类','内部推荐费','内荐人数','单均成本','人均内荐费','三方推荐费','三方推荐人数','单均成本','人均三方推荐费','招聘平台费用','单均成本','人均成本','招聘其他费用','单均成本','人均成本','意外类','意外支出','单均成本','人均成本','仲裁支出','单均成本','人均成本','商圈管理类','平台保证金损失','单均成本','人均成本','上月发薪全职骑手数','上月发薪全职骑手离职数','离职率','盛世工伤险费用','总人数','增员人数','减员人数','人均成本','单均成本','管理费用率']
+              result = to_dd(df)
+        - sort_by_columns:
+            sort_list: [ 指标名称,编号 ]
+
+
+
+    - name: final_accounts_result_table_code_rd    # code-润达
+      sync_result: true
+      cooks:
+        - use_df:
+            key: final_accounts_result_table_code_collect
+        - df_select:
+            - '[supplier_id] == @p1'
+            - p1: 5b9738f5ce6d2abdaed16e09
+        - fetch_cols:
+            columns: [dc_name,D-10101,M-1,M-101,M-102,M-2,M-201,M-3,M-301,Z-02,Z-01,M-302,M-103,M-104,M-105,M-106,M-107,S8,S9,S1,S2,S3,S301,S302,S303,S304,S305,S306,S307,S4,S411,S412,S421,S422,S423,S424,S425,S426,S427,S428,S429,S5,D-101,S6,M-10101,M-10102,M-1010101,M-1010101-1,M-1010102,M-1010102-1,M-1010102-2,M-1010103,M-1010103-1,M-1010103-2,M-1010103-3,M-1010104,M-1010104-5,M-1010104-1,M-1010104-6,M-1010104-2,M-1010104-3,M-1010104-4,M-701,M-70101,M-70102,M-70103,M-70104,M-70105,M-70106,A1,A101,A102,A103,A101011,A101012,A10101,A101013,A101021,A101022,A10102,A101023,A101031,A101032,A10103,A101033,A10105,A10104,A11,A2,A201,A202,A203,A204,A205,3-1,3-101,3-102,3-103,3-104,3-2,3-201,3-202,3-203,3-204,3-3,3-301,3-302,3-303,3-304,3-4,3-401,3-402,3-403,3-404,3-5,3-501,3-502,3-503,3-504,3-6,3-601,3-602,3-603,3-604,3-7,3-701,3-702,3-703,3-704,4-1-1,4-1-101,4-1-102,4-1-103,4-1-104,4-1-2,4-1-201,4-1-202,4-1-203,4-1-204,4-2-1,4-2-101,4-2-102,4-2-103,4-2-104,4-2-2,4-2-201,4-2-202,4-2-203,4-2-204,4-2-3,4-2-301,4-2-302,4-2-303,4-2-304,4-2-4,4-2-401,4-2-402,4-2-403,4-2-404,4-2-5,4-2-501,4-2-502,4-2-503,4-2-504,4-2-6,4-2-601,4-2-602,4-2-603,4-2-604,4-2-7,4-2-701,4-2-702,4-2-703,4-2-704,4-2-8,4-2-801,4-2-802,4-2-803,4-2-804,4-2-9,4-2-901,4-2-902,4-2-903,4-2-904,A206,C1,C101,C10101,C10102,C102,C10201,C10202,C103,C10301,C10302,C104,C10401,C10402,C105,C10501,C10502,C2,C201,C20101,C20102,C201-1,C201-101,C201-102,C201-103,C201-201,C201-202,C201-203,C201-204,C201-301,C201-302,C201-303,C201-304,C202,C20201,C20202,C202-1,C202-2,C202-3,C202-4,C202-5,C203,C20301,C20302,C3,C301,C30101,C30102,C302,C30201,C30202,C303,C30301,C30302,C304,C30401,C30402,C305,C30501,C30502,C306,C30601,C30602,C4,C401,C40101,C40102,C402,C40201,C40202,C403,C40301,C40302,C5,C501,C50101,C50102,C50103,C502,C50201,C50202,C50203,C503,C50301,C50302,C504,C50401,C50402,C6,C601,C60101,C60102,C602,C60201,C60202,C7,C701,C70101,C70102,B1,B2,B3,B4,B401,B402,B403,B404,B405,B5]
+
+        - run_py:
+            - |
+              df = to_df(df)
+              df = df.set_index(['dc_name'])
+              df = df.transpose()
+              df.reset_index(drop=False, inplace=True)
+              result = to_dd(df)
+        - df_rename_columns:
+            - index: ac_code
+        - sort_by_index:
+            sort_list: [ D-10101,M-1,M-101,M-102,M-2,M-201,M-3,M-301,Z-02,Z-01,M-302,M-103,M-104,M-105,M-106,M-107,S8,S9,S1,S2,S3,S301,S302,S303,S304,S305,S306,S307,S4,S411,S412,S421,S422,S423,S424,S425,S426,S427,S428,S429,S5,D-101,S6,M-10101,M-10102,M-1010101,M-1010101-1,M-1010102,M-1010102-1,M-1010102-2,M-1010103,M-1010103-1,M-1010103-2,M-1010103-3,M-1010104,M-1010104-5,M-1010104-1,M-1010104-6,M-1010104-2,M-1010104-3,M-1010104-4,M-701,M-70101,M-70102,M-70103,M-70104,M-70105,M-70106,A1,A101,A102,A103,A101011,A101012,A10101,A101013,A101021,A101022,A10102,A101023,A101031,A101032,A10103,A101033,A10105,A10104,A11,A2,A201,A202,A203,A204,A205,3-1,3-101,3-102,3-103,3-104,3-2,3-201,3-202,3-203,3-204,3-3,3-301,3-302,3-303,3-304,3-4,3-401,3-402,3-403,3-404,3-5,3-501,3-502,3-503,3-504,3-6,3-601,3-602,3-603,3-604,3-7,3-701,3-702,3-703,3-704,4-1-1,4-1-101,4-1-102,4-1-103,4-1-104,4-1-2,4-1-201,4-1-202,4-1-203,4-1-204,4-2-1,4-2-101,4-2-102,4-2-103,4-2-104,4-2-2,4-2-201,4-2-202,4-2-203,4-2-204,4-2-3,4-2-301,4-2-302,4-2-303,4-2-304,4-2-4,4-2-401,4-2-402,4-2-403,4-2-404,4-2-5,4-2-501,4-2-502,4-2-503,4-2-504,4-2-6,4-2-601,4-2-602,4-2-603,4-2-604,4-2-7,4-2-701,4-2-702,4-2-703,4-2-704,4-2-8,4-2-801,4-2-802,4-2-803,4-2-804,4-2-9,4-2-901,4-2-902,4-2-903,4-2-904,A206,C1,C101,C10101,C10102,C102,C10201,C10202,C103,C10301,C10302,C104,C10401,C10402,C105,C10501,C10502,C2,C201,C20101,C20102,C201-1,C201-101,C201-102,C201-103,C201-201,C201-202,C201-203,C201-204,C201-301,C201-302,C201-303,C201-304,C202,C20201,C20202,C202-1,C202-2,C202-3,C202-4,C202-5,C203,C20301,C20302,C3,C301,C30101,C30102,C302,C30201,C30202,C303,C30301,C30302,C304,C30401,C30402,C305,C30501,C30502,C306,C30601,C30602,C4,C401,C40101,C40102,C402,C40201,C40202,C403,C40301,C40302,C5,C501,C50101,C50102,C50103,C502,C50201,C50202,C50203,C503,C50301,C50302,C504,C50401,C50402,C6,C601,C60101,C60102,C602,C60201,C60202,C7,C701,C70101,C70102,B1,B2,B3,B4,B401,B402,B403,B404,B405,B5 ]
+        - df_rename_columns:
+            - ac_code: 编号
+        - run_py:
+            - |
+              df = to_df(df)
+              df['指标名称'] = ['日均单量','总收入(税后)','单均收入','毛利率','总成本','单均成本','净利润','单均利润','红冲','预提','净利润率','人效','人创收入(团队)','人创利润（团队）','人创收入（骑士）','人创利润（骑士）','商圈数量','城市数量','骑手人数','商圈管理人数','城市管理人数','城市经理','城市招聘','城市运维','城市人事','城市安全','城市商务','教练培训','项目主体总部人数','区域经理','区域其他','主体管理者','商务','薪资','保险','运维','数据','物资','招聘','安全','项目总部人数','单量','营业天数','主营业务收入（税后）','综合单均收入（税后）','基础收入（税后）','单均基础收入（税后）','KPI奖励收入（税后）','单均奖励（税后）','加权平均星级/星级','政策收入（税后）','政策性收入-商权益','政策性收入-强分摊','政策性收入-其他','运营罚款收入（税后）','运营罚款单均','履约扣罚','履约扣罚单均','骑手活动扣罚','其他常态扣罚','其他非常态扣罚','营业外收入（税后）','站点变卖损益','站点变卖值','卖站体量（单）','市单率','站点收购原值','物资变卖收入','骑士配送费','骑士工资','单均工资','人均工资','全职骑士人数','全职骑士单量','全职骑士工资','全职单均工资','兼职骑士人数','兼职骑士单量','兼职骑士工资','兼职单均工资','特定兼职人数','特定兼职单量','特定兼职工资','特定兼职单均工资','缓发冲抵工资','预提工资','单量合计','工资','工资金额','结算人数','管理带宽','单成本','人均工资','城市经理','结算人数','管理带宽','单成本','人均工资','城市招聘','结算人数','管理带宽','单成本','人均工资','城市运维','结算人数','管理带宽','单成本','人均工资','城市人事','结算人数','管理带宽','单成本','人均工资','城市安全','结算人数','管理带宽','单成本','人均工资','城市商务','结算人数','管理带宽','单成本','人均工资','教练培训','结算人数','管理带宽','单成本','人均工资','区域经理','结算人数','管理带宽','单成本','人均工资','区域其他','结算人数','管理带宽','单成本','人均工资','主体管理者','结算人数','管理带宽','单成本','人均工资','商务','结算人数','管理带宽','单成本','人均工资','薪资','结算人数','管理带宽','单成本','人均工资','保险','结算人数','管理带宽','单成本','人均工资','运维','结算人数','管理带宽','单成本','人均工资','数据','结算人数','管理带宽','单成本','人均工资','物资','结算人数','管理带宽','单成本','人均工资','招聘','结算人数','管理带宽','单成本','人均工资','安全','结算人数','管理带宽','单成本','人均工资','外包结算款','人员类','平台意外险（资产）','单均成本','人均成本','平台意外险（团队）','单均成本','人均成本','社会保险费、住房公积金（资产）','单均成本','人均成本','社会保险费、住房公积金（团队）','单均成本','人均成本','线下工伤险','单均成本','人均成本','房屋类','房屋租金','单均成本','人均成本','办公房屋租金','办公房屋数量','办公房屋单价','办公房屋单均','城市办公房屋租金','城市办公房屋数量','城市办公房屋单价','城市办公房屋单均','住宿房屋租金','住宿房屋数量','住宿房屋单价','住宿房屋单均','房屋物业其他费用','单均成本','人均成本','水电成本','中介成本','物业成本','其他（盛世库房）','税金成本','房屋押金损失','单均成本','人均成本','管理费用类','骑手团建福利费','单均成本','人均成本','管理团建福利费','单均成本','人均成本','差旅费','单均成本','人均成本','招待费','单均成本','人均成本','办公费','单均成本','人均成本','站点资产','单均成本','人均成本','装备类','车辆/装备/电瓶押金损失','单均成本','人均成本','电动车及电池','单均成本','人均成本','骑士装备','单均成本','人均成本','招聘类','内部推荐费','内荐人数','单均成本','人均内荐费','三方推荐费','三方推荐人数','单均成本','人均三方推荐费','招聘平台费用','单均成本','人均成本','招聘其他费用','单均成本','人均成本','意外类','意外支出','单均成本','人均成本','仲裁支出','单均成本','人均成本','商圈管理类','平台保证金损失','单均成本','人均成本','上月发薪全职骑手数','上月发薪全职骑手离职数','离职率','盛世工伤险费用','总人数','增员人数','减员人数','人均成本','单均成本','管理费用率']
+              result = to_dd(df)
+        - sort_by_columns:
+            sort_list: [ 指标名称,编号 ]
+
+
+#   team维度按照BU标签ID： Q-BU1、Q-BU3 +分部标签ID 进行拆分
+    - name: final_accounts_result_table_team_BU3    # team-Q-BU3
+      sync_result: true
+      cooks:
+        - use_df:
+            key: final_accounts_result_table_team
+        - stash_push_df: []
+        - fetch_datasource:
+            datasource: qcode-biz-team-book
+            month_offset: -1
+            rename:
+              biz_meta.org_bu: org_bu
+              biz_meta.org_bu_division: org_bu_division
+        - fetch_cols:
+            columns: [ team_code,org_bu,org_bu_division ]
+        - stash_push_df: []
+        - stash_join_df:
+            on: team_code
+            how: right
+            drop_stash: true
+        - df_select:
+            - '[org_bu] == @p1'
+            - p1: Q-BU3
+        - fetch_cols:
+            columns: [team_code,D-10101,M-1,M-101,M-102,M-2,M-201,M-3,M-301,Z-02,Z-01,M-302,M-103,M-104,M-105,M-106,M-107,S8,S9,S1,S2,S3,S301,S302,S303,S304,S305,S306,S307,S4,S411,S412,S421,S422,S423,S424,S425,S426,S427,S428,S429,S5,D-101,S6,M-10101,M-10102,M-1010101,M-1010101-1,M-1010102,M-1010102-1,M-1010102-2,M-1010103,M-1010103-1,M-1010103-2,M-1010103-3,M-1010104,M-1010104-5,M-1010104-1,M-1010104-6,M-1010104-2,M-1010104-3,M-1010104-4,M-701,M-70101,M-70102,M-70103,M-70104,M-70105,M-70106,A1,A101,A102,A103,A101011,A101012,A10101,A101013,A101021,A101022,A10102,A101023,A101031,A101032,A10103,A101033,A10105,A10104,A11,A2,A201,A202,A203,A204,A205,3-1,3-101,3-102,3-103,3-104,3-2,3-201,3-202,3-203,3-204,3-3,3-301,3-302,3-303,3-304,3-4,3-401,3-402,3-403,3-404,3-5,3-501,3-502,3-503,3-504,3-6,3-601,3-602,3-603,3-604,3-7,3-701,3-702,3-703,3-704,4-1-1,4-1-101,4-1-102,4-1-103,4-1-104,4-1-2,4-1-201,4-1-202,4-1-203,4-1-204,4-2-1,4-2-101,4-2-102,4-2-103,4-2-104,4-2-2,4-2-201,4-2-202,4-2-203,4-2-204,4-2-3,4-2-301,4-2-302,4-2-303,4-2-304,4-2-4,4-2-401,4-2-402,4-2-403,4-2-404,4-2-5,4-2-501,4-2-502,4-2-503,4-2-504,4-2-6,4-2-601,4-2-602,4-2-603,4-2-604,4-2-7,4-2-701,4-2-702,4-2-703,4-2-704,4-2-8,4-2-801,4-2-802,4-2-803,4-2-804,4-2-9,4-2-901,4-2-902,4-2-903,4-2-904,A206,C1,C101,C10101,C10102,C102,C10201,C10202,C103,C10301,C10302,C104,C10401,C10402,C105,C10501,C10502,C2,C201,C20101,C20102,C201-1,C201-101,C201-102,C201-103,C201-201,C201-202,C201-203,C201-204,C201-301,C201-302,C201-303,C201-304,C202,C20201,C20202,C202-1,C202-2,C202-3,C202-4,C202-5,C203,C20301,C20302,C3,C301,C30101,C30102,C302,C30201,C30202,C303,C30301,C30302,C304,C30401,C30402,C305,C30501,C30502,C306,C30601,C30602,C4,C401,C40101,C40102,C402,C40201,C40202,C403,C40301,C40302,C5,C501,C50101,C50102,C50103,C502,C50201,C50202,C50203,C503,C50301,C50302,C504,C50401,C50402,C6,C601,C60101,C60102,C602,C60201,C60202,C7,C701,C70101,C70102,B1,B2,B3,B4,B401,B402,B403,B404,B405,B5]
+
+        - run_py:
+            - |
+              df = to_df(df)
+              df = df.set_index(['team_code'])
+              df = df.transpose()
+              df.reset_index(drop=False, inplace=True)
+              result = to_dd(df)
+        - df_rename_columns:
+            - index: ac_code
+        - sort_by_index:
+            sort_list: [ D-10101,M-1,M-101,M-102,M-2,M-201,M-3,M-301,Z-02,Z-01,M-302,M-103,M-104,M-105,M-106,M-107,S8,S9,S1,S2,S3,S301,S302,S303,S304,S305,S306,S307,S4,S411,S412,S421,S422,S423,S424,S425,S426,S427,S428,S429,S5,D-101,S6,M-10101,M-10102,M-1010101,M-1010101-1,M-1010102,M-1010102-1,M-1010102-2,M-1010103,M-1010103-1,M-1010103-2,M-1010103-3,M-1010104,M-1010104-5,M-1010104-1,M-1010104-6,M-1010104-2,M-1010104-3,M-1010104-4,M-701,M-70101,M-70102,M-70103,M-70104,M-70105,M-70106,A1,A101,A102,A103,A101011,A101012,A10101,A101013,A101021,A101022,A10102,A101023,A101031,A101032,A10103,A101033,A10105,A10104,A11,A2,A201,A202,A203,A204,A205,3-1,3-101,3-102,3-103,3-104,3-2,3-201,3-202,3-203,3-204,3-3,3-301,3-302,3-303,3-304,3-4,3-401,3-402,3-403,3-404,3-5,3-501,3-502,3-503,3-504,3-6,3-601,3-602,3-603,3-604,3-7,3-701,3-702,3-703,3-704,4-1-1,4-1-101,4-1-102,4-1-103,4-1-104,4-1-2,4-1-201,4-1-202,4-1-203,4-1-204,4-2-1,4-2-101,4-2-102,4-2-103,4-2-104,4-2-2,4-2-201,4-2-202,4-2-203,4-2-204,4-2-3,4-2-301,4-2-302,4-2-303,4-2-304,4-2-4,4-2-401,4-2-402,4-2-403,4-2-404,4-2-5,4-2-501,4-2-502,4-2-503,4-2-504,4-2-6,4-2-601,4-2-602,4-2-603,4-2-604,4-2-7,4-2-701,4-2-702,4-2-703,4-2-704,4-2-8,4-2-801,4-2-802,4-2-803,4-2-804,4-2-9,4-2-901,4-2-902,4-2-903,4-2-904,A206,C1,C101,C10101,C10102,C102,C10201,C10202,C103,C10301,C10302,C104,C10401,C10402,C105,C10501,C10502,C2,C201,C20101,C20102,C201-1,C201-101,C201-102,C201-103,C201-201,C201-202,C201-203,C201-204,C201-301,C201-302,C201-303,C201-304,C202,C20201,C20202,C202-1,C202-2,C202-3,C202-4,C202-5,C203,C20301,C20302,C3,C301,C30101,C30102,C302,C30201,C30202,C303,C30301,C30302,C304,C30401,C30402,C305,C30501,C30502,C306,C30601,C30602,C4,C401,C40101,C40102,C402,C40201,C40202,C403,C40301,C40302,C5,C501,C50101,C50102,C50103,C502,C50201,C50202,C50203,C503,C50301,C50302,C504,C50401,C50402,C6,C601,C60101,C60102,C602,C60201,C60202,C7,C701,C70101,C70102,B1,B2,B3,B4,B401,B402,B403,B404,B405,B5 ]
+        - df_rename_columns:
+            - ac_code: 编号
+        - run_py:
+            - |
+              df = to_df(df)
+              df['指标名称'] = ['日均单量','总收入(税后)','单均收入','毛利率','总成本','单均成本','净利润','单均利润','红冲','预提','净利润率','人效','人创收入(团队)','人创利润（团队）','人创收入（骑士）','人创利润（骑士）','商圈数量','城市数量','骑手人数','商圈管理人数','城市管理人数','城市经理','城市招聘','城市运维','城市人事','城市安全','城市商务','教练培训','项目主体总部人数','区域经理','区域其他','主体管理者','商务','薪资','保险','运维','数据','物资','招聘','安全','项目总部人数','单量','营业天数','主营业务收入（税后）','综合单均收入（税后）','基础收入（税后）','单均基础收入（税后）','KPI奖励收入（税后）','单均奖励（税后）','加权平均星级/星级','政策收入（税后）','政策性收入-商权益','政策性收入-强分摊','政策性收入-其他','运营罚款收入（税后）','运营罚款单均','履约扣罚','履约扣罚单均','骑手活动扣罚','其他常态扣罚','其他非常态扣罚','营业外收入（税后）','站点变卖损益','站点变卖值','卖站体量（单）','市单率','站点收购原值','物资变卖收入','骑士配送费','骑士工资','单均工资','人均工资','全职骑士人数','全职骑士单量','全职骑士工资','全职单均工资','兼职骑士人数','兼职骑士单量','兼职骑士工资','兼职单均工资','特定兼职人数','特定兼职单量','特定兼职工资','特定兼职单均工资','缓发冲抵工资','预提工资','单量合计','工资','工资金额','结算人数','管理带宽','单成本','人均工资','城市经理','结算人数','管理带宽','单成本','人均工资','城市招聘','结算人数','管理带宽','单成本','人均工资','城市运维','结算人数','管理带宽','单成本','人均工资','城市人事','结算人数','管理带宽','单成本','人均工资','城市安全','结算人数','管理带宽','单成本','人均工资','城市商务','结算人数','管理带宽','单成本','人均工资','教练培训','结算人数','管理带宽','单成本','人均工资','区域经理','结算人数','管理带宽','单成本','人均工资','区域其他','结算人数','管理带宽','单成本','人均工资','主体管理者','结算人数','管理带宽','单成本','人均工资','商务','结算人数','管理带宽','单成本','人均工资','薪资','结算人数','管理带宽','单成本','人均工资','保险','结算人数','管理带宽','单成本','人均工资','运维','结算人数','管理带宽','单成本','人均工资','数据','结算人数','管理带宽','单成本','人均工资','物资','结算人数','管理带宽','单成本','人均工资','招聘','结算人数','管理带宽','单成本','人均工资','安全','结算人数','管理带宽','单成本','人均工资','外包结算款','人员类','平台意外险（资产）','单均成本','人均成本','平台意外险（团队）','单均成本','人均成本','社会保险费、住房公积金（资产）','单均成本','人均成本','社会保险费、住房公积金（团队）','单均成本','人均成本','线下工伤险','单均成本','人均成本','房屋类','房屋租金','单均成本','人均成本','办公房屋租金','办公房屋数量','办公房屋单价','办公房屋单均','城市办公房屋租金','城市办公房屋数量','城市办公房屋单价','城市办公房屋单均','住宿房屋租金','住宿房屋数量','住宿房屋单价','住宿房屋单均','房屋物业其他费用','单均成本','人均成本','水电成本','中介成本','物业成本','其他（盛世库房）','税金成本','房屋押金损失','单均成本','人均成本','管理费用类','骑手团建福利费','单均成本','人均成本','管理团建福利费','单均成本','人均成本','差旅费','单均成本','人均成本','招待费','单均成本','人均成本','办公费','单均成本','人均成本','站点资产','单均成本','人均成本','装备类','车辆/装备/电瓶押金损失','单均成本','人均成本','电动车及电池','单均成本','人均成本','骑士装备','单均成本','人均成本','招聘类','内部推荐费','内荐人数','单均成本','人均内荐费','三方推荐费','三方推荐人数','单均成本','人均三方推荐费','招聘平台费用','单均成本','人均成本','招聘其他费用','单均成本','人均成本','意外类','意外支出','单均成本','人均成本','仲裁支出','单均成本','人均成本','商圈管理类','平台保证金损失','单均成本','人均成本','上月发薪全职骑手数','上月发薪全职骑手离职数','离职率','盛世工伤险费用','总人数','增员人数','减员人数','人均成本','单均成本','管理费用率']
+              result = to_dd(df)
+        - sort_by_columns:
+            sort_list: [ 指标名称,编号 ]
+
+
+
+    - name: final_accounts_result_table_team_BU1_DC    # team-Q-BU1-DC
+      sync_result: true
+      cooks:
+        - use_df:
+            key: final_accounts_result_table_team
+        - stash_push_df: []
+        - fetch_datasource:
+            datasource: qcode-biz-team-book
+            month_offset: -1
+            rename:
+              biz_meta.org_bu: org_bu
+              biz_meta.org_bu_division: org_bu_division
+        - fetch_cols:
+            columns: [ team_code,org_bu,org_bu_division ]
+        - stash_push_df: []
+        - stash_join_df:
+            on: team_code
+            how: right
+            drop_stash: true
+        - df_select:
+            - '([org_bu] == @p1) & ([org_bu_division] == @p2)'
+            - p1: Q-BU1
+              p2: Q-BU1-DC
+        - fetch_cols:
+            columns: [team_code,D-10101,M-1,M-101,M-102,M-2,M-201,M-3,M-301,Z-02,Z-01,M-302,M-103,M-104,M-105,M-106,M-107,S8,S9,S1,S2,S3,S301,S302,S303,S304,S305,S306,S307,S4,S411,S412,S421,S422,S423,S424,S425,S426,S427,S428,S429,S5,D-101,S6,M-10101,M-10102,M-1010101,M-1010101-1,M-1010102,M-1010102-1,M-1010102-2,M-1010103,M-1010103-1,M-1010103-2,M-1010103-3,M-1010104,M-1010104-5,M-1010104-1,M-1010104-6,M-1010104-2,M-1010104-3,M-1010104-4,M-701,M-70101,M-70102,M-70103,M-70104,M-70105,M-70106,A1,A101,A102,A103,A101011,A101012,A10101,A101013,A101021,A101022,A10102,A101023,A101031,A101032,A10103,A101033,A10105,A10104,A11,A2,A201,A202,A203,A204,A205,3-1,3-101,3-102,3-103,3-104,3-2,3-201,3-202,3-203,3-204,3-3,3-301,3-302,3-303,3-304,3-4,3-401,3-402,3-403,3-404,3-5,3-501,3-502,3-503,3-504,3-6,3-601,3-602,3-603,3-604,3-7,3-701,3-702,3-703,3-704,4-1-1,4-1-101,4-1-102,4-1-103,4-1-104,4-1-2,4-1-201,4-1-202,4-1-203,4-1-204,4-2-1,4-2-101,4-2-102,4-2-103,4-2-104,4-2-2,4-2-201,4-2-202,4-2-203,4-2-204,4-2-3,4-2-301,4-2-302,4-2-303,4-2-304,4-2-4,4-2-401,4-2-402,4-2-403,4-2-404,4-2-5,4-2-501,4-2-502,4-2-503,4-2-504,4-2-6,4-2-601,4-2-602,4-2-603,4-2-604,4-2-7,4-2-701,4-2-702,4-2-703,4-2-704,4-2-8,4-2-801,4-2-802,4-2-803,4-2-804,4-2-9,4-2-901,4-2-902,4-2-903,4-2-904,A206,C1,C101,C10101,C10102,C102,C10201,C10202,C103,C10301,C10302,C104,C10401,C10402,C105,C10501,C10502,C2,C201,C20101,C20102,C201-1,C201-101,C201-102,C201-103,C201-201,C201-202,C201-203,C201-204,C201-301,C201-302,C201-303,C201-304,C202,C20201,C20202,C202-1,C202-2,C202-3,C202-4,C202-5,C203,C20301,C20302,C3,C301,C30101,C30102,C302,C30201,C30202,C303,C30301,C30302,C304,C30401,C30402,C305,C30501,C30502,C306,C30601,C30602,C4,C401,C40101,C40102,C402,C40201,C40202,C403,C40301,C40302,C5,C501,C50101,C50102,C50103,C502,C50201,C50202,C50203,C503,C50301,C50302,C504,C50401,C50402,C6,C601,C60101,C60102,C602,C60201,C60202,C7,C701,C70101,C70102,B1,B2,B3,B4,B401,B402,B403,B404,B405,B5]
+
+        - run_py:
+            - |
+              df = to_df(df)
+              df = df.set_index(['team_code'])
+              df = df.transpose()
+              df.reset_index(drop=False, inplace=True)
+              result = to_dd(df)
+        - df_rename_columns:
+            - index: ac_code
+        - sort_by_index:
+            sort_list: [ D-10101,M-1,M-101,M-102,M-2,M-201,M-3,M-301,Z-02,Z-01,M-302,M-103,M-104,M-105,M-106,M-107,S8,S9,S1,S2,S3,S301,S302,S303,S304,S305,S306,S307,S4,S411,S412,S421,S422,S423,S424,S425,S426,S427,S428,S429,S5,D-101,S6,M-10101,M-10102,M-1010101,M-1010101-1,M-1010102,M-1010102-1,M-1010102-2,M-1010103,M-1010103-1,M-1010103-2,M-1010103-3,M-1010104,M-1010104-5,M-1010104-1,M-1010104-6,M-1010104-2,M-1010104-3,M-1010104-4,M-701,M-70101,M-70102,M-70103,M-70104,M-70105,M-70106,A1,A101,A102,A103,A101011,A101012,A10101,A101013,A101021,A101022,A10102,A101023,A101031,A101032,A10103,A101033,A10105,A10104,A11,A2,A201,A202,A203,A204,A205,3-1,3-101,3-102,3-103,3-104,3-2,3-201,3-202,3-203,3-204,3-3,3-301,3-302,3-303,3-304,3-4,3-401,3-402,3-403,3-404,3-5,3-501,3-502,3-503,3-504,3-6,3-601,3-602,3-603,3-604,3-7,3-701,3-702,3-703,3-704,4-1-1,4-1-101,4-1-102,4-1-103,4-1-104,4-1-2,4-1-201,4-1-202,4-1-203,4-1-204,4-2-1,4-2-101,4-2-102,4-2-103,4-2-104,4-2-2,4-2-201,4-2-202,4-2-203,4-2-204,4-2-3,4-2-301,4-2-302,4-2-303,4-2-304,4-2-4,4-2-401,4-2-402,4-2-403,4-2-404,4-2-5,4-2-501,4-2-502,4-2-503,4-2-504,4-2-6,4-2-601,4-2-602,4-2-603,4-2-604,4-2-7,4-2-701,4-2-702,4-2-703,4-2-704,4-2-8,4-2-801,4-2-802,4-2-803,4-2-804,4-2-9,4-2-901,4-2-902,4-2-903,4-2-904,A206,C1,C101,C10101,C10102,C102,C10201,C10202,C103,C10301,C10302,C104,C10401,C10402,C105,C10501,C10502,C2,C201,C20101,C20102,C201-1,C201-101,C201-102,C201-103,C201-201,C201-202,C201-203,C201-204,C201-301,C201-302,C201-303,C201-304,C202,C20201,C20202,C202-1,C202-2,C202-3,C202-4,C202-5,C203,C20301,C20302,C3,C301,C30101,C30102,C302,C30201,C30202,C303,C30301,C30302,C304,C30401,C30402,C305,C30501,C30502,C306,C30601,C30602,C4,C401,C40101,C40102,C402,C40201,C40202,C403,C40301,C40302,C5,C501,C50101,C50102,C50103,C502,C50201,C50202,C50203,C503,C50301,C50302,C504,C50401,C50402,C6,C601,C60101,C60102,C602,C60201,C60202,C7,C701,C70101,C70102,B1,B2,B3,B4,B401,B402,B403,B404,B405,B5 ]
+        - df_rename_columns:
+            - ac_code: 编号
+        - run_py:
+            - |
+              df = to_df(df)
+              df['指标名称'] = ['日均单量','总收入(税后)','单均收入','毛利率','总成本','单均成本','净利润','单均利润','红冲','预提','净利润率','人效','人创收入(团队)','人创利润（团队）','人创收入（骑士）','人创利润（骑士）','商圈数量','城市数量','骑手人数','商圈管理人数','城市管理人数','城市经理','城市招聘','城市运维','城市人事','城市安全','城市商务','教练培训','项目主体总部人数','区域经理','区域其他','主体管理者','商务','薪资','保险','运维','数据','物资','招聘','安全','项目总部人数','单量','营业天数','主营业务收入（税后）','综合单均收入（税后）','基础收入（税后）','单均基础收入（税后）','KPI奖励收入（税后）','单均奖励（税后）','加权平均星级/星级','政策收入（税后）','政策性收入-商权益','政策性收入-强分摊','政策性收入-其他','运营罚款收入（税后）','运营罚款单均','履约扣罚','履约扣罚单均','骑手活动扣罚','其他常态扣罚','其他非常态扣罚','营业外收入（税后）','站点变卖损益','站点变卖值','卖站体量（单）','市单率','站点收购原值','物资变卖收入','骑士配送费','骑士工资','单均工资','人均工资','全职骑士人数','全职骑士单量','全职骑士工资','全职单均工资','兼职骑士人数','兼职骑士单量','兼职骑士工资','兼职单均工资','特定兼职人数','特定兼职单量','特定兼职工资','特定兼职单均工资','缓发冲抵工资','预提工资','单量合计','工资','工资金额','结算人数','管理带宽','单成本','人均工资','城市经理','结算人数','管理带宽','单成本','人均工资','城市招聘','结算人数','管理带宽','单成本','人均工资','城市运维','结算人数','管理带宽','单成本','人均工资','城市人事','结算人数','管理带宽','单成本','人均工资','城市安全','结算人数','管理带宽','单成本','人均工资','城市商务','结算人数','管理带宽','单成本','人均工资','教练培训','结算人数','管理带宽','单成本','人均工资','区域经理','结算人数','管理带宽','单成本','人均工资','区域其他','结算人数','管理带宽','单成本','人均工资','主体管理者','结算人数','管理带宽','单成本','人均工资','商务','结算人数','管理带宽','单成本','人均工资','薪资','结算人数','管理带宽','单成本','人均工资','保险','结算人数','管理带宽','单成本','人均工资','运维','结算人数','管理带宽','单成本','人均工资','数据','结算人数','管理带宽','单成本','人均工资','物资','结算人数','管理带宽','单成本','人均工资','招聘','结算人数','管理带宽','单成本','人均工资','安全','结算人数','管理带宽','单成本','人均工资','外包结算款','人员类','平台意外险（资产）','单均成本','人均成本','平台意外险（团队）','单均成本','人均成本','社会保险费、住房公积金（资产）','单均成本','人均成本','社会保险费、住房公积金（团队）','单均成本','人均成本','线下工伤险','单均成本','人均成本','房屋类','房屋租金','单均成本','人均成本','办公房屋租金','办公房屋数量','办公房屋单价','办公房屋单均','城市办公房屋租金','城市办公房屋数量','城市办公房屋单价','城市办公房屋单均','住宿房屋租金','住宿房屋数量','住宿房屋单价','住宿房屋单均','房屋物业其他费用','单均成本','人均成本','水电成本','中介成本','物业成本','其他（盛世库房）','税金成本','房屋押金损失','单均成本','人均成本','管理费用类','骑手团建福利费','单均成本','人均成本','管理团建福利费','单均成本','人均成本','差旅费','单均成本','人均成本','招待费','单均成本','人均成本','办公费','单均成本','人均成本','站点资产','单均成本','人均成本','装备类','车辆/装备/电瓶押金损失','单均成本','人均成本','电动车及电池','单均成本','人均成本','骑士装备','单均成本','人均成本','招聘类','内部推荐费','内荐人数','单均成本','人均内荐费','三方推荐费','三方推荐人数','单均成本','人均三方推荐费','招聘平台费用','单均成本','人均成本','招聘其他费用','单均成本','人均成本','意外类','意外支出','单均成本','人均成本','仲裁支出','单均成本','人均成本','商圈管理类','平台保证金损失','单均成本','人均成本','上月发薪全职骑手数','上月发薪全职骑手离职数','离职率','盛世工伤险费用','总人数','增员人数','减员人数','人均成本','单均成本','管理费用率']
+              result = to_dd(df)
+        - sort_by_columns:
+            sort_list: [ 指标名称,编号 ]
+
+
+    - name: final_accounts_result_table_team_BU1_1    # team-Q-BU1-1
+      sync_result: true
+      cooks:
+        - use_df:
+            key: final_accounts_result_table_team
+        - stash_push_df: []
+        - fetch_datasource:
+            datasource: qcode-biz-team-book
+            month_offset: -1
+            rename:
+              biz_meta.org_bu: org_bu
+              biz_meta.org_bu_division: org_bu_division
+        - fetch_cols:
+            columns: [ team_code,org_bu,org_bu_division ]
+        - stash_push_df: []
+        - stash_join_df:
+            on: team_code
+            how: right
+            drop_stash: true
+        - df_select:
+            - '([org_bu] == @p1) & ([org_bu_division] == @p2)'
+            - p1: Q-BU1
+              p2: Q-BU1-1
+        - fetch_cols:
+            columns: [team_code,D-10101,M-1,M-101,M-102,M-2,M-201,M-3,M-301,Z-02,Z-01,M-302,M-103,M-104,M-105,M-106,M-107,S8,S9,S1,S2,S3,S301,S302,S303,S304,S305,S306,S307,S4,S411,S412,S421,S422,S423,S424,S425,S426,S427,S428,S429,S5,D-101,S6,M-10101,M-10102,M-1010101,M-1010101-1,M-1010102,M-1010102-1,M-1010102-2,M-1010103,M-1010103-1,M-1010103-2,M-1010103-3,M-1010104,M-1010104-5,M-1010104-1,M-1010104-6,M-1010104-2,M-1010104-3,M-1010104-4,M-701,M-70101,M-70102,M-70103,M-70104,M-70105,M-70106,A1,A101,A102,A103,A101011,A101012,A10101,A101013,A101021,A101022,A10102,A101023,A101031,A101032,A10103,A101033,A10105,A10104,A11,A2,A201,A202,A203,A204,A205,3-1,3-101,3-102,3-103,3-104,3-2,3-201,3-202,3-203,3-204,3-3,3-301,3-302,3-303,3-304,3-4,3-401,3-402,3-403,3-404,3-5,3-501,3-502,3-503,3-504,3-6,3-601,3-602,3-603,3-604,3-7,3-701,3-702,3-703,3-704,4-1-1,4-1-101,4-1-102,4-1-103,4-1-104,4-1-2,4-1-201,4-1-202,4-1-203,4-1-204,4-2-1,4-2-101,4-2-102,4-2-103,4-2-104,4-2-2,4-2-201,4-2-202,4-2-203,4-2-204,4-2-3,4-2-301,4-2-302,4-2-303,4-2-304,4-2-4,4-2-401,4-2-402,4-2-403,4-2-404,4-2-5,4-2-501,4-2-502,4-2-503,4-2-504,4-2-6,4-2-601,4-2-602,4-2-603,4-2-604,4-2-7,4-2-701,4-2-702,4-2-703,4-2-704,4-2-8,4-2-801,4-2-802,4-2-803,4-2-804,4-2-9,4-2-901,4-2-902,4-2-903,4-2-904,A206,C1,C101,C10101,C10102,C102,C10201,C10202,C103,C10301,C10302,C104,C10401,C10402,C105,C10501,C10502,C2,C201,C20101,C20102,C201-1,C201-101,C201-102,C201-103,C201-201,C201-202,C201-203,C201-204,C201-301,C201-302,C201-303,C201-304,C202,C20201,C20202,C202-1,C202-2,C202-3,C202-4,C202-5,C203,C20301,C20302,C3,C301,C30101,C30102,C302,C30201,C30202,C303,C30301,C30302,C304,C30401,C30402,C305,C30501,C30502,C306,C30601,C30602,C4,C401,C40101,C40102,C402,C40201,C40202,C403,C40301,C40302,C5,C501,C50101,C50102,C50103,C502,C50201,C50202,C50203,C503,C50301,C50302,C504,C50401,C50402,C6,C601,C60101,C60102,C602,C60201,C60202,C7,C701,C70101,C70102,B1,B2,B3,B4,B401,B402,B403,B404,B405,B5]
+
+        - run_py:
+            - |
+              df = to_df(df)
+              df = df.set_index(['team_code'])
+              df = df.transpose()
+              df.reset_index(drop=False, inplace=True)
+              result = to_dd(df)
+        - df_rename_columns:
+            - index: ac_code
+        - sort_by_index:
+            sort_list: [ D-10101,M-1,M-101,M-102,M-2,M-201,M-3,M-301,Z-02,Z-01,M-302,M-103,M-104,M-105,M-106,M-107,S8,S9,S1,S2,S3,S301,S302,S303,S304,S305,S306,S307,S4,S411,S412,S421,S422,S423,S424,S425,S426,S427,S428,S429,S5,D-101,S6,M-10101,M-10102,M-1010101,M-1010101-1,M-1010102,M-1010102-1,M-1010102-2,M-1010103,M-1010103-1,M-1010103-2,M-1010103-3,M-1010104,M-1010104-5,M-1010104-1,M-1010104-6,M-1010104-2,M-1010104-3,M-1010104-4,M-701,M-70101,M-70102,M-70103,M-70104,M-70105,M-70106,A1,A101,A102,A103,A101011,A101012,A10101,A101013,A101021,A101022,A10102,A101023,A101031,A101032,A10103,A101033,A10105,A10104,A11,A2,A201,A202,A203,A204,A205,3-1,3-101,3-102,3-103,3-104,3-2,3-201,3-202,3-203,3-204,3-3,3-301,3-302,3-303,3-304,3-4,3-401,3-402,3-403,3-404,3-5,3-501,3-502,3-503,3-504,3-6,3-601,3-602,3-603,3-604,3-7,3-701,3-702,3-703,3-704,4-1-1,4-1-101,4-1-102,4-1-103,4-1-104,4-1-2,4-1-201,4-1-202,4-1-203,4-1-204,4-2-1,4-2-101,4-2-102,4-2-103,4-2-104,4-2-2,4-2-201,4-2-202,4-2-203,4-2-204,4-2-3,4-2-301,4-2-302,4-2-303,4-2-304,4-2-4,4-2-401,4-2-402,4-2-403,4-2-404,4-2-5,4-2-501,4-2-502,4-2-503,4-2-504,4-2-6,4-2-601,4-2-602,4-2-603,4-2-604,4-2-7,4-2-701,4-2-702,4-2-703,4-2-704,4-2-8,4-2-801,4-2-802,4-2-803,4-2-804,4-2-9,4-2-901,4-2-902,4-2-903,4-2-904,A206,C1,C101,C10101,C10102,C102,C10201,C10202,C103,C10301,C10302,C104,C10401,C10402,C105,C10501,C10502,C2,C201,C20101,C20102,C201-1,C201-101,C201-102,C201-103,C201-201,C201-202,C201-203,C201-204,C201-301,C201-302,C201-303,C201-304,C202,C20201,C20202,C202-1,C202-2,C202-3,C202-4,C202-5,C203,C20301,C20302,C3,C301,C30101,C30102,C302,C30201,C30202,C303,C30301,C30302,C304,C30401,C30402,C305,C30501,C30502,C306,C30601,C30602,C4,C401,C40101,C40102,C402,C40201,C40202,C403,C40301,C40302,C5,C501,C50101,C50102,C50103,C502,C50201,C50202,C50203,C503,C50301,C50302,C504,C50401,C50402,C6,C601,C60101,C60102,C602,C60201,C60202,C7,C701,C70101,C70102,B1,B2,B3,B4,B401,B402,B403,B404,B405,B5 ]
+        - df_rename_columns:
+            - ac_code: 编号
+        - run_py:
+            - |
+              df = to_df(df)
+              df['指标名称'] = ['日均单量','总收入(税后)','单均收入','毛利率','总成本','单均成本','净利润','单均利润','红冲','预提','净利润率','人效','人创收入(团队)','人创利润（团队）','人创收入（骑士）','人创利润（骑士）','商圈数量','城市数量','骑手人数','商圈管理人数','城市管理人数','城市经理','城市招聘','城市运维','城市人事','城市安全','城市商务','教练培训','项目主体总部人数','区域经理','区域其他','主体管理者','商务','薪资','保险','运维','数据','物资','招聘','安全','项目总部人数','单量','营业天数','主营业务收入（税后）','综合单均收入（税后）','基础收入（税后）','单均基础收入（税后）','KPI奖励收入（税后）','单均奖励（税后）','加权平均星级/星级','政策收入（税后）','政策性收入-商权益','政策性收入-强分摊','政策性收入-其他','运营罚款收入（税后）','运营罚款单均','履约扣罚','履约扣罚单均','骑手活动扣罚','其他常态扣罚','其他非常态扣罚','营业外收入（税后）','站点变卖损益','站点变卖值','卖站体量（单）','市单率','站点收购原值','物资变卖收入','骑士配送费','骑士工资','单均工资','人均工资','全职骑士人数','全职骑士单量','全职骑士工资','全职单均工资','兼职骑士人数','兼职骑士单量','兼职骑士工资','兼职单均工资','特定兼职人数','特定兼职单量','特定兼职工资','特定兼职单均工资','缓发冲抵工资','预提工资','单量合计','工资','工资金额','结算人数','管理带宽','单成本','人均工资','城市经理','结算人数','管理带宽','单成本','人均工资','城市招聘','结算人数','管理带宽','单成本','人均工资','城市运维','结算人数','管理带宽','单成本','人均工资','城市人事','结算人数','管理带宽','单成本','人均工资','城市安全','结算人数','管理带宽','单成本','人均工资','城市商务','结算人数','管理带宽','单成本','人均工资','教练培训','结算人数','管理带宽','单成本','人均工资','区域经理','结算人数','管理带宽','单成本','人均工资','区域其他','结算人数','管理带宽','单成本','人均工资','主体管理者','结算人数','管理带宽','单成本','人均工资','商务','结算人数','管理带宽','单成本','人均工资','薪资','结算人数','管理带宽','单成本','人均工资','保险','结算人数','管理带宽','单成本','人均工资','运维','结算人数','管理带宽','单成本','人均工资','数据','结算人数','管理带宽','单成本','人均工资','物资','结算人数','管理带宽','单成本','人均工资','招聘','结算人数','管理带宽','单成本','人均工资','安全','结算人数','管理带宽','单成本','人均工资','外包结算款','人员类','平台意外险（资产）','单均成本','人均成本','平台意外险（团队）','单均成本','人均成本','社会保险费、住房公积金（资产）','单均成本','人均成本','社会保险费、住房公积金（团队）','单均成本','人均成本','线下工伤险','单均成本','人均成本','房屋类','房屋租金','单均成本','人均成本','办公房屋租金','办公房屋数量','办公房屋单价','办公房屋单均','城市办公房屋租金','城市办公房屋数量','城市办公房屋单价','城市办公房屋单均','住宿房屋租金','住宿房屋数量','住宿房屋单价','住宿房屋单均','房屋物业其他费用','单均成本','人均成本','水电成本','中介成本','物业成本','其他（盛世库房）','税金成本','房屋押金损失','单均成本','人均成本','管理费用类','骑手团建福利费','单均成本','人均成本','管理团建福利费','单均成本','人均成本','差旅费','单均成本','人均成本','招待费','单均成本','人均成本','办公费','单均成本','人均成本','站点资产','单均成本','人均成本','装备类','车辆/装备/电瓶押金损失','单均成本','人均成本','电动车及电池','单均成本','人均成本','骑士装备','单均成本','人均成本','招聘类','内部推荐费','内荐人数','单均成本','人均内荐费','三方推荐费','三方推荐人数','单均成本','人均三方推荐费','招聘平台费用','单均成本','人均成本','招聘其他费用','单均成本','人均成本','意外类','意外支出','单均成本','人均成本','仲裁支出','单均成本','人均成本','商圈管理类','平台保证金损失','单均成本','人均成本','上月发薪全职骑手数','上月发薪全职骑手离职数','离职率','盛世工伤险费用','总人数','增员人数','减员人数','人均成本','单均成本','管理费用率']
+              result = to_dd(df)
+        - sort_by_columns:
+            sort_list: [ 指标名称,编号 ]
+
+
+
+    - name: final_accounts_result_table_team_BU1_3    # team-Q-BU1-3
+      sync_result: true
+      cooks:
+        - use_df:
+            key: final_accounts_result_table_team
+        - stash_push_df: []
+        - fetch_datasource:
+            datasource: qcode-biz-team-book
+            month_offset: -1
+            rename:
+              biz_meta.org_bu: org_bu
+              biz_meta.org_bu_division: org_bu_division
+        - fetch_cols:
+            columns: [ team_code,org_bu,org_bu_division ]
+        - stash_push_df: []
+        - stash_join_df:
+            on: team_code
+            how: right
+            drop_stash: true
+        - df_select:
+            - '([org_bu] == @p1) & ([org_bu_division] == @p2)'
+            - p1: Q-BU1
+              p2: Q-BU1-3
+        - fetch_cols:
+            columns: [team_code,D-10101,M-1,M-101,M-102,M-2,M-201,M-3,M-301,Z-02,Z-01,M-302,M-103,M-104,M-105,M-106,M-107,S8,S9,S1,S2,S3,S301,S302,S303,S304,S305,S306,S307,S4,S411,S412,S421,S422,S423,S424,S425,S426,S427,S428,S429,S5,D-101,S6,M-10101,M-10102,M-1010101,M-1010101-1,M-1010102,M-1010102-1,M-1010102-2,M-1010103,M-1010103-1,M-1010103-2,M-1010103-3,M-1010104,M-1010104-5,M-1010104-1,M-1010104-6,M-1010104-2,M-1010104-3,M-1010104-4,M-701,M-70101,M-70102,M-70103,M-70104,M-70105,M-70106,A1,A101,A102,A103,A101011,A101012,A10101,A101013,A101021,A101022,A10102,A101023,A101031,A101032,A10103,A101033,A10105,A10104,A11,A2,A201,A202,A203,A204,A205,3-1,3-101,3-102,3-103,3-104,3-2,3-201,3-202,3-203,3-204,3-3,3-301,3-302,3-303,3-304,3-4,3-401,3-402,3-403,3-404,3-5,3-501,3-502,3-503,3-504,3-6,3-601,3-602,3-603,3-604,3-7,3-701,3-702,3-703,3-704,4-1-1,4-1-101,4-1-102,4-1-103,4-1-104,4-1-2,4-1-201,4-1-202,4-1-203,4-1-204,4-2-1,4-2-101,4-2-102,4-2-103,4-2-104,4-2-2,4-2-201,4-2-202,4-2-203,4-2-204,4-2-3,4-2-301,4-2-302,4-2-303,4-2-304,4-2-4,4-2-401,4-2-402,4-2-403,4-2-404,4-2-5,4-2-501,4-2-502,4-2-503,4-2-504,4-2-6,4-2-601,4-2-602,4-2-603,4-2-604,4-2-7,4-2-701,4-2-702,4-2-703,4-2-704,4-2-8,4-2-801,4-2-802,4-2-803,4-2-804,4-2-9,4-2-901,4-2-902,4-2-903,4-2-904,A206,C1,C101,C10101,C10102,C102,C10201,C10202,C103,C10301,C10302,C104,C10401,C10402,C105,C10501,C10502,C2,C201,C20101,C20102,C201-1,C201-101,C201-102,C201-103,C201-201,C201-202,C201-203,C201-204,C201-301,C201-302,C201-303,C201-304,C202,C20201,C20202,C202-1,C202-2,C202-3,C202-4,C202-5,C203,C20301,C20302,C3,C301,C30101,C30102,C302,C30201,C30202,C303,C30301,C30302,C304,C30401,C30402,C305,C30501,C30502,C306,C30601,C30602,C4,C401,C40101,C40102,C402,C40201,C40202,C403,C40301,C40302,C5,C501,C50101,C50102,C50103,C502,C50201,C50202,C50203,C503,C50301,C50302,C504,C50401,C50402,C6,C601,C60101,C60102,C602,C60201,C60202,C7,C701,C70101,C70102,B1,B2,B3,B4,B401,B402,B403,B404,B405,B5]
+
+        - run_py:
+            - |
+              df = to_df(df)
+              df = df.set_index(['team_code'])
+              df = df.transpose()
+              df.reset_index(drop=False, inplace=True)
+              result = to_dd(df)
+        - df_rename_columns:
+            - index: ac_code
+        - sort_by_index:
+            sort_list: [ D-10101,M-1,M-101,M-102,M-2,M-201,M-3,M-301,Z-02,Z-01,M-302,M-103,M-104,M-105,M-106,M-107,S8,S9,S1,S2,S3,S301,S302,S303,S304,S305,S306,S307,S4,S411,S412,S421,S422,S423,S424,S425,S426,S427,S428,S429,S5,D-101,S6,M-10101,M-10102,M-1010101,M-1010101-1,M-1010102,M-1010102-1,M-1010102-2,M-1010103,M-1010103-1,M-1010103-2,M-1010103-3,M-1010104,M-1010104-5,M-1010104-1,M-1010104-6,M-1010104-2,M-1010104-3,M-1010104-4,M-701,M-70101,M-70102,M-70103,M-70104,M-70105,M-70106,A1,A101,A102,A103,A101011,A101012,A10101,A101013,A101021,A101022,A10102,A101023,A101031,A101032,A10103,A101033,A10105,A10104,A11,A2,A201,A202,A203,A204,A205,3-1,3-101,3-102,3-103,3-104,3-2,3-201,3-202,3-203,3-204,3-3,3-301,3-302,3-303,3-304,3-4,3-401,3-402,3-403,3-404,3-5,3-501,3-502,3-503,3-504,3-6,3-601,3-602,3-603,3-604,3-7,3-701,3-702,3-703,3-704,4-1-1,4-1-101,4-1-102,4-1-103,4-1-104,4-1-2,4-1-201,4-1-202,4-1-203,4-1-204,4-2-1,4-2-101,4-2-102,4-2-103,4-2-104,4-2-2,4-2-201,4-2-202,4-2-203,4-2-204,4-2-3,4-2-301,4-2-302,4-2-303,4-2-304,4-2-4,4-2-401,4-2-402,4-2-403,4-2-404,4-2-5,4-2-501,4-2-502,4-2-503,4-2-504,4-2-6,4-2-601,4-2-602,4-2-603,4-2-604,4-2-7,4-2-701,4-2-702,4-2-703,4-2-704,4-2-8,4-2-801,4-2-802,4-2-803,4-2-804,4-2-9,4-2-901,4-2-902,4-2-903,4-2-904,A206,C1,C101,C10101,C10102,C102,C10201,C10202,C103,C10301,C10302,C104,C10401,C10402,C105,C10501,C10502,C2,C201,C20101,C20102,C201-1,C201-101,C201-102,C201-103,C201-201,C201-202,C201-203,C201-204,C201-301,C201-302,C201-303,C201-304,C202,C20201,C20202,C202-1,C202-2,C202-3,C202-4,C202-5,C203,C20301,C20302,C3,C301,C30101,C30102,C302,C30201,C30202,C303,C30301,C30302,C304,C30401,C30402,C305,C30501,C30502,C306,C30601,C30602,C4,C401,C40101,C40102,C402,C40201,C40202,C403,C40301,C40302,C5,C501,C50101,C50102,C50103,C502,C50201,C50202,C50203,C503,C50301,C50302,C504,C50401,C50402,C6,C601,C60101,C60102,C602,C60201,C60202,C7,C701,C70101,C70102,B1,B2,B3,B4,B401,B402,B403,B404,B405,B5 ]
+        - df_rename_columns:
+            - ac_code: 编号
+        - run_py:
+            - |
+              df = to_df(df)
+              df['指标名称'] = ['日均单量','总收入(税后)','单均收入','毛利率','总成本','单均成本','净利润','单均利润','红冲','预提','净利润率','人效','人创收入(团队)','人创利润（团队）','人创收入（骑士）','人创利润（骑士）','商圈数量','城市数量','骑手人数','商圈管理人数','城市管理人数','城市经理','城市招聘','城市运维','城市人事','城市安全','城市商务','教练培训','项目主体总部人数','区域经理','区域其他','主体管理者','商务','薪资','保险','运维','数据','物资','招聘','安全','项目总部人数','单量','营业天数','主营业务收入（税后）','综合单均收入（税后）','基础收入（税后）','单均基础收入（税后）','KPI奖励收入（税后）','单均奖励（税后）','加权平均星级/星级','政策收入（税后）','政策性收入-商权益','政策性收入-强分摊','政策性收入-其他','运营罚款收入（税后）','运营罚款单均','履约扣罚','履约扣罚单均','骑手活动扣罚','其他常态扣罚','其他非常态扣罚','营业外收入（税后）','站点变卖损益','站点变卖值','卖站体量（单）','市单率','站点收购原值','物资变卖收入','骑士配送费','骑士工资','单均工资','人均工资','全职骑士人数','全职骑士单量','全职骑士工资','全职单均工资','兼职骑士人数','兼职骑士单量','兼职骑士工资','兼职单均工资','特定兼职人数','特定兼职单量','特定兼职工资','特定兼职单均工资','缓发冲抵工资','预提工资','单量合计','工资','工资金额','结算人数','管理带宽','单成本','人均工资','城市经理','结算人数','管理带宽','单成本','人均工资','城市招聘','结算人数','管理带宽','单成本','人均工资','城市运维','结算人数','管理带宽','单成本','人均工资','城市人事','结算人数','管理带宽','单成本','人均工资','城市安全','结算人数','管理带宽','单成本','人均工资','城市商务','结算人数','管理带宽','单成本','人均工资','教练培训','结算人数','管理带宽','单成本','人均工资','区域经理','结算人数','管理带宽','单成本','人均工资','区域其他','结算人数','管理带宽','单成本','人均工资','主体管理者','结算人数','管理带宽','单成本','人均工资','商务','结算人数','管理带宽','单成本','人均工资','薪资','结算人数','管理带宽','单成本','人均工资','保险','结算人数','管理带宽','单成本','人均工资','运维','结算人数','管理带宽','单成本','人均工资','数据','结算人数','管理带宽','单成本','人均工资','物资','结算人数','管理带宽','单成本','人均工资','招聘','结算人数','管理带宽','单成本','人均工资','安全','结算人数','管理带宽','单成本','人均工资','外包结算款','人员类','平台意外险（资产）','单均成本','人均成本','平台意外险（团队）','单均成本','人均成本','社会保险费、住房公积金（资产）','单均成本','人均成本','社会保险费、住房公积金（团队）','单均成本','人均成本','线下工伤险','单均成本','人均成本','房屋类','房屋租金','单均成本','人均成本','办公房屋租金','办公房屋数量','办公房屋单价','办公房屋单均','城市办公房屋租金','城市办公房屋数量','城市办公房屋单价','城市办公房屋单均','住宿房屋租金','住宿房屋数量','住宿房屋单价','住宿房屋单均','房屋物业其他费用','单均成本','人均成本','水电成本','中介成本','物业成本','其他（盛世库房）','税金成本','房屋押金损失','单均成本','人均成本','管理费用类','骑手团建福利费','单均成本','人均成本','管理团建福利费','单均成本','人均成本','差旅费','单均成本','人均成本','招待费','单均成本','人均成本','办公费','单均成本','人均成本','站点资产','单均成本','人均成本','装备类','车辆/装备/电瓶押金损失','单均成本','人均成本','电动车及电池','单均成本','人均成本','骑士装备','单均成本','人均成本','招聘类','内部推荐费','内荐人数','单均成本','人均内荐费','三方推荐费','三方推荐人数','单均成本','人均三方推荐费','招聘平台费用','单均成本','人均成本','招聘其他费用','单均成本','人均成本','意外类','意外支出','单均成本','人均成本','仲裁支出','单均成本','人均成本','商圈管理类','平台保证金损失','单均成本','人均成本','上月发薪全职骑手数','上月发薪全职骑手离职数','离职率','盛世工伤险费用','总人数','增员人数','减员人数','人均成本','单均成本','管理费用率']
+              result = to_dd(df)
+        - sort_by_columns:
+            sort_list: [ 指标名称,编号 ]
+
+
+
+
+    - name: final_accounts_result_table_team_BU1_null    # team-Q-BU1-null
+      sync_result: true
+      cooks:
+        - use_df:
+            key: final_accounts_result_table_team
+        - stash_push_df: []
+        - fetch_datasource:
+            datasource: qcode-biz-team-book
+            month_offset: -1
+            rename:
+              biz_meta.org_bu: org_bu
+              biz_meta.org_bu_division: org_bu_division
+        - fetch_cols:
+            columns: [ team_code,org_bu,org_bu_division ]
+        - stash_push_df: []
+        - stash_join_df:
+            on: team_code
+            how: right
+            drop_stash: true
+        - df_select:
+            - '[org_bu] == @p1'
+            - p1: Q-BU1
+        - run_py:
+            - |
+              df = df[df['org_bu_division'].isnull()]
+              result = df
+        - fetch_cols:
+            columns: [team_code,D-10101,M-1,M-101,M-102,M-2,M-201,M-3,M-301,Z-02,Z-01,M-302,M-103,M-104,M-105,M-106,M-107,S8,S9,S1,S2,S3,S301,S302,S303,S304,S305,S306,S307,S4,S411,S412,S421,S422,S423,S424,S425,S426,S427,S428,S429,S5,D-101,S6,M-10101,M-10102,M-1010101,M-1010101-1,M-1010102,M-1010102-1,M-1010102-2,M-1010103,M-1010103-1,M-1010103-2,M-1010103-3,M-1010104,M-1010104-5,M-1010104-1,M-1010104-6,M-1010104-2,M-1010104-3,M-1010104-4,M-701,M-70101,M-70102,M-70103,M-70104,M-70105,M-70106,A1,A101,A102,A103,A101011,A101012,A10101,A101013,A101021,A101022,A10102,A101023,A101031,A101032,A10103,A101033,A10105,A10104,A11,A2,A201,A202,A203,A204,A205,3-1,3-101,3-102,3-103,3-104,3-2,3-201,3-202,3-203,3-204,3-3,3-301,3-302,3-303,3-304,3-4,3-401,3-402,3-403,3-404,3-5,3-501,3-502,3-503,3-504,3-6,3-601,3-602,3-603,3-604,3-7,3-701,3-702,3-703,3-704,4-1-1,4-1-101,4-1-102,4-1-103,4-1-104,4-1-2,4-1-201,4-1-202,4-1-203,4-1-204,4-2-1,4-2-101,4-2-102,4-2-103,4-2-104,4-2-2,4-2-201,4-2-202,4-2-203,4-2-204,4-2-3,4-2-301,4-2-302,4-2-303,4-2-304,4-2-4,4-2-401,4-2-402,4-2-403,4-2-404,4-2-5,4-2-501,4-2-502,4-2-503,4-2-504,4-2-6,4-2-601,4-2-602,4-2-603,4-2-604,4-2-7,4-2-701,4-2-702,4-2-703,4-2-704,4-2-8,4-2-801,4-2-802,4-2-803,4-2-804,4-2-9,4-2-901,4-2-902,4-2-903,4-2-904,A206,C1,C101,C10101,C10102,C102,C10201,C10202,C103,C10301,C10302,C104,C10401,C10402,C105,C10501,C10502,C2,C201,C20101,C20102,C201-1,C201-101,C201-102,C201-103,C201-201,C201-202,C201-203,C201-204,C201-301,C201-302,C201-303,C201-304,C202,C20201,C20202,C202-1,C202-2,C202-3,C202-4,C202-5,C203,C20301,C20302,C3,C301,C30101,C30102,C302,C30201,C30202,C303,C30301,C30302,C304,C30401,C30402,C305,C30501,C30502,C306,C30601,C30602,C4,C401,C40101,C40102,C402,C40201,C40202,C403,C40301,C40302,C5,C501,C50101,C50102,C50103,C502,C50201,C50202,C50203,C503,C50301,C50302,C504,C50401,C50402,C6,C601,C60101,C60102,C602,C60201,C60202,C7,C701,C70101,C70102,B1,B2,B3,B4,B401,B402,B403,B404,B405,B5]
+
+        - run_py:
+            - |
+              df = to_df(df)
+              df = df.set_index(['team_code'])
+              df = df.transpose()
+              df.reset_index(drop=False, inplace=True)
+              result = to_dd(df)
+        - df_rename_columns:
+            - index: ac_code
+        - sort_by_index:
+            sort_list: [ D-10101,M-1,M-101,M-102,M-2,M-201,M-3,M-301,Z-02,Z-01,M-302,M-103,M-104,M-105,M-106,M-107,S8,S9,S1,S2,S3,S301,S302,S303,S304,S305,S306,S307,S4,S411,S412,S421,S422,S423,S424,S425,S426,S427,S428,S429,S5,D-101,S6,M-10101,M-10102,M-1010101,M-1010101-1,M-1010102,M-1010102-1,M-1010102-2,M-1010103,M-1010103-1,M-1010103-2,M-1010103-3,M-1010104,M-1010104-5,M-1010104-1,M-1010104-6,M-1010104-2,M-1010104-3,M-1010104-4,M-701,M-70101,M-70102,M-70103,M-70104,M-70105,M-70106,A1,A101,A102,A103,A101011,A101012,A10101,A101013,A101021,A101022,A10102,A101023,A101031,A101032,A10103,A101033,A10105,A10104,A11,A2,A201,A202,A203,A204,A205,3-1,3-101,3-102,3-103,3-104,3-2,3-201,3-202,3-203,3-204,3-3,3-301,3-302,3-303,3-304,3-4,3-401,3-402,3-403,3-404,3-5,3-501,3-502,3-503,3-504,3-6,3-601,3-602,3-603,3-604,3-7,3-701,3-702,3-703,3-704,4-1-1,4-1-101,4-1-102,4-1-103,4-1-104,4-1-2,4-1-201,4-1-202,4-1-203,4-1-204,4-2-1,4-2-101,4-2-102,4-2-103,4-2-104,4-2-2,4-2-201,4-2-202,4-2-203,4-2-204,4-2-3,4-2-301,4-2-302,4-2-303,4-2-304,4-2-4,4-2-401,4-2-402,4-2-403,4-2-404,4-2-5,4-2-501,4-2-502,4-2-503,4-2-504,4-2-6,4-2-601,4-2-602,4-2-603,4-2-604,4-2-7,4-2-701,4-2-702,4-2-703,4-2-704,4-2-8,4-2-801,4-2-802,4-2-803,4-2-804,4-2-9,4-2-901,4-2-902,4-2-903,4-2-904,A206,C1,C101,C10101,C10102,C102,C10201,C10202,C103,C10301,C10302,C104,C10401,C10402,C105,C10501,C10502,C2,C201,C20101,C20102,C201-1,C201-101,C201-102,C201-103,C201-201,C201-202,C201-203,C201-204,C201-301,C201-302,C201-303,C201-304,C202,C20201,C20202,C202-1,C202-2,C202-3,C202-4,C202-5,C203,C20301,C20302,C3,C301,C30101,C30102,C302,C30201,C30202,C303,C30301,C30302,C304,C30401,C30402,C305,C30501,C30502,C306,C30601,C30602,C4,C401,C40101,C40102,C402,C40201,C40202,C403,C40301,C40302,C5,C501,C50101,C50102,C50103,C502,C50201,C50202,C50203,C503,C50301,C50302,C504,C50401,C50402,C6,C601,C60101,C60102,C602,C60201,C60202,C7,C701,C70101,C70102,B1,B2,B3,B4,B401,B402,B403,B404,B405,B5 ]
+        - df_rename_columns:
+            - ac_code: 编号
+        - run_py:
+            - |
+              df = to_df(df)
+              df['指标名称'] = ['日均单量','总收入(税后)','单均收入','毛利率','总成本','单均成本','净利润','单均利润','红冲','预提','净利润率','人效','人创收入(团队)','人创利润（团队）','人创收入（骑士）','人创利润（骑士）','商圈数量','城市数量','骑手人数','商圈管理人数','城市管理人数','城市经理','城市招聘','城市运维','城市人事','城市安全','城市商务','教练培训','项目主体总部人数','区域经理','区域其他','主体管理者','商务','薪资','保险','运维','数据','物资','招聘','安全','项目总部人数','单量','营业天数','主营业务收入（税后）','综合单均收入（税后）','基础收入（税后）','单均基础收入（税后）','KPI奖励收入（税后）','单均奖励（税后）','加权平均星级/星级','政策收入（税后）','政策性收入-商权益','政策性收入-强分摊','政策性收入-其他','运营罚款收入（税后）','运营罚款单均','履约扣罚','履约扣罚单均','骑手活动扣罚','其他常态扣罚','其他非常态扣罚','营业外收入（税后）','站点变卖损益','站点变卖值','卖站体量（单）','市单率','站点收购原值','物资变卖收入','骑士配送费','骑士工资','单均工资','人均工资','全职骑士人数','全职骑士单量','全职骑士工资','全职单均工资','兼职骑士人数','兼职骑士单量','兼职骑士工资','兼职单均工资','特定兼职人数','特定兼职单量','特定兼职工资','特定兼职单均工资','缓发冲抵工资','预提工资','单量合计','工资','工资金额','结算人数','管理带宽','单成本','人均工资','城市经理','结算人数','管理带宽','单成本','人均工资','城市招聘','结算人数','管理带宽','单成本','人均工资','城市运维','结算人数','管理带宽','单成本','人均工资','城市人事','结算人数','管理带宽','单成本','人均工资','城市安全','结算人数','管理带宽','单成本','人均工资','城市商务','结算人数','管理带宽','单成本','人均工资','教练培训','结算人数','管理带宽','单成本','人均工资','区域经理','结算人数','管理带宽','单成本','人均工资','区域其他','结算人数','管理带宽','单成本','人均工资','主体管理者','结算人数','管理带宽','单成本','人均工资','商务','结算人数','管理带宽','单成本','人均工资','薪资','结算人数','管理带宽','单成本','人均工资','保险','结算人数','管理带宽','单成本','人均工资','运维','结算人数','管理带宽','单成本','人均工资','数据','结算人数','管理带宽','单成本','人均工资','物资','结算人数','管理带宽','单成本','人均工资','招聘','结算人数','管理带宽','单成本','人均工资','安全','结算人数','管理带宽','单成本','人均工资','外包结算款','人员类','平台意外险（资产）','单均成本','人均成本','平台意外险（团队）','单均成本','人均成本','社会保险费、住房公积金（资产）','单均成本','人均成本','社会保险费、住房公积金（团队）','单均成本','人均成本','线下工伤险','单均成本','人均成本','房屋类','房屋租金','单均成本','人均成本','办公房屋租金','办公房屋数量','办公房屋单价','办公房屋单均','城市办公房屋租金','城市办公房屋数量','城市办公房屋单价','城市办公房屋单均','住宿房屋租金','住宿房屋数量','住宿房屋单价','住宿房屋单均','房屋物业其他费用','单均成本','人均成本','水电成本','中介成本','物业成本','其他（盛世库房）','税金成本','房屋押金损失','单均成本','人均成本','管理费用类','骑手团建福利费','单均成本','人均成本','管理团建福利费','单均成本','人均成本','差旅费','单均成本','人均成本','招待费','单均成本','人均成本','办公费','单均成本','人均成本','站点资产','单均成本','人均成本','装备类','车辆/装备/电瓶押金损失','单均成本','人均成本','电动车及电池','单均成本','人均成本','骑士装备','单均成本','人均成本','招聘类','内部推荐费','内荐人数','单均成本','人均内荐费','三方推荐费','三方推荐人数','单均成本','人均三方推荐费','招聘平台费用','单均成本','人均成本','招聘其他费用','单均成本','人均成本','意外类','意外支出','单均成本','人均成本','仲裁支出','单均成本','人均成本','商圈管理类','平台保证金损失','单均成本','人均成本','上月发薪全职骑手数','上月发薪全职骑手离职数','离职率','盛世工伤险费用','总人数','增员人数','减员人数','人均成本','单均成本','管理费用率']
+              result = to_dd(df)
+        - sort_by_columns:
+            sort_list: [ 指标名称,编号 ]
