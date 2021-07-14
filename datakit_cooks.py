@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 # parse_dateint = common_cook.parse_dateint
 
 parse_datetime = common_cook.parse_datetime
-convert_month_day_time_column
+
 parse_bool = common_cook.parse_bool
 
 parse_time_interval = common_cook.parse_time_interval
@@ -37,7 +37,6 @@ parse_prc_datetime = common_cook.parse_datetime
 flip_dict = common_cook.flip_dict
 
 _cat = u','.join
-
 
 small_lru_cache = lru_cache(50)
 common_lru_cache = lru_cache(200)
@@ -361,29 +360,54 @@ def df_select(df, query, params=None, ctx=None, persist=False, *args, **kwargs):
 def use_df(_, key, ctx=None, rename=None, columns=None, index=None, drop_index=True,
            ignore_null_error=False,
            empty_df_record=None,
+           dataset_cate=u'std',
            *args, **kwargs):
+    # datasets = ctx.datasets
+    # if key in datasets:
+    #     df = datasets[key]
+    #     if df is None:
+    #         if ignore_null_error:
+    #             return _empty_dd(empty_df_record)
+    #         raise BlitzDatasetIsNull(u'use_df<%s> result is NULL' % key)
+    #     if columns:
+    #         df = df[columns]
+    #     # print(df.columns)
+    #     if index:
+    #         if drop_index:
+    #             if hasattr(df.index, 'nlevels') and df.index.nlevels > 1:
+    #                 df = df.reset_index(drop_index).set_index(index)
+    #         df = df.set_index(index)
+    #     if rename:
+    #         return df.rename(columns=rename)
+    #     return to_dd(df)
+    # if ignore_null_error:
+    #     return _empty_dd(empty_df_record)
+    # logger.warn(u'WARN: key<%s> not exists in datasets', key)
+    # raise BlitzDatasetIsNull(u'use_df invalid key<%s>' % key)
     datasets = ctx.datasets
     if key in datasets:
         df = datasets[key]
-        if df is None:
-            if ignore_null_error:
-                return _empty_dd(empty_df_record)
-            raise BlitzDatasetIsNull(u'use_df<%s> result is NULL' % key)
-        if columns:
-            df = df[columns]
-        # print(df.columns)
-        if index:
-            if drop_index:
-                if hasattr(df.index, 'nlevels') and df.index.nlevels > 1:
-                    df = df.reset_index(drop_index).set_index(index)
-            df = df.set_index(index)
-        if rename:
-            return df.rename(columns=rename)
-        return to_dd(df)
-    if ignore_null_error:
-        return _empty_dd(empty_df_record)
-    logger.warn(u'WARN: key<%s> not exists in datasets', key)
-    raise BlitzDatasetIsNull(u'use_df invalid key<%s>' % key)
+    else:
+        df = fetch_dataset(_, ctx, ignore_null_error=True, dataset_type_code=key, dataset_cate=dataset_cate)
+        if df is not None:
+            datasets[key] = df
+
+    if df is None:
+        if ignore_null_error:
+            return _empty_dd(empty_df_record)
+        raise BlitzDatasetIsNull(u'use_df<%s> result is NULL' % key)
+
+    if columns:
+        df = df[columns]
+    # print(df.columns)
+    if index:
+        if drop_index:
+            if hasattr(df.index, 'nlevels') and df.index.nlevels > 1:
+                df = df.reset_index(drop_index).set_index(index)
+        df = df.set_index(index)
+    if rename:
+        return df.rename(columns=rename)
+    return to_dd(df)
 
 
 def df_groupby(df, by, ctx=None, ):
@@ -557,6 +581,18 @@ def df_merge(df, other_df, on=None, how=u'left', left_index=False, right_index=F
         left_on=left_on, right_on=right_on, left_index=left_index,
         right_index=right_index
     )
+    # latest pandas will check these can't pass both
+    if merge_kwargs['left_index']:
+        merge_kwargs.pop('left_on', None)
+        merge_kwargs['on'] = None
+    if merge_kwargs.get('right_index'):
+        merge_kwargs.pop('right_on', None)
+        merge_kwargs['on'] = None
+    if merge_kwargs.get('left_on'):
+        merge_kwargs.pop('left_index', None)
+    if merge_kwargs.get('right_on'):
+        merge_kwargs.pop('right_index', None)
+
     if is_dask_df(df):
         merge_kwargs['npartitions'] = npartitions
     result = df.merge(other_df, **merge_kwargs)
@@ -573,14 +609,18 @@ def _persist_result(result, client=None):
     return result
 
 
-def df_sort_values(df, by, ascending=True, ctx=None, chunk_size=1000, *args, **kwargs):
+def df_sort_values(df, by, ascending=True, ctx=None, axis=u'columns', chunk_size=1000, *args, **kwargs):
     if is_dask_df(df):
         df = to_df(df)
-    df = df.sort_values(by=by, ascending=ascending)
+    df = df.sort_values(by=by, axis=axis, ascending=ascending)
     return to_dd(df, chunksize=chunk_size)
 
 
-def df_fillna(df, columns, value, ctx=None, *args, **kwargs):
+def df_fillna(df, columns=None, value=None, ctx=None, *args, **kwargs):
+    # values = dict([(_, value) for _ in columns])
+    # return df.fillna(value=values)
+    if not columns:
+        columns = df.columns
     values = dict([(_, value) for _ in columns])
     return df.fillna(value=values)
 
@@ -836,7 +876,7 @@ def fetch_dataset(_, ctx, key=None, dataset_cate=None, columns=None, template_co
     if not dataset_cate:
         raise BlitzRuntimeException(u'dataset_cate is null')
     if month_value:
-        if isinstance(month_value, basestring):
+        if isinstance(month_value, str):
             month = ctx.get(month_value)
         else:
             month = int(month_value)
@@ -1004,7 +1044,7 @@ def run_py(df, code, ctx=None, force_df=False, *args, **kwargs):
         'result': None,
     }
     global_ctx = globals()
-    exec (code, global_ctx, local_ctx)
+    exec(code, global_ctx, local_ctx)
     if local_ctx[u'result'] is None:
         return df
     return local_ctx[u'result']
@@ -1015,7 +1055,10 @@ def df_tail(df, num=200, ctx=None, *args, **kwargs):
 
 
 def df_head(df, num=200, ctx=None, *args, **kwargs):
-    return df.head(num)
+    if is_dask_df(df):
+        return df.head(num, npartitions=-1)
+    else:
+        return df.head(num)
 
 
 def df_sample(df, num=200, ctx=None, *args, **kwargs):
@@ -1083,6 +1126,12 @@ def when_empty_use_df(_, ctx=None, **kwargs):
     return use_df(_, ctx=ctx, **kwargs)
 
 
+def when_empty_set_df(_, record, ctx=None, **kwargs):
+    if _ is not None and not df_is_empty(_):
+        return _
+    return _empty_dd(record)
+
+
 def df_is_nan_inf(df, column, ctx=None, *args, **kwargs):
     condition = (np.isnan(df[column])) | (np.isinf(df[column]))
     return df[condition]
@@ -1107,4 +1156,18 @@ def df_round(df, columns, precision=4, ctx=None, *args, **kwargs):
         if col not in columns:
             continue
         df[col] = df[col].round(precision)
+    return df
+
+
+def df_to_str(df, columns, ctx=None, *args, **kwargs):
+    if not columns:
+        return df
+    if not isinstance(columns, list):
+        columns = [columns]
+    if is_dask_df(df):
+        for column in columns:
+            df[column] = df[column].apply(str, meta=(column, 'str'))
+    else:
+        for column in columns:
+            df[column] = df[column].apply(str)
     return df
