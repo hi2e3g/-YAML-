@@ -9,7 +9,7 @@ dataset_pipeline:
   - df_select:
       - '[industry_id] == @v1 & [platform_id] in @v2'
       - v1: chu_xing
-        v2: [qingju, haluo, mobike, gofun]
+        v2: [qingju, haluo, mobike, gofun, tianmao]
   - set_meta_days_by_column:
       src_column: book_month
       dest_column: month_days
