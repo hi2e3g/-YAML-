@@ -6,7 +6,7 @@ mt_daily_env:
     play_on_dask_cluster: true
     dask_client_set_as_default: true
     platform_code: meituan
-    cluster_client_address: tcp://172.31.54.193:8786
+    cluster_client_address: 'dask-scheduler-service.databus:8786'
   play:
     - name: mt_day_1_std
       sync_result: true
@@ -328,13 +328,34 @@ mt_daily_env:
             - 加盟站ID: 站点ID
               复合准时率（考核）: 复合准时率考核
               提前点送达率(复合): 提前点送达率复合
-
+        - push_dataset:
+            key: result_mini
+        - use_df:
+            key: result_mini
+        - df_select:
+            - '[评星奖惩单量] > 0'
         - run_py:
             - |
-                df = to_df(df)
-                df[u'每单奖惩金额（元）'] = 0
-                df.loc[df.loc[:,u'评星奖惩单量'] > 0,u'每单奖惩金额（元）'] =  df[u'奖惩总额(元)']/df[u'评星奖惩单量']
-                result = df
+              df['每单奖惩金额（元）'] = df['奖惩总额(元)'] / df['评星奖惩单量']
+              result = df
+        - stash_push_df: []
+        - use_df:
+            key: result_mini
+        - df_select:
+            - '[评星奖惩单量] <= 0'
+        - run_py:
+            - |
+              df['每单奖惩金额（元）'] = 0
+              result = df
+        - stash_push_df: []
+        - stash_concat_df:
+            drop_stash: true
+#        - run_py:
+#            - |
+#                df = to_df(df)
+#                df[u'每单奖惩金额（元）'] = 0
+#                df.loc[df.loc[:,u'评星奖惩单量'] > 0,u'每单奖惩金额（元）'] =  df[u'奖惩总额(元)']/df[u'评星奖惩单量']
+#                result = df
 
         - str_strip_column:
             column: 不满意率
@@ -628,7 +649,7 @@ mt_month_env:
     play_on_dask_cluster: true
     dask_client_set_as_default: true
     platform_code: meituan
-    cluster_client_address: tcp://172.31.54.193:8786
+    cluster_client_address: 'dask-scheduler-service.databus:8786'
   play:
     - name: mt_month_31_std
       sync_result: true
