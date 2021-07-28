@@ -151,15 +151,17 @@ mt_daily_env:
         - fetch_dataset:
             template_code: mt_day_13    # 日星级结果
             dataset_cate: raw
-            columns: [加盟站ID,得分,星级,完成单(未剔除异常单),meta_day]
+            columns: [加盟站ID,加盟站名称,得分,星级,完成单(未剔除异常单),meta_day]
             ignore_null_error: true
             empty_df_record:
+              加盟站名称: '-'
               加盟站ID: '-'
               得分: 0.0
               星级: 0.0
               完成单(未剔除异常单): 0
               meta_day: 99999999
             rename:
+              加盟站名称: dc_name
               加盟站ID: vendor_dc_id
               得分: kpi_score
               星级: star_level
@@ -172,7 +174,7 @@ mt_daily_env:
             - star_level
         - stash_push_df: []
         - stash_join_df:
-            on: [vendor_dc_id,meta_day]
+            on: [vendor_dc_id,dc_name,meta_day]
             how: outer
             drop_stash: true
         - run_py:
@@ -321,7 +323,7 @@ mt_daily_env:
         - run_py:
             - |
               df['meta_day'] = df['meta_day'] + 1
-              result =  df
+              result = df
         - stash_push_df: []
 
         - use_df:
@@ -2082,15 +2084,17 @@ mt_month_env:
         - fetch_dataset:
             template_code: mt_day_13    # 日星级结果
             dataset_cate: raw
-            columns: [加盟站ID,得分,星级,完成单(未剔除异常单),meta_day]
+            columns: [加盟站ID,加盟站名称,得分,星级,完成单(未剔除异常单),meta_day]
             ignore_null_error: true
             empty_df_record:
+              加盟站名称: '-'
               加盟站ID: '-'
               得分: 0.0
               星级: 0.0
               完成单(未剔除异常单): 0
               meta_day: 99999999
             rename:
+              加盟站名称: dc_name
               加盟站ID: vendor_dc_id
               得分: kpi_score
               星级: star_level
@@ -2103,7 +2107,7 @@ mt_month_env:
             - star_level
         - stash_push_df: []
         - stash_join_df:
-            on: [vendor_dc_id,meta_day]
+            on: [vendor_dc_id,dc_name,meta_day]
             how: outer
             drop_stash: true
         - run_py:
