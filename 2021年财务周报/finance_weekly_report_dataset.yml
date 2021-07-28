@@ -34,131 +34,16 @@ new_finance_weekly_report_env:
         - df_select:
             - '[map_name] == @p1'
             - p1: ext_mt_dc_code
+        - pad_cols:
+            columns: [ dc_id,dc_name,code_code,code_name,supplier_id,platform_code ]
+            default_value: '-'
         - fetch_cols:
             columns: [ dc_id,dc_name,code_code,code_name,supplier_id,platform_code ]
 
 
 
 
-    - name: ele_single_average_kpi_revenue       #月初7号之前，防止一个星期跨月份，所以跨月拼接两张表
-      sync_result: true
-      cooks:
-        - fetch_dataset:
-            template_code: ele_day_51  #KPI计算, 计算 elm 所需要的  单均kpi收入
-            dataset_cate: raw
-            ignore_null_error: true
-            month_offset: -1
-            columns: [ 团队id,团队名,KPI收入,meta_day ]
-            empty_df_record:
-              团队id: '-'
-              团队名: '-'
-              meta_day: 19790101
-              KPI收入: 0
-            rename:
-              团队id: vendor_dc_id
-              团队名: dc_name
-        - df_to_str:
-            - meta_day
-        - push_dataset:
-              key: ele_day_51_before
-        - use_df:
-            key: ele_day_51_before
-            rename:
-              KPI收入: KPI_before
-        - run_py:
-            - |
-              df = to_df(df)
-              df['meta_day'] = pd.to_datetime(df['meta_day'],format = '%Y%m%d')
-              df['meta_day'] = df['meta_day'] + pd.DateOffset(1)
-              df['meta_day'] = df['meta_day'].apply(lambda x:str(x)[:10].replace('-',''))
-              result =  to_dd(df)
-        - stash_push_df: []
-        - use_df:
-            key: ele_day_51_before
-            rename:
-              KPI收入: KPI_now
-        - stash_push_df: []
-        - stash_join_df:
-            on: [ vendor_dc_id,dc_name,meta_day ]
-            how: left
-            drop_stash: true
-        - df_fillna:
-            value: 0
-        - df_eval:
-            - |
-              [KPI_week] = [KPI_now] - [KPI_before]
-        - fetch_cols:
-            columns: [ vendor_dc_id,dc_name,meta_day,KPI_week ]
-        - push_dataset:
-            key: result_mini
-
-        - fetch_dataset:
-            template_code: ele_day_51  # KPI计算
-            dataset_cate: raw
-            ignore_null_error: true
-            columns: [ 团队id,团队名,KPI收入,meta_day ]
-            empty_df_record:
-              团队id: '-'
-              团队名: '-'
-              meta_day: 19790101
-              KPI收入: 0
-            rename:
-              团队id: vendor_dc_id
-              团队名: dc_name
-        - df_to_str:
-            - meta_day
-        - push_dataset:
-            key: ele_day_51_now
-        - use_df:
-            key: ele_day_51_now
-            rename:
-              KPI收入: KPI_before
-        - run_py:
-            - |
-              df = to_df(df)
-              df['meta_day'] = pd.to_datetime(df['meta_day'],format = '%Y%m%d')
-              df['meta_day'] = df['meta_day'] + pd.DateOffset(1)
-              df['meta_day'] = df['meta_day'].apply(lambda x:str(x)[:10].replace('-',''))
-              result =  to_dd(df)
-        - stash_push_df: []
-        - use_df:
-            key: ele_day_51_now
-            rename:
-              KPI收入: KPI_now
-        - stash_push_df: []
-        - stash_join_df:
-            on: [ vendor_dc_id,dc_name,meta_day ]
-            how: left
-            drop_stash: true
-        - df_fillna:
-            value: 0
-        - df_eval:
-            - |
-              [KPI_week] = [KPI_now] - [KPI_before]
-        - fetch_cols:
-            columns: [ vendor_dc_id,dc_name,meta_day,KPI_week ]
-        - stash_push_df: []
-        - use_df:
-            key: result_mini
-        - stash_push_df: []
-        - stash_concat_df:
-            drop_stash: true
-        - run_py:
-            - |
-              df = to_df(df)
-              df['days'] = pd.datetime.now()
-              df['meta_day'] = pd.to_datetime(df['meta_day'],format = '%Y%m%d')
-              df['data_days'] = ((df['days'] - df['meta_day'])/pd.Timedelta(1, 'D')).map(int)
-              df=df[df['data_days']<=7]
-              result = to_dd(df)
-        - df_groupby:
-            by: [ vendor_dc_id,dc_name ]
-        - df_sum:
-            column: KPI_week
-        - df_reset_index: [ ]
-
-
-    - name: ele_complete_single_quantity_week    # 饿了么最近一周单量数据汇总
+    - name: ele_financial_weekly_report
       sync_result: true
       cooks:
         - fetch_dataset:
@@ -173,50 +58,25 @@ new_finance_weekly_report_env:
               日期: 19790101
             rename:
               站点ID: vendor_dc_id
-        - stash_push_df: [ ]
-        - fetch_dataset:
-            dataset_type_code: ele_worker_order_common_kpi_by_daily_t2
-            dataset_cate: std
-            month_offset: -1
-            columns: [ dc_id,站点ID,完成单量,日期 ]
-            ignore_null_error: true
-            empty_df_record:
-              dc_id: '-'
-              站点ID: '-'
-              完成单量: 0
-              日期: 19790101
-            rename:
-              站点ID: vendor_dc_id
-        - stash_push_df: [ ]
-        - stash_concat_df:
-            drop_stash: true
-        - run_py:
-            - |
-              df = to_df(df)
-              df['days'] = pd.datetime.now()
-              df['日期'] = pd.to_datetime(df['日期'],format = '%Y%m%d')
-              df['data_days'] = ((df['days'] - df['日期'])/pd.Timedelta(1, 'D')).map(int)
-              df=df[df['data_days']<=7]
-              result = to_dd(df)
         - df_groupby:
             by: [dc_id,vendor_dc_id]
         - df_sum:
             column: [ 完成单量 ]
         - df_reset_index: [ ]
-
-
-
-    - name: ele_financial_weekly_report
-      sync_result: true
-      cooks:
-        - use_df:
-            key: ele_complete_single_quantity_week
         - stash_push_df: [ ]
-        - use_df:
-            key: ele_single_average_kpi_revenue
-            columns: [ vendor_dc_id,KPI_week ]
+        - fetch_dataset:
+            template_code: ele_day_51  # KPI计算
+            dataset_cate: raw
+            ignore_null_error: true
+            datakit_pull_way: last_day
+            columns: [ 团队id,KPI收入 ]
+            empty_df_record:
+              团队id: '-'
+              团队名: '-'
+              meta_day: 19790101
+              KPI收入: 0
             rename:
-              KPI_week: KPI收入
+              团队id: vendor_dc_id
         - stash_push_df: [ ]
         - stash_join_df:
             on: vendor_dc_id
@@ -249,140 +109,10 @@ new_finance_weekly_report_env:
             dataset_type_code: ele_financial_report_part
             dataset_cate: std
             ignore_null_error: true
-        - when_empty_fetch_dataset:
-            dataset_type_code: ele_financial_report_part
-            dataset_cate: std
-            month_offset: -1
-            ignore_null_error: true
-            empty_df_record:
-              code名称: '-'
-              单均基础收入: 0.0
-              上月全职单成本: 0.0
-              上月兼职单成本: 0.0
-              一线服务费（兼职）: 0.0
             rename:
               code名称: code_name
-        - stash_push_df: [ ]
-        - stash_join_df:
-            on: code_name
-            how: right
-            drop_stash: true
-        - df_fillna:
-            columns: [ KPI收入,一线服务费（兼职）,单均基础收入,上月全职单成本,上月兼职单成本,完成单量 ]
-            value: 0.0
-        - run_py:
-            - |
-              df = to_df(df)
-              df['上月兼职单成本'] = df['上月兼职单成本'].mask(df['上月兼职单成本'] == 0,df['上月全职单成本'])
-              df['日均单'] =  df['完成单量'] / 7
-              df['单均KPI收入'] = (df['KPI收入'] / df['完成单量']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['单均收入'] =  (df['单均基础收入'] + df['单均KPI收入']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['主营业务收入'] =  (df['单均收入'] * df['完成单量']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['兼职单量'] =  (df['一线服务费（兼职）'] / df['上月兼职单成本']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['全职单量'] =  (df['完成单量'] - df['兼职单量']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['一线服务费（全职）'] =  (df['全职单量'] * df['上月全职单成本']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['一线服务费'] =  (df['一线服务费（全职）'] + df['一线服务费（兼职）']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['单均一线服务费'] =  (df['一线服务费'] / df['完成单量']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['毛利'] = (df['单均一线服务费'] - df['单均收入']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['毛利率'] = (df['毛利'] / df['单均收入']).replace([np.inf, -np.inf, "", np.nan],0)
-              result = to_dd(df)
-        - df_rename_columns:
-            - code_name: code名称
-              完成单量: 单量
-        - push_dataset:
-            key: result_mini
-        - use_df:
-            key: result_mini
-        - add_cols:
-            - sup: 1
-        - df_groupby:
-            by: sup
-        - df_sum:
-            column: [主营业务收入,单量,日均单,一线服务费,一线服务费（全职）,全职单量,一线服务费（兼职）,兼职单量]
-        - df_reset_index: []
-        - add_cols:
-            - code名称: 合计
-              单均基础收入: 0
-              单均KPI收入: 0
-        - run_py:
-            - |
-              df['单均收入'] = (df['主营业务收入'] / df['单量']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['上月全职单成本'] = (df['一线服务费（全职）'] / df['全职单量']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['上月兼职单成本'] = (df['一线服务费（兼职）'] / df['兼职单量']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['单均一线服务费'] = (df['一线服务费'] / df['单量']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['毛利'] = (df['单均收入'] - df['单均一线服务费']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['毛利率'] = (df['毛利'] / df['单均收入']).replace([np.inf, -np.inf, "", np.nan],0)
-              result = df
-        - stash_push_df: []
-        - use_df:
-            key: result_mini
-        - stash_push_df: []
-        - stash_concat_df:
-            drop_stash: true
-        - fetch_cols:
-            columns: [code名称,主营业务收入,单均收入,单均基础收入,单均KPI收入,单量,日均单,一线服务费,一线服务费（全职）,全职单量,上月全职单成本,一线服务费（兼职）,兼职单量,上月兼职单成本,单均一线服务费,毛利,毛利率]
-        - run_py:
-            - |
-              df = to_df(df)
-              df = df.set_index(['code名称'])
-              df = df.transpose()
-              df.reset_index(drop=False, inplace=True)
-              result = to_dd(df)
-        - df_rename_columns:
-            - index: ac_code
-        - sort_by_index:
-            sort_list: [ code名称,主营业务收入,单均收入,单均基础收入,单均KPI收入,单量,日均单,一线服务费,一线服务费（全职）,全职单量,上月全职单成本,一线服务费（兼职）,兼职单量,上月兼职单成本,单均一线服务费,毛利,毛利率 ]
-        - df_rename_columns:
-            - ac_code: 科目名称
-        - sort_by_columns:
-            sort_list: [科目名称,合计,其它]
-
-
-    - name: ele_financial_weekly_report_backups
-      sync_result: true
-      cooks:
-        - use_df:
-            key: ele_complete_single_quantity_week
-        - stash_push_df: [ ]
-        - use_df:
-            key: ele_single_average_kpi_revenue
-            columns: [ vendor_dc_id,KPI_week ]
-            rename:
-              KPI_week: KPI收入
-        - stash_push_df: [ ]
-        - stash_join_df:
-            on: vendor_dc_id
-            how: right
-            drop_stash: true
-        - stash_push_df: [ ]
-        - use_df:    # 商圈code转换表
-            key: biz_monthly_map_copy
-        - df_select:
-            - '([platform_code] == @p1) & ([supplier_id] == @p2)'
-            - p1: 'elem'
-              p2: '5a62f3dfce6d2a295a472022'
-        - fetch_cols:
-            columns: [ dc_id,code_name ]
-        - stash_push_df: [ ]
-        - stash_join_df:
-            on: dc_id
-            how: right
-            drop_stash: true
-        - df_fillna:
-            columns: [ code_name ]
-            value: '其他'
-        - df_groupby:
-            by: code_name
-        - df_sum:
-            column: [ 完成单量,KPI收入 ]
-        - df_reset_index: [ ]
-        - stash_push_df: []
-        - fetch_dataset:
-            dataset_type_code: ele_financial_report_part_backups
-            dataset_cate: std
-            ignore_null_error: true
         - when_empty_fetch_dataset:
-            dataset_type_code: ele_financial_report_part_backups
+            dataset_type_code: ele_financial_report_part
             dataset_cate: std
             month_offset: -1
             ignore_null_error: true
@@ -478,27 +208,12 @@ new_finance_weekly_report_env:
             dataset_type_code: mt_worker_order_common_kpi_by_daily_t2
             dataset_cate: std
             ignore_null_error: true
-            month_offset: -1
             columns: [ dc_id,完成单量,日期,总完成单量 ]
             empty_df_record:
               dc_id: '-'
               完成单量: 0
               日期: 19790101
               总完成单量: 0
-        - stash_push_df: [ ]
-        - fetch_dataset:
-            dataset_type_code: mt_worker_order_common_kpi_by_daily_t2
-            dataset_cate: std
-            ignore_null_error: true
-            columns: [ dc_id,完成单量,日期,总完成单量 ]
-            empty_df_record:
-              dc_id: '-'
-              完成单量: 0
-              日期: 19790101
-              总完成单量: 0
-        - stash_push_df: [ ]
-        - stash_concat_df:
-            drop_stash: true
         - stash_push_df: [ ]
         - fetch_dataset:
             dataset_type_code: std_qplus_dc
@@ -527,14 +242,6 @@ new_finance_weekly_report_env:
         - df_select:
             - '[supplier_id] == @p1'
             - p1: 5c8f38ae887d1f1c43bfc06e      # 兴达
-        - run_py:
-            - |
-              df = to_df(df)
-              df['days'] = pd.datetime.now()
-              df['日期'] = pd.to_datetime(df['日期'],format = '%Y%m%d')
-              df['data_days'] = ((df['days'] - df['日期'])/pd.Timedelta(1, 'D')).map(int)
-              df=df[df['data_days']<=7]
-              result = to_dd(df)
         - df_groupby:
             by: dc_id
         - df_sum:
@@ -567,6 +274,8 @@ new_finance_weekly_report_env:
             dataset_type_code: mt_financial_report_part_xd
             dataset_cate: std
             ignore_null_error: true
+            rename:
+              code名称: code_name
         - when_empty_fetch_dataset:
             dataset_type_code: mt_financial_report_part_xd
             dataset_cate: std
@@ -658,146 +367,6 @@ new_finance_weekly_report_env:
         - sort_by_columns:
             sort_list: [科目名称,合计,其它]
 
-
-
-    - name: mt_financial_weekly_report_xd_backups   # 美团（兴达）
-      sync_result: true
-      cooks:
-        - use_df:
-            key: mt_complete_single_quantity_week
-        - df_select:
-            - '[supplier_id] == @p1'
-            - p1: 5c8f38ae887d1f1c43bfc06e      # 兴达
-        - run_py:
-            - |
-              df = to_df(df)
-              df['days'] = pd.datetime.now()
-              df['日期'] = pd.to_datetime(df['日期'],format = '%Y%m%d')
-              df['data_days'] = ((df['days'] - df['日期'])/pd.Timedelta(1, 'D')).map(int)
-              df=df[df['data_days']<=7]
-              result = to_dd(df)
-        - df_groupby:
-            by: dc_id
-        - df_sum:
-            column: [ 完成单量,总完成单量 ]
-        - df_reset_index: [ ]
-        - stash_push_df: [ ]
-        - use_df: # 商圈code转换表
-            key: biz_monthly_map_copy
-        - df_select:
-            - '([platform_code] == @p1) & ([supplier_id] == @p2)'
-            - p1: 'meituan'
-              p2: '5c8f38ae887d1f1c43bfc06e'
-        - fetch_cols:
-            columns: [ dc_id,code_name ]
-        - stash_push_df: [ ]
-        - stash_join_df:
-            on: dc_id
-            how: right
-            drop_stash: true
-        - df_fillna:
-            columns: [ code_name ]
-            value: '其他'
-        - df_groupby:
-            by: code_name
-        - df_sum:
-            column: [ 完成单量 ]
-        - df_reset_index: [ ]
-        - stash_push_df: []
-        - fetch_dataset:
-            dataset_type_code: mt_financial_report_part_xd_backups
-            dataset_cate: std
-            ignore_null_error: true
-        - when_empty_fetch_dataset:
-            dataset_type_code: mt_financial_report_part_xd_backups
-            dataset_cate: std
-            month_offset: -1
-            ignore_null_error: true
-            empty_df_record:
-              code名称: '-'
-              单均基础收入: 0.0
-              上月全职单成本: 0.0
-              上月兼职单成本: 0.0
-              一线服务费（兼职）: 0.0
-            rename:
-              code名称: code_name
-        - stash_push_df: [ ]
-        - stash_join_df:
-            on: code_name
-            how: right
-            drop_stash: true
-        - pad_cols:
-            columns: [ 'KPI收入' ]
-            default_value: 0.0
-        - df_fillna:
-            columns: [ 一线服务费（兼职）,单均基础收入,上月全职单成本,上月兼职单成本,完成单量 ]
-            value: 0.0
-        - run_py:
-            - |
-              df = to_df(df)
-              df['上月兼职单成本'] = df['上月兼职单成本'].mask(df['上月兼职单成本'] == 0,df['上月全职单成本'])
-              df['日均单'] =  df['完成单量'] / 7
-              df['单均KPI收入'] = (df['KPI收入'] / df['完成单量']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['单均收入'] =  (df['单均基础收入'] + df['单均KPI收入']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['主营业务收入'] =  (df['单均收入'] * df['完成单量']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['兼职单量'] =  (df['一线服务费（兼职）'] / df['上月兼职单成本']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['全职单量'] =  (df['完成单量'] - df['兼职单量']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['一线服务费（全职）'] =  (df['全职单量'] * df['上月全职单成本']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['一线服务费'] =  (df['一线服务费（全职）'] + df['一线服务费（兼职）']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['单均一线服务费'] =  (df['一线服务费'] / df['完成单量']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['毛利'] = (df['单均一线服务费'] - df['单均收入']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['毛利率'] = (df['毛利'] / df['单均收入']).replace([np.inf, -np.inf, "", np.nan],0)
-              result = to_dd(df)
-        - df_rename_columns:
-            - code_name: code名称
-              完成单量: 单量
-        - push_dataset:
-            key: result_mini
-        - use_df:
-            key: result_mini
-        - add_cols:
-            - sup: 1
-        - df_groupby:
-            by: sup
-        - df_sum:
-            column: [主营业务收入,单量,日均单,一线服务费,一线服务费（全职）,全职单量,一线服务费（兼职）,兼职单量]
-        - df_reset_index: []
-        - add_cols:
-            - code名称: 合计
-              单均基础收入: 0
-              单均KPI收入: 0
-        - run_py:
-            - |
-              df['单均收入'] = (df['主营业务收入'] / df['单量']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['上月全职单成本'] = (df['一线服务费（全职）'] / df['全职单量']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['上月兼职单成本'] = (df['一线服务费（兼职）'] / df['兼职单量']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['单均一线服务费'] = (df['一线服务费'] / df['单量']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['毛利'] = (df['单均收入'] - df['单均一线服务费']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['毛利率'] = (df['毛利'] / df['单均收入']).replace([np.inf, -np.inf, "", np.nan],0)
-              result = df
-        - stash_push_df: []
-        - use_df:
-            key: result_mini
-        - stash_push_df: []
-        - stash_concat_df:
-            drop_stash: true
-        - fetch_cols:
-            columns: [code名称,主营业务收入,单均收入,单均基础收入,单均KPI收入,单量,日均单,一线服务费,一线服务费（全职）,全职单量,上月全职单成本,一线服务费（兼职）,兼职单量,上月兼职单成本,单均一线服务费,毛利,毛利率]
-        - run_py:
-            - |
-              df = to_df(df)
-              df = df.set_index(['code名称'])
-              df = df.transpose()
-              df.reset_index(drop=False, inplace=True)
-              result = to_dd(df)
-        - df_rename_columns:
-            - index: ac_code
-        - sort_by_index:
-            sort_list: [ code名称,主营业务收入,单均收入,单均基础收入,单均KPI收入,单量,日均单,一线服务费,一线服务费（全职）,全职单量,上月全职单成本,一线服务费（兼职）,兼职单量,上月兼职单成本,单均一线服务费,毛利,毛利率 ]
-        - df_rename_columns:
-            - ac_code: 科目名称
-        - sort_by_columns:
-            sort_list: [科目名称,合计,其它]
 
 
 
@@ -849,6 +418,8 @@ new_finance_weekly_report_env:
             dataset_type_code: mt_financial_report_part_rd
             dataset_cate: std
             ignore_null_error: true
+            rename:
+              code名称: code_name
         - when_empty_fetch_dataset:
             dataset_type_code: mt_financial_report_part_rd
             dataset_cate: std
@@ -942,146 +513,6 @@ new_finance_weekly_report_env:
 
 
 
-    - name: mt_financial_weekly_report_rd_backups   # 美团（润达）
-      sync_result: true
-      cooks:
-        - use_df:
-            key: mt_complete_single_quantity_week
-        - df_select:
-            - '[supplier_id] == @p1'
-            - p1: 5b9738f5ce6d2abdaed16e09      # 润达
-        - run_py:
-            - |
-              df = to_df(df)
-              df['days'] = pd.datetime.now()
-              df['日期'] = pd.to_datetime(df['日期'],format = '%Y%m%d')
-              df['data_days'] = ((df['days'] - df['日期'])/pd.Timedelta(1, 'D')).map(int)
-              df=df[df['data_days']<=7]
-              result = to_dd(df)
-        - df_groupby:
-            by: dc_id
-        - df_sum:
-            column: [ 完成单量,总完成单量 ]
-        - df_reset_index: [ ]
-        - stash_push_df: [ ]
-        - use_df: # 商圈code转换表
-            key: biz_monthly_map_copy
-        - df_select:
-            - '([platform_code] == @p1) & ([supplier_id] == @p2)'
-            - p1: 'meituan'
-              p2: '5b9738f5ce6d2abdaed16e09'
-        - fetch_cols:
-            columns: [ dc_id,code_name ]
-        - stash_push_df: [ ]
-        - stash_join_df:
-            on: dc_id
-            how: right
-            drop_stash: true
-        - df_fillna:
-            columns: [ code_name ]
-            value: '其他'
-        - df_groupby:
-            by: code_name
-        - df_sum:
-            column: [ 完成单量 ]
-        - df_reset_index: [ ]
-        - stash_push_df: []
-        - fetch_dataset:
-            dataset_type_code: mt_financial_report_part_rd_backups
-            dataset_cate: std
-            ignore_null_error: true
-        - when_empty_fetch_dataset:
-            dataset_type_code: mt_financial_report_part_rd_backups
-            dataset_cate: std
-            month_offset: -1
-            ignore_null_error: true
-            empty_df_record:
-              code名称: '-'
-              单均基础收入: 0.0
-              上月全职单成本: 0.0
-              上月兼职单成本: 0.0
-              一线服务费（兼职）: 0.0
-            rename:
-              code名称: code_name
-        - stash_push_df: [ ]
-        - stash_join_df:
-            on: code_name
-            how: right
-            drop_stash: true
-        - pad_cols:
-            columns: [ 'KPI收入' ]
-            default_value: 0.0
-        - df_fillna:
-            columns: [ 一线服务费（兼职）,单均基础收入,上月全职单成本,上月兼职单成本,完成单量 ]
-            value: 0.0
-        - run_py:
-            - |
-              df = to_df(df)
-              df['上月兼职单成本'] = df['上月兼职单成本'].mask(df['上月兼职单成本'] == 0,df['上月全职单成本'])
-              df['日均单'] =  df['完成单量'] / 7
-              df['单均KPI收入'] = (df['KPI收入'] / df['完成单量']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['单均收入'] =  (df['单均基础收入'] + df['单均KPI收入']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['主营业务收入'] =  (df['单均收入'] * df['完成单量']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['兼职单量'] =  (df['一线服务费（兼职）'] / df['上月兼职单成本']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['全职单量'] =  (df['完成单量'] - df['兼职单量']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['一线服务费（全职）'] =  (df['全职单量'] * df['上月全职单成本']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['一线服务费'] =  (df['一线服务费（全职）'] + df['一线服务费（兼职）']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['单均一线服务费'] =  (df['一线服务费'] / df['完成单量']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['毛利'] = (df['单均一线服务费'] - df['单均收入']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['毛利率'] = (df['毛利'] / df['单均收入']).replace([np.inf, -np.inf, "", np.nan],0)
-              result = to_dd(df)
-        - df_rename_columns:
-            - code_name: code名称
-              完成单量: 单量
-        - push_dataset:
-            key: result_mini
-        - use_df:
-            key: result_mini
-        - add_cols:
-            - sup: 1
-        - df_groupby:
-            by: sup
-        - df_sum:
-            column: [主营业务收入,单量,日均单,一线服务费,一线服务费（全职）,全职单量,一线服务费（兼职）,兼职单量]
-        - df_reset_index: []
-        - add_cols:
-            - code名称: 合计
-              单均基础收入: 0
-              单均KPI收入: 0
-        - run_py:
-            - |
-              df['单均收入'] = (df['主营业务收入'] / df['单量']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['上月全职单成本'] = (df['一线服务费（全职）'] / df['全职单量']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['上月兼职单成本'] = (df['一线服务费（兼职）'] / df['兼职单量']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['单均一线服务费'] = (df['一线服务费'] / df['单量']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['毛利'] = (df['单均收入'] - df['单均一线服务费']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['毛利率'] = (df['毛利'] / df['单均收入']).replace([np.inf, -np.inf, "", np.nan],0)
-              result = df
-        - stash_push_df: []
-        - use_df:
-            key: result_mini
-        - stash_push_df: []
-        - stash_concat_df:
-            drop_stash: true
-        - fetch_cols:
-            columns: [code名称,主营业务收入,单均收入,单均基础收入,单均KPI收入,单量,日均单,一线服务费,一线服务费（全职）,全职单量,上月全职单成本,一线服务费（兼职）,兼职单量,上月兼职单成本,单均一线服务费,毛利,毛利率]
-        - run_py:
-            - |
-              df = to_df(df)
-              df = df.set_index(['code名称'])
-              df = df.transpose()
-              df.reset_index(drop=False, inplace=True)
-              result = to_dd(df)
-        - df_rename_columns:
-            - index: ac_code
-        - sort_by_index:
-            sort_list: [ code名称,主营业务收入,单均收入,单均基础收入,单均KPI收入,单量,日均单,一线服务费,一线服务费（全职）,全职单量,上月全职单成本,一线服务费（兼职）,兼职单量,上月兼职单成本,单均一线服务费,毛利,毛利率 ]
-        - df_rename_columns:
-            - ac_code: 科目名称
-        - sort_by_columns:
-            sort_list: [科目名称,合计,其它]
-
-
 
     - name: mt_financial_weekly_report_yjd   # 美团（易即达）
       sync_result: true
@@ -1131,6 +562,8 @@ new_finance_weekly_report_env:
             dataset_type_code: mt_financial_report_part_yjd
             dataset_cate: std
             ignore_null_error: true
+            rename:
+              code名称: code_name
         - when_empty_fetch_dataset:
             dataset_type_code: mt_financial_report_part_yjd
             dataset_cate: std
@@ -1221,153 +654,3 @@ new_finance_weekly_report_env:
             - ac_code: 科目名称
         - sort_by_columns:
             sort_list: [科目名称,合计,其它]
-
-
-
-
-    - name: mt_financial_weekly_report_yjd_backups   # 美团（易即达）
-      sync_result: true
-      cooks:
-        - use_df:
-            key: mt_complete_single_quantity_week
-        - df_select:
-            - '[supplier_id] == @p1'
-            - p1: 5b9738f4ce6d2abdaed16a8e      # 易即达
-        - run_py:
-            - |
-              df = to_df(df)
-              df['days'] = pd.datetime.now()
-              df['日期'] = pd.to_datetime(df['日期'],format = '%Y%m%d')
-              df['data_days'] = ((df['days'] - df['日期'])/pd.Timedelta(1, 'D')).map(int)
-              df=df[df['data_days']<=7]
-              result = to_dd(df)
-        - df_groupby:
-            by: dc_id
-        - df_sum:
-            column: [ 完成单量,总完成单量 ]
-        - df_reset_index: [ ]
-        - stash_push_df: [ ]
-        - use_df: # 商圈code转换表
-            key: biz_monthly_map_copy
-        - df_select:
-            - '([platform_code] == @p1) & ([supplier_id] == @p2)'
-            - p1: 'meituan'
-              p2: '5b9738f4ce6d2abdaed16a8e'
-        - fetch_cols:
-            columns: [ dc_id,code_name ]
-        - stash_push_df: [ ]
-        - stash_join_df:
-            on: dc_id
-            how: right
-            drop_stash: true
-        - df_fillna:
-            columns: [ code_name ]
-            value: '其他'
-        - df_groupby:
-            by: code_name
-        - df_sum:
-            column: [ 完成单量 ]
-        - df_reset_index: [ ]
-        - stash_push_df: []
-        - fetch_dataset:
-            dataset_type_code: mt_financial_report_part_yjd_backups
-            dataset_cate: std
-            ignore_null_error: true
-        - when_empty_fetch_dataset:
-            dataset_type_code: mt_financial_report_part_yjd_backups
-            dataset_cate: std
-            month_offset: -1
-            ignore_null_error: true
-            empty_df_record:
-              code名称: '-'
-              单均基础收入: 0.0
-              上月全职单成本: 0.0
-              上月兼职单成本: 0.0
-              一线服务费（兼职）: 0.0
-            rename:
-              code名称: code_name
-        - stash_push_df: [ ]
-        - stash_join_df:
-            on: code_name
-            how: right
-            drop_stash: true
-        - pad_cols:
-            columns: [ 'KPI收入' ]
-            default_value: 0.0
-        - df_fillna:
-            columns: [ 一线服务费（兼职）,单均基础收入,上月全职单成本,上月兼职单成本,完成单量 ]
-            value: 0.0
-        - run_py:
-            - |
-              df = to_df(df)
-              df['上月兼职单成本'] = df['上月兼职单成本'].mask(df['上月兼职单成本'] == 0,df['上月全职单成本'])
-              df['日均单'] =  df['完成单量'] / 7
-              df['单均KPI收入'] = (df['KPI收入'] / df['完成单量']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['单均收入'] =  (df['单均基础收入'] + df['单均KPI收入']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['主营业务收入'] =  (df['单均收入'] * df['完成单量']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['兼职单量'] =  (df['一线服务费（兼职）'] / df['上月兼职单成本']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['全职单量'] =  (df['完成单量'] - df['兼职单量']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['一线服务费（全职）'] =  (df['全职单量'] * df['上月全职单成本']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['一线服务费'] =  (df['一线服务费（全职）'] + df['一线服务费（兼职）']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['单均一线服务费'] =  (df['一线服务费'] / df['完成单量']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['毛利'] = (df['单均一线服务费'] - df['单均收入']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['毛利率'] = (df['毛利'] / df['单均收入']).replace([np.inf, -np.inf, "", np.nan],0)
-              result = to_dd(df)
-        - df_rename_columns:
-            - code_name: code名称
-              完成单量: 单量
-        - push_dataset:
-            key: result_mini
-        - use_df:
-            key: result_mini
-        - add_cols:
-            - sup: 1
-        - df_groupby:
-            by: sup
-        - df_sum:
-            column: [主营业务收入,单量,日均单,一线服务费,一线服务费（全职）,全职单量,一线服务费（兼职）,兼职单量]
-        - df_reset_index: []
-        - add_cols:
-            - code名称: 合计
-              单均基础收入: 0
-              单均KPI收入: 0
-        - run_py:
-            - |
-              df['单均收入'] = (df['主营业务收入'] / df['单量']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['上月全职单成本'] = (df['一线服务费（全职）'] / df['全职单量']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['上月兼职单成本'] = (df['一线服务费（兼职）'] / df['兼职单量']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['单均一线服务费'] = (df['一线服务费'] / df['单量']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['毛利'] = (df['单均收入'] - df['单均一线服务费']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['毛利率'] = (df['毛利'] / df['单均收入']).replace([np.inf, -np.inf, "", np.nan],0)
-              result = df
-        - stash_push_df: []
-        - use_df:
-            key: result_mini
-        - stash_push_df: []
-        - stash_concat_df:
-            drop_stash: true
-        - fetch_cols:
-            columns: [code名称,主营业务收入,单均收入,单均基础收入,单均KPI收入,单量,日均单,一线服务费,一线服务费（全职）,全职单量,上月全职单成本,一线服务费（兼职）,兼职单量,上月兼职单成本,单均一线服务费,毛利,毛利率]
-        - run_py:
-            - |
-              df = to_df(df)
-              df = df.set_index(['code名称'])
-              df = df.transpose()
-              df.reset_index(drop=False, inplace=True)
-              result = to_dd(df)
-        - df_rename_columns:
-            - index: ac_code
-        - sort_by_index:
-            sort_list: [ code名称,主营业务收入,单均收入,单均基础收入,单均KPI收入,单量,日均单,一线服务费,一线服务费（全职）,全职单量,上月全职单成本,一线服务费（兼职）,兼职单量,上月兼职单成本,单均一线服务费,毛利,毛利率 ]
-        - df_rename_columns:
-            - ac_code: 科目名称
-        - sort_by_columns:
-            sort_list: [科目名称,合计,其它]
-
-
-
-
-
-
-
-
