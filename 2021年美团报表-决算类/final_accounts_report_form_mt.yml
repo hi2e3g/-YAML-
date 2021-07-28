@@ -312,6 +312,7 @@ mt_report_from_final_accounts_daily_env:
         - stash_push_df: [ ]
         - use_df:
             key: biz_monthly_map_copy
+        - fetch_cols:
             columns: [ map_name,value1,value2 ]
         - df_select:
             - '[map_name] == @P1'
@@ -387,46 +388,6 @@ mt_report_from_final_accounts_daily_env:
             how: outer
             drop_stash: true
         - stash_push_df: [ ]
-        - use_df: # 收入表    盛世工伤险费用字段
-            key: biz_ext_data_log_copy
-            columns: [ dc_name,dc_id,cost_mode,datasource_kind,money,cost_type ]
-        - df_select:
-            - '([datasource_kind] == @p1) & ([cost_type] == @p4)'
-            - p1: ext_mt_worker_insur    # 盛世工伤险费用明细表
-              p4: 10    # 资产
-        - df_groupby:
-            by: dc_name
-        - df_sum:
-            column: money
-            rename: B4
-        - df_reset_index: [ ]
-        - stash_push_df: [ ]
-        - stash_join_df:
-            on: dc_name
-            how: outer
-            drop_stash: true
-        - stash_push_df: [ ]
-        - use_df: # 收入表    总人数字段
-            key: biz_ext_data_log_copy
-            columns: [ dc_name,dc_id,cost_mode,datasource_kind,cost_type,staff_id_card_num ]
-        - df_select:
-            - '([datasource_kind] == @p1) & ([cost_type] == @p4)'
-            - p1: ext_mt_worker_insur    # 盛世工伤险费用明细表
-              p4: 10    # 资产
-        - drop_duplicates:
-            subset: staff_id_card_num
-        - df_groupby:
-            by: dc_name
-        - df_count:
-            column: staff_id_card_num
-            rename: B401
-        - df_reset_index: [ ]
-        - stash_push_df: [ ]
-        - stash_join_df:
-            on: dc_name
-            how: outer
-            drop_stash: true
-        - stash_push_df: []
         - use_df:   # 收入表      内荐人数、  三方推荐人数
             key: biz_ext_data_log_copy
             columns: [dc_name,dc_id,child_ac_code,cost_mode,datasource_kind,worker_num,cost_type]
@@ -434,7 +395,7 @@ mt_report_from_final_accounts_daily_env:
             - '([datasource_kind] in @p1) & ([cost_mode] == @p2) & ([child_ac_code] in @p3) & ([cost_type] == @p4)'
             - p1: [ext_mt_cost_append,ext_mt_cost_oa]  # 取值boss拆分模板&追加模板
               p2: 30
-              p3: [C50101,C50201,C101]
+              p3: [C50101,C50201,C101,C201-1]
               p4: 10
         - df_pivot_table: # 透视表
             values: worker_num
@@ -448,6 +409,34 @@ mt_report_from_final_accounts_daily_env:
         - fetch_cols:
             columns: [dc_name,C50101,C50201]
         - stash_push_df: []
+        - stash_join_df:
+            on: dc_name
+            how: outer
+            drop_stash: true
+        - stash_push_df: []
+        - use_df: # 收入表    盛世工伤险费用字段
+            key: biz_ext_data_log_copy
+            columns: [ dc_name,dc_id,cost_mode,datasource_kind,money,cost_type,staff_id_card_num ]
+        - df_select:
+            - '([datasource_kind] == @p1) & ([cost_type] == @p4)'
+            - p1: ext_mt_worker_insur    # 盛世工伤险费用明细表
+              p4: 10    # 资产
+        - df_groupby:
+            by: [staff_id_card_num,dc_name]
+        - df_sum:
+            column: money
+            rename: B4
+        - df_reset_index: [ ]
+        - add_cols:
+            - agg: 1
+        - df_groupby:
+            by: dc_name
+        - df_sum:
+            column: [B4,agg]
+        - df_reset_index: [ ]
+        - df_rename_columns:
+            - agg: B401
+        - stash_push_df: [ ]
         - stash_join_df:
             on: dc_name
             how: outer
@@ -820,47 +809,6 @@ mt_report_from_final_accounts_daily_env:
             drop_stash: true
         - stash_push_df: [ ]
 
-        - use_df: # 收入表    盛世工伤险费用字段
-            key: biz_ext_data_log_copy
-            columns: [ dc_name,dc_id,cost_mode,datasource_kind,money,cost_type ]
-        - df_select:
-            - '([datasource_kind] == @p1) & ([cost_type] == @p4)'
-            - p1: ext_mt_worker_insur    # 盛世工伤险费用明细表
-              p4: 20    # 业主团队
-        - df_groupby:
-            by: dc_name
-        - df_sum:
-            column: money
-            rename: B4
-        - df_reset_index: [ ]
-        - stash_push_df: [ ]
-        - stash_join_df:
-            on: dc_name
-            how: outer
-            drop_stash: true
-        - stash_push_df: [ ]
-        - use_df: # 收入表    总人数字段
-            key: biz_ext_data_log_copy
-            columns: [ dc_name,dc_id,cost_mode,datasource_kind,cost_type,staff_id_card_num ]
-        - df_select:
-            - '([datasource_kind] == @p1) & ([cost_type] == @p4)'
-            - p1: ext_mt_worker_insur    # 盛世工伤险费用明细表
-              p4: 20    # 业主团队
-        - drop_duplicates:
-            subset: staff_id_card_num
-        - df_groupby:
-            by: dc_name
-        - df_count:
-            column: staff_id_card_num
-            rename: B401
-        - df_reset_index: [ ]
-        - stash_push_df: [ ]
-        - stash_join_df:
-            on: dc_name
-            how: outer
-            drop_stash: true
-        - stash_push_df: [ ]
-
         - use_df: # 收入表      内荐人数、  三方推荐人数
             key: biz_ext_data_log_copy
             columns: [ dc_name,dc_id,child_ac_code,cost_mode,datasource_kind,worker_num,cost_type ]
@@ -868,7 +816,7 @@ mt_report_from_final_accounts_daily_env:
             - '([datasource_kind] in @p1) & ([cost_mode] == @p2) & ([child_ac_code] in @p3) & ([cost_type] == @p4)'
             - p1: [ ext_mt_cost_append,ext_mt_cost_oa ]  # 取值boss拆分模板&追加模板
               p2: 30
-              p3: [ C50101,C50201,C101 ]
+              p3: [ C50101,C50201,C101,C202,C302,C305,C306 ]
               p4: 20
         - df_pivot_table: # 透视表
             values: worker_num
@@ -881,6 +829,35 @@ mt_report_from_final_accounts_daily_env:
             default_value: 0
         - fetch_cols:
             columns: [dc_name,C50101,C50201]
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: dc_name
+            how: outer
+            drop_stash: true
+        - stash_push_df: [ ]
+
+        - use_df: # 收入表    盛世工伤险费用字段
+            key: biz_ext_data_log_copy
+            columns: [ dc_name,dc_id,cost_mode,datasource_kind,money,cost_type,staff_id_card_num ]
+        - df_select:
+            - '([datasource_kind] == @p1) & ([cost_type] == @p4)'
+            - p1: ext_mt_worker_insur    # 盛世工伤险费用明细表
+              p4: 20    # 业主团队
+        - df_groupby:
+            by: [staff_id_card_num,dc_name]
+        - df_sum:
+            column: money
+            rename: B4
+        - df_reset_index: [ ]
+        - add_cols:
+            - agg: 1
+        - df_groupby:
+            by: dc_name
+        - df_sum:
+            column: [B4,agg]
+        - df_reset_index: [ ]
+        - df_rename_columns:
+            - agg: B401
         - stash_push_df: [ ]
         - stash_join_df:
             on: dc_name
@@ -1168,19 +1145,9 @@ mt_report_from_final_accounts_daily_env:
             rename:
               M-1: M-1_as
               M-101: M-101_as
-              M-102: M-102_as
               M-2: M-2_as
-              M-201: M-201_as
-              M-3: M-3_as
-              M-301: M-301_as
               Z-02: Z-02_as
               Z-01: Z-01_as
-              M-302: M-302_as
-              M-103: M-103_as
-              M-104: M-104_as
-              M-105: M-105_as
-              M-106: M-106_as
-              M-107: M-107_as
               S8: S8_as
               S9: S9_as
               S1: S1_as
@@ -1209,20 +1176,15 @@ mt_report_from_final_accounts_daily_env:
               D-101: D-101_as
               S6: S6_as
               M-10101: M-10101_as
-              M-10102: M-10102_as
               M-1010101: M-1010101_as
-              M-1010101-1: M-1010101-1_as
               M-1010102: M-1010102_as
-              M-1010102-1: M-1010102-1_as
               M-1010102-2: M-1010102-2_as
               M-1010103: M-1010103_as
               M-1010103-1: M-1010103-1_as
               M-1010103-2: M-1010103-2_as
               M-1010103-3: M-1010103-3_as
               M-1010104: M-1010104_as
-              M-1010104-5: M-1010104-5_as
               M-1010104-1: M-1010104-1_as
-              M-1010104-6: M-1010104-6_as
               M-1010104-2: M-1010104-2_as
               M-1010104-3: M-1010104-3_as
               M-1010104-4: M-1010104-4_as
@@ -1235,29 +1197,21 @@ mt_report_from_final_accounts_daily_env:
               M-70106: M-70106_as
               A1: A1_as
               A101: A101_as
-              A102: A102_as
-              A103: A103_as
               A101011: A101011_as
               A101012: A101012_as
               A10101: A10101_as
-              A101013: A101013_as
               A101021: A101021_as
               A101022: A101022_as
               A10102: A10102_as
-              A101023: A101023_as
               A101031: A101031_as
               A101032: A101032_as
               A10103: A10103_as
-              A101033: A101033_as
               A10105: A10105_as
               A10104: A10104_as
               A11: A11_as
               A2: A2_as
               A201: A201_as
               A202: A202_as
-              A203: A203_as
-              A204: A204_as
-              A205: A205_as
               3-1: 3-1_as
               3-101: 3-101_as
               3-102: 3-102_as
@@ -1351,110 +1305,54 @@ mt_report_from_final_accounts_daily_env:
               A206: A206_as
               C1: C1_as
               C101: C101_as
-              C10101: C10101_as
-              C10102: C10102_as
               C102: C102_as
-              C10201: C10201_as
-              C10202: C10202_as
               C103: C103_as
-              C10301: C10301_as
-              C10302: C10302_as
               C104: C104_as
-              C10401: C10401_as
-              C10402: C10402_as
               C105: C105_as
-              C10501: C10501_as
-              C10502: C10502_as
               C2: C2_as
               C201: C201_as
-              C20101: C20101_as
-              C20102: C20102_as
               C201-1: C201-1_as
               C201-101: C201-101_as
-              C201-102: C201-102_as
-              C201-103: C201-103_as
               C201-201: C201-201_as
               C201-202: C201-202_as
-              C201-203: C201-203_as
-              C201-204: C201-204_as
               C201-301: C201-301_as
               C201-302: C201-302_as
-              C201-303: C201-303_as
-              C201-304: C201-304_as
               C202: C202_as
-              C20201: C20201_as
-              C20202: C20202_as
               C202-1: C202-1_as
               C202-2: C202-2_as
               C202-3: C202-3_as
               C202-4: C202-4_as
               C202-5: C202-5_as
               C203: C203_as
-              C20301: C20301_as
-              C20302: C20302_as
               C3: C3_as
               C301: C301_as
-              C30101: C30101_as
-              C30102: C30102_as
               C302: C302_as
-              C30201: C30201_as
-              C30202: C30202_as
               C303: C303_as
-              C30301: C30301_as
-              C30302: C30302_as
               C304: C304_as
-              C30401: C30401_as
-              C30402: C30402_as
               C305: C305_as
-              C30501: C30501_as
-              C30502: C30502_as
               C306: C306_as
-              C30601: C30601_as
-              C30602: C30602_as
               C4: C4_as
               C401: C401_as
-              C40101: C40101_as
-              C40102: C40102_as
               C402: C402_as
-              C40201: C40201_as
-              C40202: C40202_as
               C403: C403_as
-              C40301: C40301_as
-              C40302: C40302_as
               C5: C5_as
               C501: C501_as
               C50101: C50101_as
-              C50102: C50102_as
-              C50103: C50103_as
               C502: C502_as
               C50201: C50201_as
-              C50202: C50202_as
-              C50203: C50203_as
               C503: C503_as
-              C50301: C50301_as
-              C50302: C50302_as
               C504: C504_as
-              C50401: C50401_as
-              C50402: C50402_as
               C6: C6_as
               C601: C601_as
-              C60101: C60101_as
-              C60102: C60102_as
               C602: C602_as
-              C60201: C60201_as
-              C60202: C60202_as
               C7: C7_as
               C701: C701_as
-              C70101: C70101_as
-              C70102: C70102_as
               B1: B1_as
               B2: B2_as
               B4: B4_as
               B401: B401_as
               B402: B402_as
               B403: B403_as
-              B404: B404_as
-              B405: B405_as
               B5: B5_as
         - df_fillna:
             value: 0
@@ -1464,19 +1362,9 @@ mt_report_from_final_accounts_daily_env:
             rename:
               M-1: M-1_pr
               M-101: M-101_pr
-              M-102: M-102_pr
               M-2: M-2_pr
-              M-201: M-201_pr
-              M-3: M-3_pr
-              M-301: M-301_pr
               Z-02: Z-02_pr
               Z-01: Z-01_pr
-              M-302: M-302_pr
-              M-103: M-103_pr
-              M-104: M-104_pr
-              M-105: M-105_pr
-              M-106: M-106_pr
-              M-107: M-107_pr
               S8: S8_pr
               S9: S9_pr
               S1: S1_pr
@@ -1505,20 +1393,15 @@ mt_report_from_final_accounts_daily_env:
               D-101: D-101_pr
               S6: S6_pr
               M-10101: M-10101_pr
-              M-10102: M-10102_pr
               M-1010101: M-1010101_pr
-              M-1010101-1: M-1010101-1_pr
               M-1010102: M-1010102_pr
-              M-1010102-1: M-1010102-1_pr
               M-1010102-2: M-1010102-2_pr
               M-1010103: M-1010103_pr
               M-1010103-1: M-1010103-1_pr
               M-1010103-2: M-1010103-2_pr
               M-1010103-3: M-1010103-3_pr
               M-1010104: M-1010104_pr
-              M-1010104-5: M-1010104-5_pr
               M-1010104-1: M-1010104-1_pr
-              M-1010104-6: M-1010104-6_pr
               M-1010104-2: M-1010104-2_pr
               M-1010104-3: M-1010104-3_pr
               M-1010104-4: M-1010104-4_pr
@@ -1531,29 +1414,21 @@ mt_report_from_final_accounts_daily_env:
               M-70106: M-70106_pr
               A1: A1_pr
               A101: A101_pr
-              A102: A102_pr
-              A103: A103_pr
               A101011: A101011_pr
               A101012: A101012_pr
               A10101: A10101_pr
-              A101013: A101013_pr
               A101021: A101021_pr
               A101022: A101022_pr
               A10102: A10102_pr
-              A101023: A101023_pr
               A101031: A101031_pr
               A101032: A101032_pr
               A10103: A10103_pr
-              A101033: A101033_pr
               A10105: A10105_pr
               A10104: A10104_pr
               A11: A11_pr
               A2: A2_pr
               A201: A201_pr
               A202: A202_pr
-              A203: A203_pr
-              A204: A204_pr
-              A205: A205_pr
               3-1: 3-1_pr
               3-101: 3-101_pr
               3-102: 3-102_pr
@@ -1647,110 +1522,54 @@ mt_report_from_final_accounts_daily_env:
               A206: A206_pr
               C1: C1_pr
               C101: C101_pr
-              C10101: C10101_pr
-              C10102: C10102_pr
               C102: C102_pr
-              C10201: C10201_pr
-              C10202: C10202_pr
               C103: C103_pr
-              C10301: C10301_pr
-              C10302: C10302_pr
               C104: C104_pr
-              C10401: C10401_pr
-              C10402: C10402_pr
               C105: C105_pr
-              C10501: C10501_pr
-              C10502: C10502_pr
               C2: C2_pr
               C201: C201_pr
-              C20101: C20101_pr
-              C20102: C20102_pr
               C201-1: C201-1_pr
               C201-101: C201-101_pr
-              C201-102: C201-102_pr
-              C201-103: C201-103_pr
               C201-201: C201-201_pr
               C201-202: C201-202_pr
-              C201-203: C201-203_pr
-              C201-204: C201-204_pr
               C201-301: C201-301_pr
               C201-302: C201-302_pr
-              C201-303: C201-303_pr
-              C201-304: C201-304_pr
               C202: C202_pr
-              C20201: C20201_pr
-              C20202: C20202_pr
               C202-1: C202-1_pr
               C202-2: C202-2_pr
               C202-3: C202-3_pr
               C202-4: C202-4_pr
               C202-5: C202-5_pr
               C203: C203_pr
-              C20301: C20301_pr
-              C20302: C20302_pr
               C3: C3_pr
               C301: C301_pr
-              C30101: C30101_pr
-              C30102: C30102_pr
               C302: C302_pr
-              C30201: C30201_pr
-              C30202: C30202_pr
               C303: C303_pr
-              C30301: C30301_pr
-              C30302: C30302_pr
               C304: C304_pr
-              C30401: C30401_pr
-              C30402: C30402_pr
               C305: C305_pr
-              C30501: C30501_pr
-              C30502: C30502_pr
               C306: C306_pr
-              C30601: C30601_pr
-              C30602: C30602_pr
               C4: C4_pr
               C401: C401_pr
-              C40101: C40101_pr
-              C40102: C40102_pr
               C402: C402_pr
-              C40201: C40201_pr
-              C40202: C40202_pr
               C403: C403_pr
-              C40301: C40301_pr
-              C40302: C40302_pr
               C5: C5_pr
               C501: C501_pr
               C50101: C50101_pr
-              C50102: C50102_pr
-              C50103: C50103_pr
               C502: C502_pr
               C50201: C50201_pr
-              C50202: C50202_pr
-              C50203: C50203_pr
               C503: C503_pr
-              C50301: C50301_pr
-              C50302: C50302_pr
               C504: C504_pr
-              C50401: C50401_pr
-              C50402: C50402_pr
               C6: C6_pr
               C601: C601_pr
-              C60101: C60101_pr
-              C60102: C60102_pr
               C602: C602_pr
-              C60201: C60201_pr
-              C60202: C60202_pr
               C7: C7_pr
               C701: C701_pr
-              C70101: C70101_pr
-              C70102: C70102_pr
               B1: B1_pr
               B2: B2_pr
               B4: B4_pr
               B401: B401_pr
               B402: B402_pr
               B403: B403_pr
-              B404: B404_pr
-              B405: B405_pr
               B5: B5_pr
         - df_fillna:
             value: 0
@@ -2140,6 +1959,7 @@ mt_report_from_final_accounts_daily_env:
         - stash_push_df: []
         - use_df:      # 标准化转换表
             key: biz_monthly_map_copy
+        - fetch_cols:
             columns: [ map_name,value1,value2,岗位名称 ]
         - df_select:
             - '[map_name] == @p1'
@@ -2195,6 +2015,7 @@ mt_report_from_final_accounts_daily_env:
         - stash_push_df: [ ]
         - use_df:
             key: biz_monthly_map_copy
+        - fetch_cols:
             columns: [ map_name,value1,value2 ]
         - df_select:
             - '[map_name] == @p1'
@@ -2241,6 +2062,7 @@ mt_report_from_final_accounts_daily_env:
         - stash_push_df: []
         - use_df:    # 转换表
             key: biz_monthly_map_copy
+        - fetch_cols:
             columns: [ map_name,value1,value2,岗位名称 ]
         - df_select:
             - '[map_name] == @p1'
@@ -2336,7 +2158,7 @@ mt_report_from_final_accounts_daily_env:
             - '([datasource_kind] in @p1) & ([cost_mode] == @p2) & ([child_ac_code] in @p3)'
             - p1: [ext_mt_cost_append,ext_mt_cost_oa]
               p2: 10
-              p3: [ C50101,C50201,C104 ]
+              p3: [ C50101,C50201,C104,C201-201 ]
         - df_pivot_table: # 透视表
             values: worker_num
             index: [ team_code ]
