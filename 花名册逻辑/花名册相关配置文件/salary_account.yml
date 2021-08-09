@@ -1,0 +1,25 @@
+
+code: qian_dai_bao
+  name: '美团钱袋宝'
+  account:
+    - 钱袋宝
+
+code: cmb
+  name: '招行三方及公司直发'
+  account:
+    - 三方
+
+code: abc
+  name: '南通润达直发'
+  account:
+    - 南通润达
+    
+code: ceb
+  name: '光大薪资贷'
+  account:
+    - 光大
+
+code: zhi_fu_bao
+  name: '饿了么支付宝'
+  account:
+    - 支付宝
