@@ -1,0 +1,547 @@
+mt_month_env:
+  context_defaults:
+    platform_code: mt
+    play_on_dask_cluster: true
+    delay_compute: true
+    sync_result_from_cluster: true
+    dask_client_set_as_default: true
+    debug: true
+    cluster_client_address: 'dask-scheduler-service.databus:8786'
+
+  pre_load_dataset:
+    # 订单详情美团，T-2数据，下个月3号才能拿到上个月全部数据
+    - mt_day_2
+    # 跑腿单详情兴达，T-2数据，下个月3号才能拿到上个月全部数据
+    - mt_day_1
+    # 固定奖惩明细
+    - mt_day_12
+    # 订单明细
+    - mt_day_10
+    # 餐损明细
+    - mt_month_8
+    # 团队关系表
+    - std_qplus_dc
+
+    # 数据中心-订单详情查询-订单来源-海葵平台    
+    - mt_day_3
+
+    # 众包订单详情（润达）
+    - mt_day_30
+
+
+    
+                  
+  play:
+    # 美团兴达中间表部分
+    - name: mt_day_2_std_plus_xingda
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            columns: [订单号,城市,骑手,骑手ID,站点,站点ID,预订单,状态,配送时效,等待时长,送达时长,连击时长,导航距离,折线距离,订单原价,订单金额,折扣金额,付商家款,实际付款,收用户款,实际收款,配送费,下单时间,支付时间,期望送达时间,商家推单时间,调度时间,接单时间,到店时间,取货时间,送达时间,业务类型,新预计送达时间 ]
+            dataset_cate: raw
+            template_code: mt_day_2
+            ignore_null_error: true
+            empty_df_record:
+              骑手ID: 0
+              订单号: 0
+        - df_select:
+            - '[骑手ID] != 0'
+        - df_select:
+            - '[订单号] != 0'
+        - df_select:
+            - '[状态] == @p1'
+            - p1: '已送达'
+        - df_py_select:
+            - 'df["站点"].str.contains(u"兴达")'
+
+
+    - name: mt_day_1_std_plus_xingda
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            columns: [订单号,城市,骑手,骑手ID,站点,站点ID,预订单,状态,配送时效,等待时长,送达时长,连击时长,导航距离,折线距离,订单原价,订单金额,折扣金额,付商家款,实际付款,收用户款,实际收款,配送费,下单时间,支付时间,期望送达时间,商家推单时间,调度时间,接单时间,到店时间,取货时间,送达时间,业务类型,新预计送达时间 ]
+            dataset_cate: raw
+            template_code: mt_day_1
+            ignore_null_error: true
+            empty_df_record:
+              骑手ID: 0
+              订单号: 0
+        - df_select:
+            - '[骑手ID] != 0'
+        - df_select:
+            - '[订单号] != 0'
+        - df_select:
+            - '[状态] == @p1'
+            - p1: '已送达'
+        - df_py_select:
+            - 'df["站点"].str.contains(u"兴达")'
+    # 数据中心-订单详情查询-订单来源-海葵平台
+    - name: mt_day_3_std_plus_xingda
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            columns: [订单号,城市,骑手,骑手ID,站点,站点ID,预订单,状态,配送时效,等待时长,送达时长,连击时长,导航距离,折线距离,订单原价,订单金额,折扣金额,付商家款,实际付款,收用户款,实际收款,配送费,下单时间,支付时间,期望送达时间,商家推单时间,调度时间,接单时间,到店时间,取货时间,送达时间,业务类型,新预计送达时间 ]
+            dataset_cate: raw
+            template_code: mt_day_3
+            ignore_null_error: true
+            empty_df_record:
+              骑手ID: 0
+              订单号: 0
+        - df_select:
+            - '[骑手ID] != 0'
+        - df_select:
+            - '[状态] == @p1'
+            - p1: '已送达'
+        - df_py_select:
+            - 'df["站点"].str.contains(u"兴达")'
+
+
+    # 美团兴达-订单详情汇总，可能占用资源太大运行不出来 
+    - name: mt_salary_order_details_xingda
+      sync_result: true
+      cooks:
+        - use_df:
+            key: mt_day_2_std_plus_xingda
+        - stash_push_df: []
+        - use_df:
+            key: mt_day_1_std_plus_xingda
+        - stash_push_df: []
+        - use_df:
+            key: mt_day_3_std_plus_xingda
+        - stash_push_df: []
+        - stash_concat_df:
+            drop_stash: true
+
+
+   
+
+   #  美团-兴达订单详情统计
+    
+    - name: mt_salary_order_details_caculation_one_xingda
+      sync_result: true
+      cooks:
+        - use_df: 
+            key: mt_salary_order_details_xingda
+            columns: [订单号,城市,骑手,骑手ID,站点,站点ID,下单时间]
+        - convert_month_day_time_column:
+            src_column: 下单时间
+            day_column: 下单日期
+        - df_select:
+            - '[下单日期] != 0'
+        - df_groupby:
+            by: [城市,骑手,骑手ID,站点,站点ID,下单日期]
+        - df_count:
+            column: 订单号
+            rename: 下单单量
+        - df_reset_index: []
+
+
+    - name: mt_salary_order_details_caculation_two_xingda
+      sync_result: true
+      cooks:
+        - use_df: 
+            key: mt_salary_order_details_xingda
+            columns: [订单号,城市,骑手,骑手ID,站点,站点ID,调度时间]
+        - convert_month_day_time_column:
+            src_column: 调度时间
+            day_column: 调度日期
+        - df_select:
+            - '[调度日期] != 0'
+        - df_groupby:
+            by: [城市,骑手,骑手ID,站点,站点ID,调度日期]
+        - df_count:
+            column: 订单号
+            rename: 调度单量
+        - df_reset_index: []
+
+    - name: mt_salary_order_details_caculation_three_xingda
+      sync_result: true
+      cooks:
+        - use_df: 
+            key: mt_salary_order_details_xingda
+            columns: [订单号,城市,骑手,骑手ID,站点,站点ID,接单时间]
+        - convert_month_day_time_column:
+            src_column: 接单时间
+            day_column: 接单日期
+        - df_select:
+            - '[接单日期] != 0'
+        - df_groupby:
+            by: [城市,骑手,骑手ID,站点,站点ID,接单日期]
+        - df_count:
+            column: 订单号
+            rename: 接单单量
+        - df_reset_index: []
+
+    - name: mt_salary_order_details_caculation_four_xingda
+      sync_result: true
+      cooks:
+        - use_df: 
+            key: mt_salary_order_details_xingda
+            columns: [订单号,城市,骑手,骑手ID,站点,站点ID,送达时间]
+        - convert_month_day_time_column:
+            src_column: 送达时间
+            day_column: 送达日期
+        - df_select:
+            - '[送达日期] != 0'
+        - df_groupby:
+            by: [城市,骑手,骑手ID,站点,站点ID,送达日期]
+        - df_count:
+            column: 订单号
+            rename: 送达单量
+        - df_reset_index: []
+
+    - name: mt_salary_order_details_caculation_five_xingda
+      sync_result: true
+      cooks:
+        - use_df: 
+            key: mt_salary_order_details_xingda
+            columns: [订单号,城市,骑手,骑手ID,站点,站点ID,导航距离]
+        - df_groupby:
+            by: [城市,骑手,骑手ID,站点,站点ID,导航距离]
+        - df_count:
+            column: 订单号
+            rename: 导航距离单量
+        - df_reset_index: []
+
+    - name: mt_salary_order_details_caculation_six_xingda
+      sync_result: true
+      cooks:
+        - use_df: 
+            key: mt_salary_order_details_xingda
+            columns: [订单号,城市,骑手,骑手ID,站点,站点ID,折线距离]
+        - df_groupby:
+            by: [城市,骑手,骑手ID,站点,站点ID,折线距离]
+        - df_count:
+            column: 订单号
+            rename: 折线距离单量
+        - df_reset_index: []
+
+
+
+#方法2：以下表格并未区分主体，所以通过兴达的订单想起inner关联，这样可以筛选出兴达部分
+    # 缓解计算压力：用mt_day_2_std_plus_xingda替换mt_salary_order_details_xingda测试
+    # 《固定惩罚明细》关联城市和站点信息列
+    - name: mt_day_12_std_plus
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            dataset_cate: raw
+            template_code: mt_day_12
+            ignore_null_error: true
+            empty_df_record:
+              骑手ID: 0
+        - df_select:
+            - '[骑手ID] != 0'
+        - stash_push_df: []
+        - use_df:
+            key: mt_salary_order_details_xingda
+            columns: [骑手ID,城市,站点,站点ID]
+        - drop_duplicates:
+            - [骑手ID]
+        - stash_push_df: []
+        - stash_join_df:
+            on: 骑手ID
+            how: inner
+            drop_stash: true
+    
+
+    # 《加盟站奖惩订单明细》
+    - name: mt_day_10_std_plus
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            dataset_cate: raw
+            template_code: mt_day_10
+            ignore_null_error: true
+            empty_df_record:
+              骑手ID: 0
+        - df_select:
+            - '[骑手ID] != 0'
+        - stash_push_df: []
+        - use_df:
+            key: mt_salary_order_details_xingda
+            columns: [骑手ID,城市,站点,站点ID]
+        - drop_duplicates:
+            - [骑手ID]
+        - stash_push_df: []
+        - stash_join_df:
+            on: 骑手ID
+            how: inner
+            drop_stash: true
+    # 餐损明细
+    - name: mt_month_8_std_plus_xingda
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            dataset_cate: raw
+            template_code: mt_month_8
+            ignore_null_error: true
+            empty_df_record:
+              订单ID: 0
+        - df_select:
+            - '[订单ID] != 0'
+        - stash_push_df: []
+        - use_df:
+            key: mt_salary_order_details_xingda
+            columns: [订单号,城市,骑手ID,站点,站点ID]
+        - rename_cols:
+            - 订单号: 订单ID
+        - stash_push_df: []
+        - stash_join_df:
+            on: 订单ID
+            how: inner
+            drop_stash: true
+
+
+
+  #美团-易即达部分
+    - name: mt_day_2_std_plus_yijida
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            columns: [订单号,城市,骑手,骑手ID,站点,站点ID,预订单,状态,配送时效,等待时长,送达时长,连击时长,导航距离,折线距离,订单原价,订单金额,折扣金额,付商家款,实际付款,收用户款,实际收款,配送费,下单时间,支付时间,期望送达时间,商家推单时间,调度时间,接单时间,到店时间,取货时间,送达时间,业务类型,新预计送达时间 ]
+            dataset_cate: raw
+            template_code: mt_day_2
+            ignore_null_error: true
+            empty_df_record:
+              骑手ID: 0
+              订单号: 0
+        - df_select:
+            - '[骑手ID] != 0'
+        - df_select:
+            - '[订单号] != 0'
+        - df_select:
+            - '[状态] == @p1'
+            - p1: '已送达'
+        - df_py_select:
+            - 'df["站点"].str.contains(u"易即达")'
+
+
+    # 数据中心-订单详情查询-订单来源-海葵平台
+    - name: mt_day_3_std_plus_yijida
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            columns: [订单号,城市,骑手,骑手ID,站点,站点ID,预订单,状态,配送时效,等待时长,送达时长,连击时长,导航距离,折线距离,订单原价,订单金额,折扣金额,付商家款,实际付款,收用户款,实际收款,配送费,下单时间,支付时间,期望送达时间,商家推单时间,调度时间,接单时间,到店时间,取货时间,送达时间,业务类型,新预计送达时间 ]
+            dataset_cate: raw
+            template_code: mt_day_3
+            ignore_null_error: true
+            empty_df_record:
+              骑手ID: 0
+              订单号: 0
+        - df_select:
+            - '[骑手ID] != 0'
+        - df_select:
+            - '[状态] == @p1'
+            - p1: '已送达'
+        - df_py_select:
+            - 'df["站点"].str.contains(u"易即达")'
+
+
+
+    # 美团易即达-订单详情汇总    
+    - name: mt_salary_order_details_yijida
+      sync_result: true
+      cooks:
+        - use_df:
+            key: mt_day_2_std_plus_yijida
+        - stash_push_df: []
+        - use_df:
+            key: mt_day_3_std_plus_yijida
+        - stash_push_df: []
+        - stash_concat_df:
+            drop_stash: true
+
+
+   
+
+   #  美团-订单详情统计
+    
+    - name: mt_salary_order_details_caculation_one_yijida
+      sync_result: true
+      cooks:
+        - use_df: 
+            key: mt_salary_order_details_yijida
+            columns: [订单号,城市,骑手,骑手ID,站点,站点ID,下单时间]
+        - convert_month_day_time_column:
+            src_column: 下单时间
+            day_column: 下单日期
+        - df_select:
+            - '[下单日期] != 0'
+        - df_groupby:
+            by: [城市,骑手,骑手ID,站点,站点ID,下单日期]
+        - df_count:
+            column: 订单号
+            rename: 下单单量
+        - df_reset_index: []
+
+
+    - name: mt_salary_order_details_caculation_two_yijida
+      sync_result: true
+      cooks:
+        - use_df: 
+            key: mt_salary_order_details_yijida
+            columns: [订单号,城市,骑手,骑手ID,站点,站点ID,调度时间]
+        - convert_month_day_time_column:
+            src_column: 调度时间
+            day_column: 调度日期
+        - df_select:
+            - '[调度日期] != 0'
+        - df_groupby:
+            by: [城市,骑手,骑手ID,站点,站点ID,调度日期]
+        - df_count:
+            column: 订单号
+            rename: 调度单量
+        - df_reset_index: []
+
+    - name: mt_salary_order_details_caculation_three_yijida
+      sync_result: true
+      cooks:
+        - use_df: 
+            key: mt_salary_order_details_yijida
+            columns: [订单号,城市,骑手,骑手ID,站点,站点ID,接单时间]
+        - convert_month_day_time_column:
+            src_column: 接单时间
+            day_column: 接单日期
+        - df_select:
+            - '[接单日期] != 0'
+        - df_groupby:
+            by: [城市,骑手,骑手ID,站点,站点ID,接单日期]
+        - df_count:
+            column: 订单号
+            rename: 接单单量
+        - df_reset_index: []
+
+    - name: mt_salary_order_details_caculation_four_yijida
+      sync_result: true
+      cooks:
+        - use_df: 
+            key: mt_salary_order_details_yijida
+            columns: [订单号,城市,骑手,骑手ID,站点,站点ID,送达时间]
+        - convert_month_day_time_column:
+            src_column: 送达时间
+            day_column: 送达日期
+        - df_select:
+            - '[送达日期] != 0'
+        - df_groupby:
+            by: [城市,骑手,骑手ID,站点,站点ID,送达日期]
+        - df_count:
+            column: 订单号
+            rename: 送达单量
+        - df_reset_index: []
+
+    # - name: mt_salary_order_details_caculation_total_yijida
+    #   sync_result: true
+    #   cooks:
+    #     - use_df: 
+    #         key: mt_salary_order_details_caculation_one_yijida
+    #     - stash_push_df: []
+        
+    #     - use_df: 
+    #         key: mt_salary_order_details_caculation_two_yijida
+    #     - stash_push_df: []
+    #     - stash_join_df:
+    #         on: [城市,骑手,骑手ID,站点,站点ID]
+    #         how: outer
+    #         drop_stash: true
+    #     - stash_push_df: []
+    #     - use_df: 
+    #         key: mt_salary_order_details_caculation_three_yijida
+    #     - stash_push_df: []
+    #     - stash_join_df:
+    #         on: [城市,骑手,骑手ID,站点,站点ID]
+    #         how: outer
+    #         drop_stash: true
+    #     - stash_push_df: []
+    #     - use_df: 
+    #         key: mt_salary_order_details_caculation_four_yijida
+    #     - stash_push_df: []
+    #     - stash_join_df:
+    #         on: [城市,骑手,骑手ID,站点,站点ID]
+    #         how: outer
+    #         drop_stash: true
+      # 易即达骑手信息表  
+    - name: mt_yijida_employee
+      sync_result: true
+      cooks:
+        - use_df:
+            key: mt_salary_order_details_yijida
+            columns: [城市,骑手ID,站点,站点ID]
+        - drop_duplicates:
+            - [骑手ID]
+        - add_cols:
+            - 主体: 易即达
+
+# 《固定惩罚明细》关联城市和站点信息列
+    - name: mt_day_12_std_plus_yijida
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            dataset_cate: raw
+            template_code: mt_day_12
+            ignore_null_error: true
+            empty_df_record:
+              骑手ID: 0
+        - df_select:
+            - '[骑手ID] != 0'
+        - stash_push_df: []
+        - use_df:
+            key: mt_yijida_employee
+            columns: [城市,骑手ID,站点,站点ID,主体]
+        - stash_push_df: []
+        - stash_join_df:
+            on: 骑手ID
+            how: right
+            drop_stash: true
+        - df_select:
+            - '[主体] == @p1'
+            - p1: 易即达
+
+    # 《加盟站奖惩订单明细》
+    - name: mt_day_10_std_plus_yijida
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            dataset_cate: raw
+            template_code: mt_day_10
+            ignore_null_error: true
+            empty_df_record:
+              骑手ID: 0
+        - df_select:
+            - '[骑手ID] != 0'
+        - stash_push_df: []
+        - use_df:
+            key: mt_yijida_employee
+            columns: [城市,骑手ID,站点,站点ID,主体]
+        - stash_push_df: []
+        - stash_join_df:
+            on: 骑手ID
+            how: right
+            drop_stash: true
+        - df_select:
+            - '[主体] == @p1'
+            - p1: 易即达
+    
+    # 餐损明细
+    - name: mt_month_8_std_plus_yijida
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            dataset_cate: raw
+            template_code: mt_month_8
+            ignore_null_error: true
+            empty_df_record:
+              订单ID: 0
+        - df_select:
+            - '[订单ID] != 0'
+        - stash_push_df: []
+        - use_df:
+            key: mt_salary_order_details_yijida
+            columns: [订单号,城市,骑手ID,站点,站点ID]
+        - rename_cols:
+            - 订单号: 订单ID
+        - stash_push_df: []
+        - stash_join_df:
+            on: 订单ID
+            how: inner
+            drop_stash: true
