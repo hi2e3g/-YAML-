@@ -1,0 +1,3267 @@
+cookbook: true
+mt_daily_env:
+  context_defaults:
+    delay_compute: true
+    sync_result_from_cluster: true
+    play_on_dask_cluster: true
+    platform_code: meituan
+    dask_client_set_as_default: true
+    cluster_client_address: 'dask-scheduler-service.databus:8786'
+
+  play:
+    - name: city_score_conversion_table
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            template_code: mt_day_34
+            dataset_cate: raw
+            datakit_pull_way: last_day
+            ignore_null_error: true
+            columns: [总加盟商ID,总加盟商,区域ID,区域,城市ID,城市,站点ID,站点名称,meta_month]
+            empty_df_record:
+              总加盟商ID: '-'
+              总加盟商: '-'
+              区域ID: '-'
+              区域: '-'
+              城市ID: '-'
+              城市: '-'
+              站点ID: '-'
+              站点名称: '-'
+              meta_month: 197901
+        - df_rename_columns:
+            - meta_month: 月份
+        - stash_push_df: []
+        - fetch_dataset:
+            template_code: mt_month_66
+            dataset_cate: raw
+            columns: [ 站点ID,站点名称,提前点送达门槛值,提前点送达目标值,提前点送达满分值,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值 ]
+            ignore_null_error: true
+        - when_empty_fetch_dataset:
+            template_code: mt_month_66
+            dataset_cate: raw
+            month_offset: -1
+            columns: [ 站点ID,站点名称,提前点送达门槛值,提前点送达目标值,提前点送达满分值,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值 ]
+            ignore_null_error: true
+            empty_df_record:
+              站点ID: '-'
+              站点名称: '-'
+              提前点送达门槛值: 0.0
+              提前点送达目标值: 0.0
+              提前点送达满分值: 0.0
+              虚假订单门槛值: 0.0
+              虚假订单目标值: 0.0
+              虚假订单满分值: 0.0
+              虚假骑手门槛值: 0.0
+              虚假骑手目标值: 0.0
+              虚假骑手满分值: 0.0
+        - stash_push_df: []
+        - stash_join_df:
+            on: [站点ID,站点名称]
+            how: left
+            drop_stash: true
+        - drop_duplicates:
+            subset: [月份,城市ID,城市,提前点送达门槛值,提前点送达目标值,提前点送达满分值,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值]
+        - run_py:
+            - |
+              df = df[df['城市ID'].notnull()]
+              result = df
+        - fetch_cols:
+            columns: [ 城市ID,城市,提前点送达门槛值,提前点送达目标值,提前点送达满分值,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值 ]
+
+    - name: region_score_conversion_table
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            template_code: mt_day_34
+            dataset_cate: raw
+            datakit_pull_way: last_day
+            ignore_null_error: true
+            columns: [总加盟商ID,总加盟商,区域ID,区域,城市ID,城市,站点ID,站点名称,meta_month]
+            empty_df_record:
+              总加盟商ID: '-'
+              总加盟商: '-'
+              区域ID: '-'
+              区域: '-'
+              城市ID: '-'
+              城市: '-'
+              站点ID: '-'
+              站点名称: '-'
+              meta_month: 197901
+        - df_rename_columns:
+            - meta_month: 月份
+        - stash_push_df: []
+        - fetch_dataset:
+            template_code: mt_month_66
+            dataset_cate: raw
+            columns: [ 站点ID,站点名称,提前点送达门槛值,提前点送达目标值,提前点送达满分值,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值 ]
+            ignore_null_error: true
+        - when_empty_fetch_dataset:
+            template_code: mt_month_66
+            dataset_cate: raw
+            month_offset: -1
+            columns: [ 站点ID,站点名称,提前点送达门槛值,提前点送达目标值,提前点送达满分值,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值 ]
+            ignore_null_error: true
+            empty_df_record:
+              站点ID: '-'
+              站点名称: '-'
+              提前点送达门槛值: 0.0
+              提前点送达目标值: 0.0
+              提前点送达满分值: 0.0
+              虚假订单门槛值: 0.0
+              虚假订单目标值: 0.0
+              虚假订单满分值: 0.0
+              虚假骑手门槛值: 0.0
+              虚假骑手目标值: 0.0
+              虚假骑手满分值: 0.0
+        - stash_push_df: []
+        - stash_join_df:
+            on: [站点ID,站点名称]
+            how: left
+            drop_stash: true
+        - drop_duplicates:
+            subset: [月份,区域ID,区域,提前点送达门槛值,提前点送达目标值,提前点送达满分值,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值]
+        - run_py:
+            - |
+              df = df[df['区域ID'].notnull()]
+              result = df
+        - fetch_cols:
+            columns: [ 区域ID,区域,提前点送达门槛值,提前点送达目标值,提前点送达满分值,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值 ]
+
+    - name: pervasive_inviolable_rights    # 普适商权益-站点维度中间表
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            template_code: mt_day_34
+            dataset_cate: raw
+            datakit_pull_way: last_day
+            ignore_null_error: true
+            columns: [总加盟商ID,总加盟商,区域ID,区域,城市ID,城市,站点ID,站点名称,完成单量,完成单骑手数,提前点送达量,虚假订单考核量,虚假骑手数,meta_month]
+            empty_df_record:
+              总加盟商ID: '-'
+              总加盟商: '-'
+              区域ID: '-'
+              区域: '-'
+              城市ID: '-'
+              城市: '-'
+              站点ID: '-'
+              站点名称: '-'
+              完成单量: 0
+              完成单骑手数: 0
+              提前点送达量: 0
+              虚假订单考核量: 0
+              虚假骑手数: 0
+              meta_month: 197901
+        - df_rename_columns:
+            - 总加盟商ID: 主体ID
+              总加盟商: 主体
+              提前点送达量: 提前点送达数
+              虚假订单考核量: 虚假订单数
+              meta_month: 月份
+        - drop_duplicates:
+            - [主体ID,主体,区域ID,区域,城市ID,城市,站点ID,站点名称,完成单量,完成单骑手数,提前点送达数,虚假订单数,虚假骑手数,月份]
+        - df_to_int:
+            - 虚假订单数
+        - df_groupby:
+            by: [主体ID,主体,区域ID,区域,城市ID,城市,站点ID,站点名称,月份]
+        - df_sum:
+            column: [完成单量,完成单骑手数,提前点送达数,虚假订单数,虚假骑手数]
+        - df_reset_index: []
+        - stash_push_df: []
+        - fetch_dataset:
+            template_code: mt_month_68
+            dataset_cate: raw
+            columns: [站点名称,站点id]
+            ignore_null_error: true
+        - when_empty_fetch_dataset:
+            template_code: mt_month_68
+            dataset_cate: raw
+            month_offset: -1
+            columns: [站点名称,站点id]
+            ignore_null_error: true
+            empty_df_record:
+              站点名称: '-'
+              站点id: '-'
+        - df_rename_columns:
+            - 站点名称: 站点名称
+              站点id: 站点ID
+        - drop_duplicates:
+            subset: [ 站点名称,站点ID]
+        - stash_push_df: []
+        - stash_join_df:
+            on: [站点名称,站点ID]
+            how: left
+            drop_stash: true
+        - df_select:
+            - '[城市ID] != @v1'
+            - v1: '410100'
+        - run_py:
+            - |
+              df = df[df['区域ID'].notnull()]
+              result = df
+        - stash_push_df: []
+        - fetch_dataset:
+            template_code: mt_day_13
+            datakit_pull_way: last_day
+            dataset_cate: raw
+            columns: [加盟站ID,加盟站名称,完成单(未剔除异常单),完成单量(剔除异常单),配送原因未完成率,一般超时单量(考核),不满意订单数,不满意率,复合准时率（考核）,严重超时单量(考核),配送原因未完成数,meta_day]
+            ignore_null_error: true
+            empty_df_record:
+              加盟站ID: '-'
+              加盟站名称: '-'
+              完成单(未剔除异常单): 0
+              完成单量(剔除异常单): 0
+              不满意订单数: 0
+              不满意率: '0.0%'
+              复合准时率（考核）: '0.0%'
+              配送原因未完成率: '0.0%'
+              一般超时单量(考核): 0
+              严重超时单量(考核): 0
+              配送原因未完成数: 0
+              meta_day: 19790101
+        - df_rename_columns:
+            - 加盟站ID: 站点ID
+              加盟站名称: 站点名称
+              完成单(未剔除异常单): 完成单量（未剔除异常单）
+              完成单量(剔除异常单): 完成单量（剔除异常单）
+              不满意订单数: 不满意单量
+              复合准时率（考核）: 准时率
+              配送原因未完成率: 配送未完成率
+              一般超时单量(考核): 一般超时单量
+              严重超时单量(考核): 严重超时单量
+              配送原因未完成数: 配送取消单量
+        - df_to_int:
+            - 完成单量（未剔除异常单）
+        - df_to_int:
+            - 完成单量（剔除异常单）
+        - df_to_int:
+            - 不满意单量
+        - df_to_int:
+            - 一般超时单量
+        - df_to_int:
+            - 严重超时单量
+        - df_to_int:
+            - 配送取消单量
+        - run_py:
+            - |
+              df = df[df['meta_day']==df['meta_day'].max()]
+              result = df
+        - stash_push_df: []
+        - stash_join_df:
+            on: [站点名称,站点ID]
+            how: right
+            drop_stash: true
+        - stash_push_df: []
+        - fetch_dataset:
+            template_code: mt_month_65
+            dataset_cate: raw
+            columns: [站点id,站点名称,站点贡献度积分]
+            ignore_null_error: true
+        - when_empty_fetch_dataset:
+            template_code: mt_month_65
+            dataset_cate: raw
+            month_offset: -1
+            columns: [站点id,站点名称,站点贡献度积分]
+            ignore_null_error: true
+            empty_df_record:
+              站点id: '-'
+              站点名称: '-'
+              站点贡献度积分: 0.0
+        - df_rename_columns:
+            - 站点贡献度积分: 贡献积分
+              站点id: 站点ID
+        - drop_duplicates:                          #去重
+            subset: [ 站点ID,站点名称,贡献积分  ]
+        - stash_push_df: []
+        - stash_join_df:
+            on: [站点名称,站点ID]
+            how: right
+            drop_stash: true
+        - stash_push_df: []
+        - fetch_dataset:
+            template_code: mt_month_67
+            dataset_cate: raw
+            columns: [商圈,商圈ID,配送未完成目标得分,不满意目标得分,准时率目标得分,提前点送达,虚假订单目标得分,虚假骑手目标得分]
+            ignore_null_error: true
+        - when_empty_fetch_dataset:
+            template_code: mt_month_67
+            dataset_cate: raw
+            month_offset: -1
+            columns: [商圈,商圈ID,配送未完成目标得分,不满意目标得分,准时率目标得分,提前点送达,虚假订单目标得分,虚假骑手目标得分]
+            ignore_null_error: true
+            empty_df_record:
+              商圈ID: '-'
+              商圈: '-'
+              配送未完成目标得分: 0.0
+              不满意目标得分: 0.0
+              准时率目标得分: 0.0
+              提前点送达: 0.0
+              虚假订单目标得分: 0.0
+              虚假骑手目标得分: 0.0
+        - df_rename_columns:
+            - 商圈ID: 站点ID
+              商圈: 站点名称
+              配送未完成目标得分: 配取目标得分
+              提前点送达: 提前点送达目标得分
+        - drop_duplicates:                          #去重
+            subset: [ 站点ID,站点名称,配取目标得分,不满意目标得分,准时率目标得分,提前点送达目标得分,虚假订单目标得分,虚假骑手目标得分  ]
+        - stash_push_df: []
+        - stash_join_df:
+            on: [站点名称,站点ID]
+            how: right
+            drop_stash: true
+        - stash_push_df: []
+        - fetch_dataset:
+            template_code: mt_month_66
+            dataset_cate: raw
+            columns: [站点ID,站点名称,配送原因未完成率门槛值,配送原因未完成率目标值,配送原因未完成率满分值,不满意率门槛值,不满意率标准值,不满意率满分值,复合准时率门槛值,复合准时率标准值,复合准时率满分值,提前点送达门槛值,提前点送达目标值,提前点送达满分值,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值]
+            ignore_null_error: true
+        - when_empty_fetch_dataset:
+            template_code: mt_month_66
+            dataset_cate: raw
+            month_offset: -1
+            columns: [站点ID,站点名称,配送原因未完成率门槛值,配送原因未完成率目标值,配送原因未完成率满分值,不满意率门槛值,不满意率标准值,不满意率满分值,复合准时率门槛值,复合准时率标准值,复合准时率满分值,提前点送达门槛值,提前点送达目标值,提前点送达满分值,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值]
+            ignore_null_error: true
+            empty_df_record:
+              站点ID: '-'
+              站点名称: '-'
+              配送原因未完成率门槛值: 0.0
+              配送原因未完成率目标值: 0.0
+              配送原因未完成率满分值: 0.0
+              不满意率门槛值: 0.0
+              不满意率标准值: 0.0
+              不满意率满分值: 0.0
+              复合准时率门槛值: 0.0
+              复合准时率标准值: 0.0
+              复合准时率满分值: 0.0
+              提前点送达门槛值: 0.0
+              提前点送达目标值: 0.0
+              提前点送达满分值: 0.0
+              虚假订单门槛值: 0.0
+              虚假订单目标值: 0.0
+              虚假订单满分值: 0.0
+              虚假骑手门槛值: 0.0
+              虚假骑手目标值: 0.0
+              虚假骑手满分值: 0.0
+        - df_rename_columns:
+            - 配送原因未完成率门槛值: 配取门槛值
+              配送原因未完成率目标值: 配取目标值
+              配送原因未完成率满分值: 配取满分值
+              复合准时率门槛值: 准时率门槛值
+              复合准时率标准值: 准时率标准值
+              复合准时率满分值: 准时率满分值
+        - drop_duplicates:                          #去重
+            subset: [站点ID,站点名称,配取门槛值,配取目标值,配取满分值,不满意率门槛值,不满意率标准值,不满意率满分值,准时率门槛值,准时率标准值,准时率满分值,提前点送达门槛值,提前点送达目标值,提前点送达满分值,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值]
+        - stash_push_df: []
+        - stash_join_df:
+            on: [站点ID,站点名称]
+            how: right
+            drop_stash: true
+        - run_py:
+            - |
+              df['当月截止昨天天数'] = np.datetime64('today').tolist().day - 1
+              result = df
+        - set_meta_days_column:
+            - 当月总天数
+        - add_cols:
+            - 虚假订单容错值: 0
+              虚假订单目标率: 0
+              虚假骑手容错值: 0
+              虚假骑手目标率: 0
+        - pad_cols:
+            columns: [ '参培率得分','考试通过率得分','装备合规率得分' ]
+            default_value: 0.0
+        - run_py:
+            - |
+              df['月度预估单量'] = (df['完成单量（剔除异常单）'] / df['当月截止昨天天数'] * df['当月总天数']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['提前点送达率'] = (df['提前点送达数'] / df['完成单量']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['虚假订单率'] = (df['虚假订单数'] / df['完成单量']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['虚假骑手率'] = (df['虚假骑手数'] / df['完成单骑手数']).replace([np.inf, -np.inf, "", np.nan],0)
+              result = df
+        - str_strip_column:
+            column: 配送未完成率
+            char: '%'
+        - df_to_float:
+            - 配送未完成率
+        - df_eval:
+            - '[配送未完成率] = [配送未完成率]/100'
+        - str_strip_column:
+            column: 不满意率
+            char: '%'
+        - df_to_float:
+            - 不满意率
+        - df_eval:
+            - '[不满意率] = [不满意率]/100'
+        - str_strip_column:
+            column: 准时率
+            char: '%'
+        - df_to_float:
+            - 准时率
+        - df_eval:
+            - '[准时率] = [准时率]/100'
+
+    - name: pervasive_inviolable_rights_site    # 普适商权益-站点维度中间表
+      sync_result: true
+      cooks:
+        - use_df:
+            key: pervasive_inviolable_rights
+        - df_select:
+            - '[城市ID] != @p1'
+            - p1: '410100'
+        - add_cols:
+            - 配取得分: 0.0
+              配取目标率: 0.0
+              不满意得分: 0.0
+              不满意率目标率: 0.0
+              准时率得分: 0.0
+              超时目标率: 0.0
+              提前点送达得分: 0.0
+              虚假订单得分: 0.0
+              虚假骑手得分: 0.0
+              目标提前点送达率: 0.0
+        - df_to_float:
+            - 配取目标得分
+        - df_to_float:
+            - 配取目标值
+        - df_to_float:
+            - 配取满分值
+        - df_to_int:
+            - 配送取消单量
+        - df_to_int:
+            - 不满意单量
+        - df_to_int:
+            - 一般超时单量
+        - df_to_int:
+            - 严重超时单量
+        - df_to_int:
+            - 完成单量
+        - run_py:
+            - |
+              df['配取得分'] = df['配取得分'].mask(df['配送未完成率']==df['配取满分值'],25)
+              df['配取得分'] = df['配取得分'].mask((df['配取目标值']>=df['配送未完成率'])&(df['配送未完成率']>df['配取满分值']),((df['配送未完成率']-df['配取目标值'])/(df['配取满分值']-df['配取目标值'])*20+80)*0.25).replace([np.inf, -np.inf, "", np.nan], 0)
+              df['配取得分'] = df['配取得分'].mask((df['配取目标值']<df['配送未完成率'])&(df['配送未完成率']<df['配取门槛值']),(df['配送未完成率']-df['配取门槛值'])/(df['配取目标值']-df['配取门槛值'])*80*0.25).replace([np.inf, -np.inf, "", np.nan], 0)
+              df['配取得分'] = df['配取得分'].mask(df['配送未完成率']>=df['配取门槛值'],0)
+
+              df['配取目标率'] = df['配取目标率'].mask(df['配取目标得分']>=20,(20-(df['配取目标得分']-20)/0.25)/20*(df['配取目标值']-df['配取满分值'])).replace([np.inf, -np.inf, "", np.nan], 0)
+              df['配取目标率'] = df['配取目标率'].mask((df['配取目标得分']>=0)&(df['配取目标得分']<20),80-(df['配取目标得分']-0*0.25)/0.25/80/(df['配取门槛值']-df['配取目标值'])+df['配取目标值']).replace([np.inf, -np.inf, "", np.nan], 0)
+
+              df['不满意得分'] = df['不满意得分'].mask(df['不满意率']==df['不满意率满分值'],25)
+              df['不满意得分'] = df['不满意得分'].mask((df['不满意率']<=df['不满意率标准值'])&(df['不满意率']>df['不满意率满分值']),((df['不满意率']-df['不满意率标准值'])/(df['不满意率满分值']-df['不满意率标准值'])*20+80)*0.25).replace([np.inf, -np.inf, "", np.nan], 0)
+              df['不满意得分'] = df['不满意得分'].mask((df['不满意率']>df['不满意率标准值'])&(df['不满意率']<df['不满意率门槛值']),(df['不满意率']-df['不满意率门槛值'])/(df['不满意率标准值']-df['不满意率门槛值'])*20).replace([np.inf, -np.inf, "", np.nan], 0)
+              df['不满意得分'] = df['不满意得分'].mask(df['不满意率']>=df['不满意率门槛值'],0)
+
+              df['不满意率目标率'] = df['不满意率目标率'].mask(df['不满意目标得分']>=20,20-(df['不满意目标得分']-80*0.25)/0.25/20*(df['不满意率标准值']-df['不满意率满分值'])).replace([np.inf, -np.inf, "", np.nan], 0)
+              df['不满意率目标率'] = df['不满意率目标率'].mask((df['不满意目标得分']>=0)&(df['不满意目标得分']<20),(80-0-(df['不满意目标得分']-0*0.25)/0.25)/(80-0)/(df['不满意率门槛值']-df['不满意率标准值'])+df['不满意率标准值']).replace([np.inf, -np.inf, "", np.nan], 0)
+
+              df['准时率得分'] = df['准时率得分'].mask(df['准时率']==df['准时率满分值'],100*0.3)
+              df['准时率得分'] = df['准时率得分'].mask((df['准时率']>=df['准时率标准值'])&(df['准时率']<df['准时率满分值']),(80+20*(df['准时率']-df['准时率标准值'])/(df['准时率满分值']-df['准时率标准值']))*0.3).replace([np.inf, -np.inf, "", np.nan], 0)
+              df['准时率得分'] = df['准时率得分'].mask((df['准时率']>df['准时率门槛值'])&(df['准时率']<df['准时率标准值']),80*(df['准时率']-df['准时率门槛值'])/(df['准时率标准值']-df['准时率门槛值'])*0.3).replace([np.inf, -np.inf, "", np.nan], 0)
+              df['准时率得分'] = df['准时率得分'].mask(df['准时率']<=df['准时率门槛值'],0)
+
+              df['超时目标率'] = df['超时目标率'].mask(df['准时率目标得分'] >= 80 * 0.3,(100-80-(df['准时率目标得分']-80*0.3)/0.3)/(100-80)*(df['准时率满分值']-df['准时率标准值'])).replace([np.inf, -np.inf, "", np.nan], 0)
+              df['超时目标率'] = df['超时目标率'].mask((df['准时率目标得分'] >= 0) & (df['准时率目标得分'] < 80 * 0.3),(80-0-(df['准时率目标得分']-0*0.3)/0.3)/(80-0)*(df['准时率标准值']-df['准时率门槛值'])+(df['准时率满分值']-df['准时率标准值'])).replace([np.inf, -np.inf, "", np.nan], 0)
+
+              df['提前点送达得分'] = df['提前点送达得分'].mask(df['提前点送达率']==df['提前点送达满分值'],100*0.1)
+              df['提前点送达得分'] = df['提前点送达得分'].mask((df['提前点送达率'] > df['提前点送达满分值']) & (df['提前点送达率'] <= df['提前点送达目标值']),((df['提前点送达率']-df['提前点送达目标值'])/(df['提前点送达满分值']-df['提前点送达目标值'])*40+60)*0.1).replace([np.inf, -np.inf, "", np.nan], 0)
+              df['提前点送达得分'] = df['提前点送达得分'].mask((df['提前点送达率'] < df['提前点送达门槛值']) & (df['提前点送达率'] > df['提前点送达目标值']), (df['提前点送达率']-df['提前点送达门槛值'])/(df['提前点送达目标值']-df['提前点送达门槛值'])*60*0.1).replace([np.inf, -np.inf, "", np.nan], 0)
+              df['提前点送达得分'] = df['提前点送达得分'].mask(df['提前点送达率'] >= df['提前点送达门槛值'],0)
+
+              df['虚假订单得分'] = df['虚假订单得分'].mask(df['虚假订单率'] == df['虚假订单满分值'],0)
+              df['虚假订单得分'] = df['虚假订单得分'].mask((df['虚假订单率'] > df['虚假订单满分值']) & (df['虚假订单率'] <= df['虚假订单目标值']),df['虚假订单率']/(df['虚假订单目标值']-df['虚假订单满分值'])*(-2)).replace([np.inf, -np.inf, "", np.nan], 0)
+              df['虚假订单得分'] = df['虚假订单得分'].mask((df['虚假订单率'] > df['虚假订单目标值']) & (df['虚假订单率'] <= df['虚假订单门槛值']),(df['虚假订单率']-df['虚假订单目标值'])/(df['虚假订单门槛值']-df['虚假订单目标值'])*(-3)+(-2)).replace([np.inf, -np.inf, "", np.nan], 0)
+              df['虚假订单得分'] = df['虚假订单得分'].mask(df['虚假订单率'] > df['虚假订单门槛值'],-5)
+
+              df['虚假骑手得分'] = df['虚假骑手得分'].mask(df['虚假骑手率'] == df['虚假骑手满分值'],0)
+              df['虚假骑手得分'] = df['虚假骑手得分'].mask((df['虚假骑手率'] > df['虚假骑手满分值']) & (df['虚假骑手率'] <= df['虚假骑手目标值']),df['虚假骑手率']/(df['虚假骑手目标值']-df['虚假骑手满分值'])*(-2)).replace([np.inf, -np.inf, "", np.nan], 0)
+              df['虚假骑手得分'] = df['虚假骑手得分'].mask((df['虚假骑手率'] > df['虚假骑手目标值']) & (df['虚假骑手率'] <= df['虚假骑手门槛值']),(df['虚假骑手率']-df['虚假骑手目标值'])/(df['虚假骑手门槛值']-df['虚假骑手目标值'])*(-3)+(-2)).replace([np.inf, -np.inf, "", np.nan], 0)
+              df['虚假骑手得分'] = df['虚假骑手得分'].mask(df['虚假骑手率'] > df['虚假骑手门槛值'],-5)
+
+              df['目标提前点送达率'] = df['目标提前点送达率'].mask(df['提前点送达目标得分'] >= 60 * 0.1,(100-60-(df['提前点送达目标得分']-60*0.1)/0.1)/(100-60)*(df['提前点送达目标值']-df['提前点送达满分值'])).replace([np.inf, -np.inf, "", np.nan], 0)
+              df['目标提前点送达率'] = df['目标提前点送达率'].mask((df['提前点送达目标得分'] >= 0) & (df['提前点送达目标得分'] < 60 * 0.1),(60-0-(df['提前点送达目标得分']-0*0.1)/0.1)/(60-0)/(df['提前点送达门槛值']-df['提前点送达目标值'])+df['提前点送达目标值']).replace([np.inf, -np.inf, "", np.nan], 0)
+
+              df['配送未完成率容错值'] = df['月度预估单量'] * df['配取目标率'] - df['配送取消单量']
+              df['不满意率容错值'] = df['月度预估单量'] * df['不满意率目标率'] - df['不满意单量']
+              df['准时率容错值'] = df['月度预估单量'] * df['超时目标率'] - df['一般超时单量'] - 5 * df['严重超时单量']
+              df['体验得分'] = df['配取得分'] + df['不满意得分'] + df['准时率得分']
+              df['提前点送达容错值'] = df['完成单量'] / df['当月截止昨天天数'] * df['当月总天数'] * df['目标提前点送达率'] - df['提前点送达数']
+              df['得分'] = df['体验得分'] + df['提前点送达得分'] + df['虚假订单得分'] + df['虚假骑手得分'] + df['参培率得分'] + df['考试通过率得分'] + df['装备合规率得分'] + df['贡献积分']
+
+              result = df
+        - fetch_cols:
+            columns: [月份,主体ID,主体,区域ID,区域,城市ID,城市,站点ID,站点名称,贡献积分,完成单量（未剔除异常单）,完成单量（剔除异常单）,月度预估单量,配送取消单量,配送未完成率,配送未完成率容错值,配取得分,配取目标得分,配取目标率,配取门槛值,配取目标值,配取满分值,不满意单量,不满意率,不满意率容错值,不满意得分,不满意目标得分,不满意率目标率,不满意率门槛值,不满意率标准值,不满意率满分值,一般超时单量,严重超时单量,准时率,准时率容错值,准时率得分,准时率目标得分,超时目标率,准时率门槛值,准时率标准值,准时率满分值,体验得分,提前点送达数,提前点送达率,提前点送达容错值,提前点送达得分,提前点送达目标得分,目标提前点送达率,提前点送达门槛值,提前点送达目标值,提前点送达满分值,虚假订单数,虚假订单率,虚假订单容错值,虚假订单得分,虚假订单目标得分,虚假订单目标率,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手数,虚假骑手率,虚假骑手容错值,虚假骑手得分,虚假骑手目标得分,虚假骑手目标率,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值,参培率得分,考试通过率得分,装备合规率得分,得分,完成单量,完成单骑手数]
+        - drop_duplicates:
+            - [月份,主体ID,主体,区域ID,区域,城市ID,城市,站点ID,站点名称,贡献积分,完成单量（未剔除异常单）,完成单量（剔除异常单）,月度预估单量,配送取消单量,配送未完成率,配送未完成率容错值,配取得分,配取目标得分,配取目标率,配取门槛值,配取目标值,配取满分值,不满意单量,不满意率,不满意率容错值,不满意得分,不满意目标得分,不满意率目标率,不满意率门槛值,不满意率标准值,不满意率满分值,一般超时单量,严重超时单量,准时率,准时率容错值,准时率得分,准时率目标得分,超时目标率,准时率门槛值,准时率标准值,准时率满分值,体验得分,提前点送达数,提前点送达率,提前点送达容错值,提前点送达得分,提前点送达目标得分,目标提前点送达率,提前点送达门槛值,提前点送达目标值,提前点送达满分值,虚假订单数,虚假订单率,虚假订单容错值,虚假订单得分,虚假订单目标得分,虚假订单目标率,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手数,虚假骑手率,虚假骑手容错值,虚假骑手得分,虚假骑手目标得分,虚假骑手目标率,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值,参培率得分,考试通过率得分,装备合规率得分,得分,完成单量,完成单骑手数]
+        - sort_by_columns:
+            sort_list: [月份,主体ID,主体,区域ID,区域,城市ID,城市,站点ID,站点名称,贡献积分,完成单量（未剔除异常单）,完成单量（剔除异常单）,月度预估单量,配送取消单量,配送未完成率,配送未完成率容错值,配取得分,配取目标得分,配取目标率,配取门槛值,配取目标值,配取满分值,不满意单量,不满意率,不满意率容错值,不满意得分,不满意目标得分,不满意率目标率,不满意率门槛值,不满意率标准值,不满意率满分值,一般超时单量,严重超时单量,准时率,准时率容错值,准时率得分,准时率目标得分,超时目标率,准时率门槛值,准时率标准值,准时率满分值,体验得分,提前点送达数,提前点送达率,提前点送达容错值,提前点送达得分,提前点送达目标得分,目标提前点送达率,提前点送达门槛值,提前点送达目标值,提前点送达满分值,虚假订单数,虚假订单率,虚假订单容错值,虚假订单得分,虚假订单目标得分,虚假订单目标率,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手数,虚假骑手率,虚假骑手容错值,虚假骑手得分,虚假骑手目标得分,虚假骑手目标率,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值,参培率得分,考试通过率得分,装备合规率得分,得分,完成单量,完成单骑手数]
+
+    - name: pervasive_inviolable_rights_city    # 普适商权益-城市维度中间表
+      sync_result: true
+      cooks:
+        - use_df:
+            key: pervasive_inviolable_rights_site
+            columns: [主体ID,主体,区域ID,区域,城市ID,城市,配取得分,完成单量（剔除异常单）,不满意得分,准时率得分,提前点送达数,完成单量,完成单骑手数,虚假订单数,虚假骑手数,贡献积分,完成单量（未剔除异常单）,月份]
+        - df_select:
+            - '[城市ID] != @p1'
+            - p1: '410100'
+        - df_fillna:
+            columns: [ 配取得分,完成单量（剔除异常单）,不满意得分,准时率得分,提前点送达数,完成单量,完成单骑手数,虚假订单数,虚假骑手数,贡献积分,完成单量（未剔除异常单） ]
+            value: 0.0
+        - run_py:
+            - |
+              df['配送未完成率_process'] = df['配取得分'] * df['完成单量（剔除异常单）']
+              df['不满意率_process'] = df['不满意得分'] * df['完成单量（剔除异常单）']
+              df['准时率_process'] = df['准时率得分'] * df['完成单量（剔除异常单）']
+              df['贡献积分_process'] = df['贡献积分'] * df['完成单量（未剔除异常单）']
+              result = df
+        - df_groupby:
+            by: [主体ID,主体,区域ID,区域,城市ID,城市,月份]
+        - df_sum:
+            column: [配送未完成率_process,不满意率_process,准时率_process,贡献积分_process,完成单量（剔除异常单）,提前点送达数,完成单量,完成单骑手数,虚假订单数,虚假骑手数,完成单量（未剔除异常单）]
+        - df_reset_index: []
+        - stash_push_df: []
+        - use_df:
+            key: city_score_conversion_table
+            columns: [城市ID,城市,提前点送达门槛值,提前点送达目标值,提前点送达满分值,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值]
+        - stash_push_df: []
+        - run_py:
+            - |
+              df = df[df['城市ID'].notnull()]
+              result = df
+        - stash_join_df:
+            on: [城市ID]
+            how: right
+            drop_stash: true
+        - run_py:
+            - |
+              df['配送未完成率得分'] = df['配送未完成率_process'] / df['完成单量（剔除异常单）']
+              df['不满意率得分'] = df['不满意率_process'] / df['完成单量（剔除异常单）']
+              df['准时率得分'] = df['准时率_process'] / df['完成单量（剔除异常单）']
+              df['贡献积分'] = df['贡献积分_process'] / df['完成单量（未剔除异常单）']
+              df['提前点送达率'] = df['提前点送达数'] / df['完成单量']
+              df['虚假订单率'] = df['虚假订单数'] / df['完成单量']
+              df['虚假骑手率'] = df['虚假骑手数'] / df['完成单骑手数']
+              result = df
+        - df_rename_columns:
+            - 完成单量（剔除异常单）: 城市完成单量（剔除异常单）
+              完成单量（未剔除异常单）: 城市完成单量（未剔除异常单）
+              meta_month: 月份
+        - add_cols:
+            - 提前点送达得分: 0.0
+              虚假订单得分: 0.0
+              虚假骑手得分: 0.0
+        - run_py:
+            - |
+              df['提前点送达得分'] = df['提前点送达得分'].mask(df['提前点送达率'] == df['提前点送达满分值'],10)
+              df['提前点送达得分'] = df['提前点送达得分'].mask((df['提前点送达率'] > df['提前点送达满分值']) & (df['提前点送达率'] <= df['提前点送达目标值']),((df['提前点送达率']-df['提前点送达目标值'])/(df['提前点送达满分值']-df['提前点送达目标值'])*40+60)*0.1)
+              df['提前点送达得分'] = df['提前点送达得分'].mask((df['提前点送达率'] < df['提前点送达门槛值']) & (df['提前点送达率'] > df['提前点送达目标值']),(df['提前点送达率']-df['提前点送达门槛值'])/(df['提前点送达目标值']-df['提前点送达门槛值'])*60*0.1)
+              df['提前点送达得分'] = df['提前点送达得分'].mask(df['提前点送达率'] >= df['提前点送达门槛值'],0)
+
+              df['虚假订单得分'] = df['虚假订单得分'].mask(df['虚假订单率'] == df['虚假订单满分值'],0)
+              df['虚假订单得分'] = df['虚假订单得分'].mask((df['虚假订单率'] > df['虚假订单满分值']) & (df['虚假订单率'] <= df['虚假订单目标值']),df['虚假订单率']/(df['虚假订单目标值']-df['虚假订单满分值'])*(-2))
+              df['虚假订单得分'] = df['虚假订单得分'].mask((df['虚假订单率'] > df['虚假订单目标值']) & (df['虚假订单率'] <= df['虚假订单门槛值']),(df['虚假订单率']-df['虚假订单目标值'])/(df['虚假订单门槛值']-df['虚假订单目标值'])*(-3)+(-2))
+              df['虚假订单得分'] = df['虚假订单得分'].mask(df['虚假订单率'] > df['虚假订单门槛值'],-5)
+
+
+              df['虚假骑手得分'] = df['虚假骑手得分'].mask(df['虚假骑手率'] == df['虚假骑手满分值'],0)
+              df['虚假骑手得分'] = df['虚假骑手得分'].mask((df['虚假骑手率'] > df['虚假骑手满分值']) & (df['虚假骑手率'] <= df['虚假骑手目标值']),df['虚假骑手率']/(df['虚假骑手目标值']-df['虚假骑手满分值'])*(-2))
+              df['虚假骑手得分'] = df['虚假骑手得分'].mask((df['虚假骑手率'] > df['虚假骑手目标值']) & (df['虚假骑手率'] <= df['虚假骑手门槛值']),(df['虚假骑手率']-df['虚假骑手目标值'])/(df['虚假骑手门槛值']-df['虚假骑手目标值'])*(-3)+(-2))
+              df['虚假骑手得分'] = df['虚假骑手得分'].mask(df['虚假骑手率'] > df['虚假订单门槛值'],-5)
+
+              result = df
+        - df_fillna:
+            columns: [ 提前点送达得分,完虚假订单得分,虚假骑手得分]
+            value: 0.0
+        - pad_cols:
+            columns: [ '参培率','考试通过率','装备合规率' ]
+            default_value: 0
+        - df_eval:
+            - |
+              [得分] = [配送未完成率得分] + [不满意率得分] + [准时率得分] + [提前点送达得分] + [虚假订单得分] + [虚假骑手得分] + [贡献积分] + [参培率] + [考试通过率] + [装备合规率]
+#        - fetch_cols:
+#            columns: [月份,主体ID,主体,区域ID,区域,城市ID,城市,得分,配送未完成率得分,不满意率得分,准时率得分,提前点送达率,提前点送达得分,虚假订单率,虚假订单得分,虚假骑手率,虚假骑手得分,贡献积分,参培率,考试通过率,装备合规率,城市完成单量（剔除异常单）,城市完成单量（未剔除异常单）]
+        - drop_duplicates:
+            - [ 月份,主体ID,主体,区域ID,区域,城市ID,城市,得分,配送未完成率得分,不满意率得分,准时率得分,提前点送达率,提前点送达得分,虚假订单率,虚假订单得分,虚假骑手率,虚假骑手得分,贡献积分,参培率,考试通过率,装备合规率,城市完成单量（剔除异常单）,城市完成单量（未剔除异常单） ]
+        - sort_by_columns:
+            sort_list: [月份,主体ID,主体,区域ID,区域,城市ID,城市,得分,配送未完成率得分,不满意率得分,准时率得分,提前点送达率,提前点送达得分,虚假订单率,虚假订单得分,虚假骑手率,虚假骑手得分,贡献积分,参培率,考试通过率,装备合规率,城市完成单量（剔除异常单）,城市完成单量（未剔除异常单）]
+
+    - name: pervasive_inviolable_rights_region    # 普适商权益-区域维度中间表
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            dataset_type_code: pervasive_inviolable_rights_city
+            dataset_cate: std
+            month_offset: -1
+            ignore_null_error: true
+            empty_df_record:
+              月份: 197901
+              主体ID: '-'
+              主体: '-'
+              区域ID: '-'
+              区域: '-'
+              城市ID: '-'
+              城市: '-'
+              配送未完成率得分: 0.0
+              不满意率得分: 0.0
+              准时率得分: 0.0
+              贡献积分: 0.0
+              城市完成单量（剔除异常单）: 0.0
+              城市完成单量（未剔除异常单）: 0.0
+              提前点送达数: 0.0
+              完成单量: 0.0
+              虚假订单数: 0.0
+              虚假骑手数: 0.0
+              完成单骑手数: 0.0
+        - fetch_cols:
+            columns: [月份,主体ID,主体,区域ID,区域,城市ID,城市,配送未完成率得分,不满意率得分,准时率得分,贡献积分,城市完成单量（剔除异常单）,城市完成单量（未剔除异常单）,提前点送达数,完成单量,虚假订单数,虚假骑手数,完成单骑手数]
+        - stash_push_df: []
+        - fetch_dataset:
+            dataset_type_code: pervasive_inviolable_rights_city
+            dataset_cate: std
+            month_offset: -2
+            ignore_null_error: true
+            empty_df_record:
+              月份: 197901
+              主体ID: '-'
+              主体: '-'
+              区域ID: '-'
+              区域: '-'
+              城市ID: '-'
+              城市: '-'
+              配送未完成率得分: 0.0
+              不满意率得分: 0.0
+              准时率得分: 0.0
+              贡献积分: 0.0
+              城市完成单量（剔除异常单）: 0.0
+              城市完成单量（未剔除异常单）: 0.0
+              提前点送达数: 0.0
+              完成单量: 0.0
+              虚假订单数: 0.0
+              虚假骑手数: 0.0
+              完成单骑手数: 0.0
+        - fetch_cols:
+            columns: [月份,主体ID,主体,区域ID,区域,城市ID,城市,配送未完成率得分,不满意率得分,准时率得分,贡献积分,城市完成单量（剔除异常单）,城市完成单量（未剔除异常单）,提前点送达数,完成单量,虚假订单数,虚假骑手数,完成单骑手数]
+        - stash_push_df: []
+        - fetch_dataset:
+            dataset_type_code: pervasive_inviolable_rights_city
+            dataset_cate: std
+            month_offset: -3
+            ignore_null_error: true
+            empty_df_record:
+              月份: 197901
+              主体ID: '-'
+              主体: '-'
+              区域ID: '-'
+              区域: '-'
+              城市ID: '-'
+              城市: '-'
+              配送未完成率得分: 0.0
+              不满意率得分: 0.0
+              准时率得分: 0.0
+              贡献积分: 0.0
+              城市完成单量（剔除异常单）: 0.0
+              城市完成单量（未剔除异常单）: 0.0
+              提前点送达数: 0.0
+              完成单量: 0.0
+              虚假订单数: 0.0
+              虚假骑手数: 0.0
+              完成单骑手数: 0.0
+        - fetch_cols:
+            columns: [月份,主体ID,主体,区域ID,区域,城市ID,城市,配送未完成率得分,不满意率得分,准时率得分,贡献积分,城市完成单量（剔除异常单）,城市完成单量（未剔除异常单）,提前点送达数,完成单量,虚假订单数,虚假骑手数,完成单骑手数]
+        - stash_push_df: []
+        - fetch_dataset:
+            dataset_type_code: pervasive_inviolable_rights_city
+            dataset_cate: std
+            month_offset: 0
+            ignore_null_error: true
+            empty_df_record:
+              月份: 197901
+              主体ID: '-'
+              主体: '-'
+              区域ID: '-'
+              区域: '-'
+              城市ID: '-'
+              城市: '-'
+              配送未完成率得分: 0.0
+              不满意率得分: 0.0
+              准时率得分: 0.0
+              贡献积分: 0.0
+              城市完成单量（剔除异常单）: 0.0
+              城市完成单量（未剔除异常单）: 0.0
+              提前点送达数: 0.0
+              完成单量: 0.0
+              虚假订单数: 0.0
+              虚假骑手数: 0.0
+              完成单骑手数: 0.0
+        - fetch_cols:
+            columns: [月份,主体ID,主体,区域ID,区域,城市ID,城市,配送未完成率得分,不满意率得分,准时率得分,贡献积分,城市完成单量（剔除异常单）,城市完成单量（未剔除异常单）,提前点送达数,完成单量,虚假订单数,虚假骑手数,完成单骑手数]
+        - stash_push_df: []
+        - stash_concat_df:
+            drop_stash: true
+        - drop_duplicates:
+            subset: [月份,主体ID,主体,区域ID,区域,城市ID,城市,配送未完成率得分,不满意率得分,准时率得分,贡献积分,城市完成单量（剔除异常单）,城市完成单量（未剔除异常单）,提前点送达数,完成单量,虚假订单数,虚假骑手数,完成单骑手数]
+        - df_select:
+            - '[城市ID] != @p1'
+            - p1: '410100'
+        - run_py:
+            - |
+              df=to_df(df)
+              df['月份'].astype(int)
+              df['时间先后情况']=df['月份']-(int(np.datetime64('today').tolist().year)*100+(np.datetime64('today').tolist().month//4-(np.datetime64('today').tolist().month-(np.datetime64('today').tolist().month//4*4) ==0))*4+1)
+              df=df[df['时间先后情况']>=0]
+              df['配送未完成率_process'] = df['配送未完成率得分'] * df['城市完成单量（剔除异常单）']
+              df['不满意率_process'] = df['不满意率得分'] * df['城市完成单量（剔除异常单）']
+              df['准时率_process'] = df['准时率得分'] * df['城市完成单量（剔除异常单）']
+              df['贡献积分_process'] = df['贡献积分'] * df['城市完成单量（未剔除异常单）']
+              result= to_dd(df)
+        - df_groupby:
+            by: [主体ID,主体,区域ID,区域]
+        - df_sum:
+            column: [配送未完成率_process,不满意率_process,准时率_process,贡献积分_process,城市完成单量（剔除异常单）,城市完成单量（未剔除异常单）,提前点送达数,完成单量,虚假订单数,虚假骑手数,完成单骑手数]
+        - df_reset_index: []
+        - stash_push_df: []
+        - use_df:
+            key: region_score_conversion_table
+        - fetch_cols:
+            columns: [主体ID,主体,区域ID,区域,提前点送达门槛值,提前点送达目标值,提前点送达满分值,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值]
+        - run_py:
+            - |
+              df = df[df['区域ID'].notnull()]
+              result = df
+        - stash_push_df: []
+        - stash_join_df:
+            on: [区域ID,区域]
+            how: right
+            drop_stash: true
+        - add_cols:
+            - 提前点送达得分: 0.0
+              虚假订单得分: 0.0
+              虚假骑手得分: 0.0
+        - run_py:
+            - |
+              df['配送未完成率得分'] = df['配送未完成率_process'] / df['城市完成单量（剔除异常单）']
+              df['不满意率得分'] = df['不满意率_process'] / df['城市完成单量（剔除异常单）']
+              df['准时率得分'] = df['准时率_process'] / df['城市完成单量（剔除异常单）']
+              df['贡献积分'] = df['贡献积分_process'] / df['城市完成单量（未剔除异常单）']
+              df['提前点送达率'] = df['提前点送达数'] / df['完成单量']
+              df['虚假订单率'] = df['虚假订单数'] / df['完成单量']
+              df['虚假骑手率'] = df['虚假骑手数'] / df['完成单骑手数']
+
+              df['提前点送达得分'] = df['提前点送达得分'].mask(df['提前点送达率'] == df['提前点送达满分值'],10)
+              df['提前点送达得分'] = df['提前点送达得分'].mask((df['提前点送达率'] > df['提前点送达满分值']) & (df['提前点送达率'] <= df['提前点送达目标值']),((df['提前点送达率']-df['提前点送达目标值'])/(df['提前点送达满分值']-df['提前点送达目标值'])*40+60)*0.1)
+              df['提前点送达得分'] = df['提前点送达得分'].mask((df['提前点送达率'] < df['提前点送达门槛值']) & (df['提前点送达率'] > df['提前点送达目标值']),(df['提前点送达率']-df['提前点送达门槛值'])/(df['提前点送达目标值']-df['提前点送达门槛值'])*60*0.1)
+              df['提前点送达得分'] = df['提前点送达得分'].mask(df['提前点送达率'] >= df['提前点送达门槛值'],0)
+
+              df['虚假订单得分'] = df['虚假订单得分'].mask(df['虚假订单率'] == df['虚假订单满分值'],0)
+              df['虚假订单得分'] = df['虚假订单得分'].mask((df['虚假订单率'] > df['虚假订单满分值']) & (df['虚假订单率'] <= df['虚假订单目标值']),df['虚假订单率']/(df['虚假订单目标值']-df['虚假订单满分值'])*(-2))
+              df['虚假订单得分'] = df['虚假订单得分'].mask((df['虚假订单率'] > df['虚假订单目标值']) & (df['虚假订单率'] <= df['虚假订单门槛值']),(df['虚假订单率']-df['虚假订单目标值'])/(df['虚假订单门槛值']-df['虚假订单目标值'])*(-3)+(-2))
+              df['虚假订单得分'] = df['虚假订单得分'].mask(df['虚假订单率'] > df['虚假订单门槛值'],-5)
+
+              df['虚假骑手得分'] = df['虚假骑手得分'].mask(df['虚假骑手率'] == df['虚假骑手满分值'],0)
+              df['虚假骑手得分'] = df['虚假骑手得分'].mask((df['虚假骑手率'] > df['虚假骑手满分值']) & (df['虚假骑手率'] <= df['虚假骑手目标值']),df['虚假骑手率']/(df['虚假骑手目标值']-df['虚假骑手满分值'])*(-2))
+              df['虚假骑手得分'] = df['虚假骑手得分'].mask((df['虚假骑手率'] > df['虚假骑手目标值']) & (df['虚假骑手率'] <= df['虚假骑手门槛值']),(df['虚假骑手率']-df['虚假骑手目标值'])/(df['虚假骑手门槛值']-df['虚假骑手目标值'])*(-3)+(-2))
+              df['虚假骑手得分'] = df['虚假骑手得分'].mask(df['虚假骑手率'] > df['虚假订单门槛值'],-5)
+
+              result = df
+        - stash_push_df: [ ]
+        - fetch_dataset:
+            template_code: mt_month_69
+            dataset_cate: raw
+            ignore_null_error: true
+        - when_empty_fetch_dataset:
+            template_code: mt_month_69
+            dataset_cate: raw
+            month_offset: -1
+            ignore_null_error: true
+            empty_df_record:
+              区域名称: '-'
+              装备合规率: 0
+              参培率: 0
+              考试通过率: 0
+              meta_month: 197007
+              meta_day: 19701212
+        - df_rename_columns:
+            - 区域名称: 区域
+        - drop_duplicates:
+            subset: [区域,装备合规率,参培率,考试通过率,meta_month,meta_day]
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: 区域
+            how: right
+            drop_stash: true
+        - df_fillna:
+            value: 0
+        - pad_cols:
+            columns: [ '参培率','考试通过率','装备合规率' ]
+            default_value: 0
+        - run_py:
+            - |
+              df['得分'] = df['装备合规率'] + df['参培率'] + df['考试通过率'] + df['提前点送达得分'] + df['虚假订单得分'] + df['虚假骑手得分'] + df['配送未完成率得分'] + df['不满意率得分'] + df['准时率得分'] + df['贡献积分']
+              result = df
+        - fetch_cols:
+            columns: [ 主体ID,主体,区域ID,区域,得分,配送未完成率得分,不满意率得分,准时率得分,提前点送达率,提前点送达得分,虚假订单率,虚假订单得分,虚假骑手率,虚假骑手得分,贡献积分,参培率,考试通过率,装备合规率 ]
+        - drop_duplicates:
+            - [ 主体ID,主体,区域ID,区域,得分,配送未完成率得分,不满意率得分,准时率得分,提前点送达率,提前点送达得分,虚假订单率,虚假订单得分,虚假骑手率,虚假骑手得分,贡献积分,参培率,考试通过率,装备合规率 ]
+        - sort_by_columns:
+            sort_list: [ 主体ID,主体,区域ID,区域,得分,配送未完成率得分,不满意率得分,准时率得分,提前点送达率,提前点送达得分,虚假订单率,虚假订单得分,虚假骑手率,虚假骑手得分,贡献积分,参培率,考试通过率,装备合规率 ]
+
+    - name: pervasive_inviolable_base
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            template_code: mt_day_34
+            dataset_cate: raw
+            datakit_pull_way: last_day
+            ignore_null_error: true
+            columns: [ 总加盟商ID,总加盟商,区域ID,区域,城市ID,城市,站点ID,站点名称,完成单量,完成单骑手数,提前点送达量,虚假订单考核量,虚假骑手数,meta_month ]
+            empty_df_record:
+              总加盟商ID: '-'
+              总加盟商: '-'
+              区域ID: '-'
+              区域: '-'
+              城市ID: '-'
+              城市: '-'
+              站点ID: '-'
+              站点名称: '-'
+              完成单量: 0
+              完成单骑手数: 0
+              提前点送达量: 0
+              虚假订单考核量: 0
+              虚假骑手数: 0
+              meta_month: 197901
+        - df_rename_columns:
+            - 总加盟商ID: 主体ID
+              总加盟商: 主体
+              提前点送达量: 提前点送达数
+              虚假订单考核量: 虚假订单数
+              meta_month: 月份
+        - drop_duplicates:
+            subset: [主体ID,主体,区域ID,区域,城市ID,城市,站点ID,站点名称,完成单量,完成单骑手数,提前点送达数,虚假订单数,虚假骑手数,月份]
+        - df_to_int:
+            - 虚假订单数
+        - df_groupby:
+            by: [ 主体ID,主体,区域ID,区域,城市ID,城市,站点ID,站点名称,月份 ]
+        - df_sum:
+            column: [ 完成单量,完成单骑手数,提前点送达数,虚假订单数,虚假骑手数 ]
+        - df_reset_index: [ ]
+        - stash_push_df: [ ]
+        - fetch_dataset:
+            template_code: mt_month_68
+            dataset_cate: raw
+            columns: [ 站点名称,站点id ]
+            ignore_null_error: true
+        - when_empty_fetch_dataset:
+            template_code: mt_month_68
+            dataset_cate: raw
+            month_offset: -1
+            columns: [ 站点名称,站点id ]
+            ignore_null_error: true
+            empty_df_record:
+              站点名称: '-'
+              站点id: '-'
+        - df_rename_columns:
+            - 站点id: 站点ID
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ 站点名称,站点ID ]
+            how: left
+            drop_stash: true
+        - stash_push_df: [ ]
+        - fetch_dataset:
+            template_code: mt_day_13
+            dataset_cate: raw
+            datakit_pull_way: last_day
+            columns: [ 加盟站ID,加盟站名称,完成单(未剔除异常单),完成单量(剔除异常单),配送原因未完成率,一般超时单量(考核),不满意订单数,不满意率,复合准时率（考核）,严重超时单量(考核),配送原因未完成数,meta_day ]
+            ignore_null_error: true
+            empty_df_record:
+              加盟站ID: '-'
+              加盟站名称: '-'
+              完成单(未剔除异常单): 0
+              完成单量(剔除异常单): 0
+              不满意订单数: 0
+              不满意率: '0.0%'
+              复合准时率（考核）: '0.0%'
+              配送原因未完成率: '0.0%'
+              一般超时单量(考核): 0
+              严重超时单量(考核): 0
+              配送原因未完成数: 0
+              meta_day: 19790101
+        - df_rename_columns:
+            - 加盟站ID: 站点ID
+              加盟站名称: 站点名称
+              完成单(未剔除异常单): 完成单量(未剔除异常单)
+              不满意订单数: 不满意单量
+              复合准时率（考核）: 准时率
+              配送原因未完成率: 配送未完成率
+              一般超时单量(考核): 一般超时单量
+              严重超时单量(考核): 严重超时单量
+              配送原因未完成数: 配送取消单量
+        - df_to_int:
+            - 一般超时单量
+        - df_to_int:
+            - 严重超时单量
+        - df_to_int:
+            - 严重超时单量
+        - df_to_int:
+            - 完成单量(未剔除异常单)
+        - df_to_int:
+            - 完成单量(剔除异常单)
+        - df_to_int:
+            - 不满意单量
+        - run_py:
+            - |
+              a = df['meta_day'].max()
+              df = df[df['meta_day']==a]
+              result = df
+        - fetch_cols:
+            columns: [ 站点ID,站点名称,完成单量(未剔除异常单),完成单量(剔除异常单),配送未完成率,一般超时单量,不满意单量,不满意率,准时率,严重超时单量,配送取消单量 ]
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ 站点名称,站点ID ]
+            how: right
+            drop_stash: true
+        - stash_push_df: [ ]
+        - fetch_dataset:
+            template_code: mt_month_65
+            dataset_cate: raw
+            columns: [ 站点id,站点名称,站点贡献度积分 ]
+            ignore_null_error: true
+        - when_empty_fetch_dataset:
+            template_code: mt_month_65
+            dataset_cate: raw
+            month_offset: -1
+            columns: [ 站点id,站点名称,站点贡献度积分 ]
+            ignore_null_error: true
+            empty_df_record:
+              站点id: '-'
+              站点名称: '-'
+              站点贡献度积分: 0.0
+        - df_rename_columns:
+            - 站点id: 站点ID
+              站点贡献度积分: 贡献积分
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ 站点名称,站点ID ]
+            how: right
+            drop_stash: true
+        - stash_push_df: [ ]
+        - fetch_dataset:
+            template_code: mt_month_67
+            dataset_cate: raw
+            columns: [ 商圈ID,商圈,配送未完成目标得分,不满意目标得分,准时率目标得分,提前点送达,虚假订单目标得分,虚假骑手目标得分 ]
+            ignore_null_error: true
+        - when_empty_fetch_dataset:
+            template_code: mt_month_67
+            dataset_cate: raw
+            month_offset: -1
+            columns: [ 商圈ID,商圈,配送未完成目标得分,不满意目标得分,准时率目标得分,提前点送达,虚假订单目标得分,虚假骑手目标得分 ]
+            ignore_null_error: true
+            empty_df_record:
+              商圈ID: '-'
+              商圈: '-'
+              配送未完成目标得分: 0.0
+              不满意目标得分: 0.0
+              准时率目标得分: 0.0
+              提前点送达: 0.0
+              虚假订单目标得分: 0.0
+              虚假骑手目标得分: 0.0
+        - df_rename_columns:
+            - 商圈ID: 站点ID
+              商圈: 站点名称
+              配送未完成目标得分: 配取目标得分
+              提前点送达: 提前点送达目标得分
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ 站点名称,站点ID ]
+            how: right
+            drop_stash: true
+        - stash_push_df: [ ]
+        - fetch_dataset:
+            template_code: mt_month_66
+            dataset_cate: raw
+            columns: [ 站点ID,站点名称,配送原因未完成率门槛值,配送原因未完成率目标值,配送原因未完成率满分值,不满意率门槛值,不满意率标准值,不满意率满分值,复合准时率门槛值,复合准时率标准值,复合准时率满分值,提前点送达门槛值,提前点送达目标值,提前点送达满分值,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值 ]
+            ignore_null_error: true
+        - when_empty_fetch_dataset:
+            template_code: mt_month_66
+            dataset_cate: raw
+            month_offset: -1
+            columns: [ 站点ID,站点名称,配送原因未完成率门槛值,配送原因未完成率目标值,配送原因未完成率满分值,不满意率门槛值,不满意率标准值,不满意率满分值,复合准时率门槛值,复合准时率标准值,复合准时率满分值,提前点送达门槛值,提前点送达目标值,提前点送达满分值,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值 ]
+            ignore_null_error: true
+            empty_df_record:
+              站点ID: '-'
+              站点名称: '-'
+              配送原因未完成率门槛值: 0.0
+              配送原因未完成率目标值: 0.0
+              配送原因未完成率满分值: 0.0
+              不满意率门槛值: 0.0
+              不满意率标准值: 0.0
+              不满意率满分值: 0.0
+              复合准时率门槛值: 0.0
+              复合准时率标准值: 0.0
+              复合准时率满分值: 0.0
+              提前点送达门槛值: 0.0
+              提前点送达目标值: 0.0
+              提前点送达满分值: 0.0
+              虚假订单门槛值: 0.0
+              虚假订单目标值: 0.0
+              虚假订单满分值: 0.0
+              虚假骑手门槛值: 0.0
+              虚假骑手目标值: 0.0
+              虚假骑手满分值: 0.0
+        - df_rename_columns:
+            - 站点ID: 站点ID
+              站点名称: 站点名称
+              配送原因未完成率门槛值: 配取门槛值
+              配送原因未完成率目标值: 配取目标值
+              配送原因未完成率满分值: 配取满分值
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ 站点ID,站点名称 ]
+            how: right
+            drop_stash: true
+        - drop_duplicates:
+            - [站点ID,站点名称]
+        - str_strip_column:
+            column: 配送未完成率
+            char: '%'
+        - df_to_float:
+            - 配送未完成率
+        - str_strip_column:
+            column: 不满意率
+            char: '%'
+        - df_to_float:
+            - 不满意率
+        - str_strip_column:
+            column: 准时率
+            char: '%'
+        - df_to_float:
+            - 准时率
+        - run_py:
+            - |
+              df = df[df['配取目标得分'].notnull()]
+              df['当月截止昨天天数'] = np.datetime64('today').tolist().day - 1
+              result = df
+        - set_meta_days_column:
+            - 当月总天数
+        - add_cols:
+            - 虚假订单容错值: 0
+              虚假订单目标率: 0
+              虚假骑手容错值: 0
+              虚假骑手目标率: 0
+              参培率得分: 0
+              考试通过率得分: 0
+              装备合规率得分: 0
+        - run_py:
+            - |
+              df['准时率'] = df['准时率'] / 100
+              df['不满意率'] = df['不满意率'] / 100
+              df['配送未完成率'] = df['配送未完成率'] / 100
+              df['月度预估单量'] = df['完成单量(剔除异常单)'] / df['当月截止昨天天数'] * df['当月总天数']
+              df['虚假订单率'] = df['虚假订单数'] / df['完成单量']
+              df['虚假骑手率'] = df['虚假骑手数'] / df['完成单骑手数']
+
+    - name: zhengzhou_inviolable_base
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            template_code: mt_day_63
+            dataset_cate: raw
+            datakit_pull_way: last_day
+            ignore_null_error: true
+            columns: [ 时间,城市名称,站点名称,站点ID,达成人数 ]
+        - when_empty_fetch_dataset:
+            template_code: mt_day_63
+            dataset_cate: raw
+            datakit_pull_way: last_day
+            month_offset: -1
+            columns: [ 时间,城市名称,站点名称,站点ID,达成人数 ]
+            ignore_null_error: true
+            empty_df_record:
+              时间: '-'
+              城市名称: '-'
+              站点名称: '-'
+              站点ID: '-'
+              达成人数: 0
+        - df_groupby:
+            by: [ 时间,城市名称,站点名称,站点ID ]
+        - df_sum:
+            column: [ 达成人数 ]
+        - df_reset_index: [ ]
+        - stash_push_df: [ ]
+        - fetch_dataset:
+            template_code: mt_month_68
+            dataset_cate: raw
+            columns: [ 站点名称,站点id ]
+            ignore_null_error: true
+        - when_empty_fetch_dataset:
+            template_code: mt_month_68
+            dataset_cate: raw
+            month_offset: -1
+            columns: [ 站点名称,站点id ]
+            ignore_null_error: true
+            empty_df_record:
+              站点名称: '-'
+              站点id: '-'
+        - df_rename_columns:
+            - 站点id: 站点ID
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ 站点名称,站点ID ]
+            how: right
+            drop_stash: true
+        - stash_push_df: [ ]
+        - fetch_dataset:
+            template_code: mt_day_64
+            dataset_cate: raw
+            ignore_null_error: true
+            columns: [ 日期,站点名称,门槛值,封顶值 ]
+        - when_empty_fetch_dataset:
+            template_code: mt_day_64
+            dataset_cate: raw
+            month_offset: -1
+            ignore_null_error: true
+            columns: [ 日期,站点名称,门槛值,封顶值 ]
+            empty_df_record:
+              日期: '-'
+              站点名称: '-'
+              门槛值: 0.0
+              封顶值: 0.0
+        - df_rename_columns:
+            - 日期: 时间
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ 时间,站点名称 ]
+            how: left
+            drop_stash: true
+        - add_cols:
+            - 得分: 0
+        - drop_duplicates:
+            subset: [ 时间,站点名称,门槛值,封顶值,站点ID,达成人数 ]
+        - run_py:
+            - |
+              df = df[df['达成人数'].notnull()]
+              result = df
+
+    - name: zhengzhou_inviolable_site_service
+      sync_result: true
+      cooks:
+        - use_df:
+            key: zhengzhou_inviolable_base
+        - df_select:
+            - '[达成人数] >= [封顶值]'
+        - df_eval:
+            - '[得分] = 60'
+        - stash_push_df: [ ]
+        - use_df:
+            key: zhengzhou_inviolable_base
+        - df_select:
+            - '[门槛值] <= [达成人数] & [达成人数] < [封顶值]'
+        - df_eval:
+            - '[得分] = 48 + 12*([达成人数] - [门槛值])/([封顶值] - [门槛值])'
+        - stash_push_df: [ ]
+        - use_df:
+            key: zhengzhou_inviolable_base
+        - df_select:
+            - '0 <= [达成人数] & [达成人数] < [门槛值]'
+        - df_eval:
+            - '[得分] = 96*[达成人数] / [门槛值] - 60'
+        - stash_push_df: [ ]
+        - stash_concat_df:
+            drop_stash: true
+        - df_groupby:
+            by: [ 站点名称,站点ID ]
+        - df_mean:
+            column: 得分
+            rename: 服务质量得分(运力)
+        - df_reset_index: [ ]
+
+    - name: zhengzhou_inviolable_site
+      sync_result: true
+      cooks:
+        #### 站点维度
+        - use_df:
+            key: pervasive_inviolable_base
+        - stash_push_df: [ ]
+        - use_df:
+            key: zhengzhou_inviolable_site_service
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ 站点名称,站点ID ]
+            how: right
+            drop_stash: true
+        - df_select:
+            - '[城市ID] == @v1'
+            - v1: '410100'
+        - add_cols:
+            - 配取得分: 0
+              配取目标率: 0
+              不满意得分: 0
+              不满意率目标率: 0
+              准时率得分: 0
+              超时目标率: 0
+              虚假订单得分: 0
+              虚假骑手得分: 0
+        - df_to_int:
+            - 配送取消单量
+        - df_to_float:
+            - 配取门槛值
+        - df_to_float:
+            - 配取目标值
+        - df_to_float:
+            - 配取满分值
+        - df_to_float:
+            - 不满意率门槛值
+        - df_to_float:
+            - 不满意率标准值
+        - df_to_float:
+            - 不满意率满分值
+        - df_to_float:
+            - 复合准时率门槛值
+        - df_to_float:
+            - 复合准时率标准值
+        - df_to_float:
+            - 复合准时率满分值
+        - df_to_float:
+            - 不满意率目标率
+        - df_to_float:
+            - 超时目标率
+        - df_to_float:
+            - 不满意单量
+        - df_to_float:
+            - 一般超时单量
+        - df_to_float:
+            - 严重超时单量
+        - run_py:
+            - |
+              df['配取得分'] = df['配取得分'].mask(df['配送未完成率']==df['配取满分值'],10)
+              df['配取得分'] = df['配取得分'].mask((df['配取目标值']>=df['配送未完成率'])&(df['配送未完成率']>df['配取满分值']),((df['配送未完成率']-df['配取目标值'])/(df['配取满分值']-df['配取目标值'])*20+80)*0.1)
+              df['配取得分'] = df['配取得分'].mask((df['配取目标值']<df['配送未完成率'])&(df['配送未完成率']<df['配取门槛值']),(df['配送未完成率']-df['配取门槛值'])/(df['配取目标值']-df['配取门槛值'])*80*0.1)
+              df['配取得分'] = df['配取得分'].mask(df['配送未完成率']>=df['配取门槛值'],0)
+              df['配取目标率'] = df['配取目标率'].mask(df['配取目标得分'] >= (80 * 0.1),(20-(df['配取目标得分']-df['配取目标值']*0.1)/0.1)/20*(df['配取目标值']-df['配取满分值']))
+              df['配取目标率'] = df['配取目标率'].mask((df['配取目标得分']>=0)&(df['配取目标得分'] < 8),(80-(df['配取目标得分']-df['配取门槛值']*0.1)/0.1)/80/(df['配取门槛值']-df['配取目标值'])+df['配取目标值'])
+
+              df['不满意得分'] = df['不满意得分'].mask(df['不满意率']==df['不满意率满分值'],(100*0.1))
+              df['不满意得分'] = df['不满意得分'].mask((df['不满意率']<=df['不满意率标准值'])&(df['不满意率']>df['不满意率满分值']),((df['不满意率']-df['不满意率标准值'])/(df['不满意率满分值']-df['不满意率标准值'])*20+80)*0.1)
+              df['不满意得分'] = df['不满意得分'].mask((df['不满意率']>df['不满意率标准值'])&(df['不满意率']<df['不满意率门槛值']),((df['不满意率']-df['不满意率门槛值'])/(df['不满意率标准值']-df['不满意率门槛值'])*80*0.1))
+              df['不满意得分'] = df['不满意得分'].mask(df['不满意率']>=df['不满意率门槛值'],0)
+
+              df['不满意率目标率'] = df['不满意率目标率'].mask(df['不满意目标得分']>=(80 * 0.1),20-(df['不满意目标得分']-80*0.1)/0.1/20*(df['不满意率标准值']-df['不满意率满分值']))
+              df['不满意率目标率'] = df['不满意率目标率'].mask((df['不满意目标得分']>=0)&(df['不满意目标得分']<(80 * 0.1)),(80-0-(df['不满意目标得分']-0*0.1)/0.1)/(80-0)/(df['不满意率门槛值']-df['不满意率标准值'])+df['不满意率标准值'])
+
+              df['准时率得分'] = df['准时率得分'].mask(df['准时率']==df['复合准时率满分值'],100*0.1)
+              df['准时率得分'] = df['准时率得分'].mask((df['准时率']>=df['复合准时率标准值'])&(df['准时率']<df['复合准时率满分值']),(80+20*(df['准时率']-df['复合准时率标准值'])/(df['复合准时率满分值']-df['复合准时率标准值']))*0.1)
+              df['准时率得分'] = df['准时率得分'].mask((df['准时率']>df['复合准时率门槛值'])&(df['准时率']<df['复合准时率标准值']),80*(df['准时率']-df['复合准时率门槛值'])/(df['复合准时率标准值']-df['复合准时率门槛值'])*0.1)
+              df['准时率得分'] = df['准时率得分'].mask(df['准时率']<=df['复合准时率门槛值'],0)
+
+              df['超时目标率'] = df['超时目标率'].mask(df['准时率目标得分'] >= 80 * 0.1,(100-80-(df['准时率目标得分']-80*0.1)/0.1)/(100-80)*(df['复合准时率满分值']-df['复合准时率标准值']))
+              df['超时目标率'] = df['超时目标率'].mask((df['准时率目标得分'] >= 0) & (df['准时率目标得分'] < 80 * 0.1),(80-0-(df['准时率目标得分']-0*0.1)/0.1)/(80-0)*(df['复合准时率标准值']-df['复合准时率门槛值'])+(df['复合准时率满分值']-df['复合准时率标准值']))
+
+              df['虚假订单得分'] = df['虚假订单得分'].mask(df['虚假订单率'] == df['虚假订单满分值'],0)
+              df['虚假订单得分'] = df['虚假订单得分'].mask((df['虚假订单率'] > df['虚假订单满分值']) & (df['虚假订单率'] <= df['虚假订单目标值']),df['虚假订单率']/(df['虚假订单目标值']-df['虚假订单满分值'])*(-2))
+              df['虚假订单得分'] = df['虚假订单得分'].mask((df['虚假订单率'] > df['虚假订单目标值']) & (df['虚假订单率'] <= df['虚假订单门槛值']),(df['虚假订单率']-df['虚假订单目标值'])/(df['虚假订单门槛值']-df['虚假订单目标值'])*(-3)+(-2))
+              df['虚假订单得分'] = df['虚假订单得分'].mask(df['虚假订单率'] > df['虚假订单门槛值'],-5)
+
+              df['虚假骑手得分'] = df['虚假骑手得分'].mask(df['虚假骑手率'] == df['虚假骑手满分值'],0)
+              df['虚假骑手得分'] = df['虚假骑手得分'].mask((df['虚假骑手率'] > df['虚假骑手满分值']) & (df['虚假骑手率'] <= df['虚假骑手目标值']),df['虚假骑手率']/(df['虚假骑手目标值']-df['虚假骑手满分值'])*(-2))
+              df['虚假骑手得分'] = df['虚假骑手得分'].mask((df['虚假骑手率'] > df['虚假骑手目标值']) & (df['虚假骑手率'] <= df['虚假骑手门槛值']),(df['虚假骑手率']-df['虚假骑手目标值'])/(df['虚假骑手门槛值']-df['虚假骑手目标值'])*(-3)+(-2))
+              df['虚假骑手得分'] = df['虚假骑手得分'].mask(df['虚假骑手率'] > df['虚假骑手门槛值'],-5)
+
+              df['配送未完成率容错值'] = df['月度预估单量'] * df['配取目标率'] - df['配送取消单量']
+              df['不满意率容错值'] = df['月度预估单量'] * df['不满意率目标率'] - df['不满意单量']
+              df['准时率容错值'] = df['月度预估单量'] * df['超时目标率'] - df['一般超时单量'] - 5 * df['严重超时单量']
+              df['体验得分'] = df['配取得分'] + df['不满意得分'] + df['准时率得分']
+              df['得分'] = df['体验得分'] + df['服务质量得分(运力)'] + df['虚假订单得分'] + df['虚假骑手得分'] + df['参培率得分'] + df['考试通过率得分'] + df['装备合规率得分'] + df['贡献积分']
+
+              result = df
+        - fetch_cols:
+            columns: [月份,主体ID,主体,区域ID,区域,城市ID,城市,站点ID,站点名称,贡献积分,服务质量得分(运力),完成单量(未剔除异常单),完成单量(剔除异常单),月度预估单量,配送取消单量,配送未完成率,配送未完成率容错值,配取得分,配取目标得分,配取目标率,配取门槛值,配取目标值,配取满分值,不满意单量,不满意率,不满意率容错值,不满意得分,不满意目标得分,不满意率目标率,不满意率门槛值,不满意率标准值,不满意率满分值,一般超时单量,严重超时单量,准时率,准时率容错值,准时率得分,准时率目标得分,超时目标率,复合准时率门槛值,复合准时率标准值,复合准时率满分值,体验得分,虚假订单数,虚假订单率,虚假订单容错值,虚假订单得分,虚假订单目标得分,虚假订单目标率,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手数,虚假骑手率,虚假骑手容错值,虚假骑手得分,虚假骑手目标得分,虚假骑手目标率,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值,参培率得分,考试通过率得分,装备合规率得分,得分,完成单量,完成单骑手数]
+        - drop_duplicates:
+            - [ 月份,主体ID,主体,区域ID,区域,城市ID,城市,站点ID,站点名称,贡献积分,服务质量得分(运力),完成单量(未剔除异常单),完成单量(剔除异常单),月度预估单量,配送取消单量,配送未完成率,配送未完成率容错值,配取得分,配取目标得分,配取目标率,配取门槛值,配取目标值,配取满分值,不满意单量,不满意率,不满意率容错值,不满意得分,不满意目标得分,不满意率目标率,不满意率门槛值,不满意率标准值,不满意率满分值,一般超时单量,严重超时单量,准时率,准时率容错值,准时率得分,准时率目标得分,超时目标率,复合准时率门槛值,复合准时率标准值,复合准时率满分值,体验得分,虚假订单数,虚假订单率,虚假订单容错值,虚假订单得分,虚假订单目标得分,虚假订单目标率,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手数,虚假骑手率,虚假骑手容错值,虚假骑手得分,虚假骑手目标得分,虚假骑手目标率,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值,参培率得分,考试通过率得分,装备合规率得分,得分,完成单量,完成单骑手数 ]
+        - sort_by_columns:
+            sort_list: [月份,主体ID,主体,区域ID,区域,城市ID,城市,站点ID,站点名称,贡献积分,服务质量得分(运力),完成单量(未剔除异常单),完成单量(剔除异常单),月度预估单量,配送取消单量,配送未完成率,配送未完成率容错值,配取得分,配取目标得分,配取目标率,配取门槛值,配取目标值,配取满分值,不满意单量,不满意率,不满意率容错值,不满意得分,不满意目标得分,不满意率目标率,不满意率门槛值,不满意率标准值,不满意率满分值,一般超时单量,严重超时单量,准时率,准时率容错值,准时率得分,准时率目标得分,超时目标率,复合准时率门槛值,复合准时率标准值,复合准时率满分值,体验得分,虚假订单数,虚假订单率,虚假订单容错值,虚假订单得分,虚假订单目标得分,虚假订单目标率,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手数,虚假骑手率,虚假骑手容错值,虚假骑手得分,虚假骑手目标得分,虚假骑手目标率,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值,参培率得分,考试通过率得分,装备合规率得分,得分,完成单量,完成单骑手数]
+
+    - name: zhengzhou_inviolable_city
+      sync_result: true
+      cooks:
+        ### 城市纬度
+        - use_df:
+            key: zhengzhou_inviolable_site
+            columns: [ 主体,主体ID,区域,区域ID,城市,城市ID,站点名称,站点ID,完成单量(剔除异常单),完成单量(未剔除异常单),服务质量得分(运力),贡献积分,配取得分,不满意得分,准时率得分,虚假订单数,完成单量,虚假骑手数,完成单骑手数,月份 ]
+        - df_select:
+            - '[城市ID] == @v1'
+            - v1: '410100'
+        - push_dataset:
+            key: zhengzhou_inviolable_city_min
+        - use_df:
+            key: zhengzhou_inviolable_city_min
+
+        - df_to_float:
+            - 完成单量(剔除异常单)
+        - df_to_float:
+            - 完成单量(未剔除异常单)
+        - df_to_float:
+            - 贡献积分
+        - df_to_float:
+            - 配取得分
+        - df_to_float:
+            - 准时率得分
+        - df_to_float:
+            - 不满意得分
+        - df_to_float:
+            - 服务质量得分(运力)
+        - df_to_float:
+            - 虚假订单数
+        - df_to_float:
+            - 完成单量
+        - df_to_float:
+            - 虚假骑手数
+        - df_to_float:
+            - 完成单骑手数
+        - run_py:
+            - |
+              df['贡献积分sup'] = df['完成单量(未剔除异常单)'] * df['贡献积分']
+              df['配送未完成率得分sup'] = df['完成单量(剔除异常单)'] * df['配取得分']
+              df['不满意率得分sup'] = df['完成单量(剔除异常单)'] * df['不满意得分']
+              df['准时率得分sup'] = df['完成单量(剔除异常单)'] * df['准时率得分']
+              df['服务质量得分(运力)sup'] = df['完成单量(剔除异常单)'] * df['服务质量得分(运力)']
+              result = df
+        - df_to_str:
+            - 主体ID
+        - df_to_str:
+            - 区域ID
+        - df_to_str:
+            - 城市ID
+        - df_to_str:
+            - 月份
+        - df_groupby:
+            by: [ 主体ID,主体,区域,区域ID,城市,城市ID,月份 ]
+        - df_sum:
+            column: [ 服务质量得分(运力)sup,贡献积分sup,配送未完成率得分sup,不满意率得分sup,准时率得分sup,完成单量(未剔除异常单),完成单量(剔除异常单),虚假订单数,完成单量,虚假骑手数,完成单骑手数 ]
+        - df_reset_index: [ ]
+        - df_rename_columns:
+            - 完成单量(未剔除异常单): 城市完成单量(未剔除异常单)
+              完成单量(剔除异常单): 城市完成单量(剔除异常单)
+        - run_py:
+            - |
+              df['城市贡献积分'] = df['贡献积分sup'] / df['城市完成单量(未剔除异常单)']
+              df['城市配送未完成率得分'] = df['配送未完成率得分sup'] / df['城市完成单量(剔除异常单)']
+              df['城市不满意率得分'] = df['不满意率得分sup'] / df['城市完成单量(剔除异常单)']
+              df['城市准时率得分'] = df['准时率得分sup'] / df['城市完成单量(剔除异常单)']
+              df['城市虚假订单率'] = df['虚假订单数'] / df['完成单量']
+              df['城市虚假骑手率'] = df['虚假骑手数'] / df['完成单骑手数']
+              df['城市服务质量得分(运力)'] = df['服务质量得分(运力)sup'] / df['城市完成单量(剔除异常单)']
+              result = df
+        - stash_push_df: [ ]
+        - use_df:
+            key: zhengzhou_inviolable_site
+            columns: [ 城市,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值 ]
+        - drop_duplicates:
+            subset: [ 城市 ]
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ 城市 ]
+            how: right
+            drop_stash: true
+        - push_dataset:
+            key: result_mini_city
+        - add_cols:
+            - 城市虚假订单得分: 0
+              城市虚假骑手得分: 0
+              参培率得分: 0
+              考试通过率得分: 0
+              装备合规率得分: 0
+        - run_py:
+            - |
+              df['城市虚假订单得分'] = df['城市虚假订单得分'].mask(df['城市虚假订单率'] == df['虚假订单满分值'],0)
+              df['城市虚假订单得分'] = df['城市虚假订单得分'].mask((df['城市虚假订单率'] > df['虚假订单满分值']) & (df['城市虚假订单率'] <= df['虚假订单目标值']),df['城市虚假订单率']/(df['虚假订单目标值']-df['虚假订单满分值'])*(-2))
+              df['城市虚假订单得分'] = df['城市虚假订单得分'].mask((df['城市虚假订单率'] > df['虚假订单目标值']) & (df['城市虚假订单率'] <= df['虚假订单门槛值']),(df['城市虚假订单率']-df['虚假订单目标值'])/(df['虚假订单门槛值']-df['虚假订单目标值'])*(-3)+(-2))
+              df['城市虚假订单得分'] = df['城市虚假订单得分'].mask(df['城市虚假订单率'] > df['虚假订单门槛值'],-5)
+
+              df['城市虚假骑手得分'] = df['城市虚假骑手得分'].mask(df['城市虚假骑手率'] == df['虚假骑手满分值'],0)
+              df['城市虚假骑手得分'] = df['城市虚假骑手得分'].mask((df['城市虚假骑手率'] > df['虚假骑手满分值']) & (df['城市虚假骑手率'] <= df['虚假骑手目标值']),df['城市虚假骑手率']/(df['虚假骑手目标值']-df['虚假骑手满分值'])*(-2))
+              df['城市虚假骑手得分'] = df['城市虚假骑手得分'].mask((df['城市虚假骑手率'] > df['虚假骑手目标值']) & (df['城市虚假骑手率'] <= df['虚假骑手门槛值']),(df['城市虚假骑手率']-df['虚假骑手目标值'])/(df['虚假骑手门槛值']-df['虚假骑手目标值'])*(-3)+(-2))
+              df['城市虚假骑手得分'] = df['城市虚假骑手得分'].mask(df['城市虚假骑手率'] > df['虚假订单门槛值'],-5)
+              df['城市得分'] = df['城市服务质量得分(运力)'] + df['城市配送未完成率得分'] + df['城市不满意率得分'] + df['城市准时率得分'] + df['城市虚假订单得分'] + df['城市虚假骑手得分'] + df['参培率得分'] + df['考试通过率得分'] + df['装备合规率得分'] + df['城市贡献积分']
+
+              result = df
+        - fetch_cols:
+            columns: [月份,主体ID,主体,区域ID,区域,城市ID,城市,城市得分,城市服务质量得分(运力),城市配送未完成率得分,城市不满意率得分,城市准时率得分,城市虚假订单率,城市虚假订单得分,城市虚假骑手率,城市虚假骑手得分,城市贡献积分,参培率得分,考试通过率得分,装备合规率得分,城市完成单量(剔除异常单),城市完成单量(未剔除异常单),虚假订单数,完成单量,虚假骑手数,完成单骑手数]
+        - sort_by_columns:
+            sort_list: [月份,主体ID,主体,区域ID,区域,城市ID,城市,城市得分,城市服务质量得分(运力),城市配送未完成率得分,城市不满意率得分,城市准时率得分,城市虚假订单率,城市虚假订单得分,城市虚假骑手率,城市虚假骑手得分,城市贡献积分,参培率得分,考试通过率得分,装备合规率得分,城市完成单量(剔除异常单),城市完成单量(未剔除异常单),虚假订单数,完成单量,虚假骑手数,完成单骑手数]
+
+    - name: zhengzhou_inviolable_region
+      sync_result: true
+      cooks:
+        #### 区域维度
+        - fetch_dataset:
+            dataset_type_code: zhengzhou_inviolable_city
+            dataset_cate: std
+            ignore_null_error: true
+            month_offset: 0
+            empty_df_record:
+              月份: 197901
+              主体ID: '-'
+              主体: '-'
+              区域ID: '-'
+              区域: '-'
+              城市ID: '-'
+              城市: '-'
+              城市得分: 0.0
+              城市服务质量得分(运力): 0.0
+              城市配送未完成率得分: 0.0
+              城市不满意率得分: 0.0
+              城市虚假订单率: 0.0
+              城市准时率得分: 0.0
+              城市虚假订单得分: 0.0
+              城市虚假骑手率: 0.0
+              城市虚假骑手得分: 0.0
+              城市贡献积分: 0.0
+              参培率得分: 0.0
+              考试通过率得分: 0.0
+              装备合规率得分: 0.0
+              城市完成单量(剔除异常单): 0.0
+              城市完成单量(未剔除异常单): 0.0
+              虚假订单数: 0
+              完成单量: 0
+              虚假骑手数: 0
+              完成单骑手数: 0
+        - df_to_int:
+            - 月份
+        - stash_push_df: [ ]
+
+        - fetch_dataset:
+            dataset_type_code: zhengzhou_inviolable_city
+            dataset_cate: std
+            ignore_null_error: true
+            month_offset: -1
+            empty_df_record:
+              月份: 197901
+              主体ID: '-'
+              主体: '-'
+              区域ID: '-'
+              区域: '-'
+              城市ID: '-'
+              城市: '-'
+              城市得分: 0.0
+              城市服务质量得分(运力): 0.0
+              城市配送未完成率得分: 0.0
+              城市不满意率得分: 0.0
+              城市虚假订单率: 0.0
+              城市准时率得分: 0.0
+              城市虚假订单得分: 0.0
+              城市虚假骑手率: 0.0
+              城市虚假骑手得分: 0.0
+              城市贡献积分: 0.0
+              参培率得分: 0.0
+              考试通过率得分: 0.0
+              装备合规率得分: 0.0
+              城市完成单量(剔除异常单): 0.0
+              城市完成单量(未剔除异常单): 0.0
+              虚假订单数: 0
+              完成单量: 0
+              虚假骑手数: 0
+              完成单骑手数: 0
+        - df_to_int:
+            - 月份
+        - stash_push_df: [ ]
+
+        - fetch_dataset:
+            dataset_type_code: zhengzhou_inviolable_city
+            dataset_cate: std
+            ignore_null_error: true
+            month_offset: -2
+            empty_df_record:
+              月份: 197901
+              主体ID: '-'
+              主体: '-'
+              区域ID: '-'
+              区域: '-'
+              城市ID: '-'
+              城市: '-'
+              城市得分: 0.0
+              城市服务质量得分(运力): 0.0
+              城市配送未完成率得分: 0.0
+              城市不满意率得分: 0.0
+              城市虚假订单率: 0.0
+              城市准时率得分: 0.0
+              城市虚假订单得分: 0.0
+              城市虚假骑手率: 0.0
+              城市虚假骑手得分: 0.0
+              城市贡献积分: 0.0
+              参培率得分: 0.0
+              考试通过率得分: 0.0
+              装备合规率得分: 0.0
+              城市完成单量(剔除异常单): 0.0
+              城市完成单量(未剔除异常单): 0.0
+              虚假订单数: 0
+              完成单量: 0
+              虚假骑手数: 0
+              完成单骑手数: 0
+        - df_to_int:
+            - 月份
+        - stash_push_df: [ ]
+
+        - fetch_dataset:
+            dataset_type_code: zhengzhou_inviolable_city
+            dataset_cate: std
+            ignore_null_error: true
+            month_offset: -3
+            empty_df_record:
+              月份: 197901
+              主体ID: '-'
+              主体: '-'
+              区域ID: '-'
+              区域: '-'
+              城市ID: '-'
+              城市: '-'
+              城市得分: 0.0
+              城市服务质量得分(运力): 0.0
+              城市配送未完成率得分: 0.0
+              城市不满意率得分: 0.0
+              城市虚假订单率: 0.0
+              城市准时率得分: 0.0
+              城市虚假订单得分: 0.0
+              城市虚假骑手率: 0.0
+              城市虚假骑手得分: 0.0
+              城市贡献积分: 0.0
+              参培率得分: 0.0
+              考试通过率得分: 0.0
+              装备合规率得分: 0.0
+              城市完成单量(剔除异常单): 0.0
+              城市完成单量(未剔除异常单): 0.0
+              虚假订单数: 0
+              完成单量: 0
+              虚假骑手数: 0
+              完成单骑手数: 0
+        - df_to_int:
+            - 月份
+        - stash_push_df: [ ]
+        - stash_concat_df:
+            drop_stash: true
+        - df_fillna:
+            columns: [月份]
+            value: 0
+        - run_py:
+            - |
+              df=to_df(df)
+              df['月份'].astype(int)
+              df['时间先后情况']=df['月份']-(int(np.datetime64('today').tolist().year)*100+(np.datetime64('today').tolist().month//4-(np.datetime64('today').tolist().month-(np.datetime64('today').tolist().month//4*4) ==0))*4+1)
+              df=df[df['时间先后情况']>=0]
+              df['贡献积分sup'] = df['城市完成单量(未剔除异常单)'] * df['城市贡献积分']
+              df['配送未完成率得分sup'] = df['城市完成单量(剔除异常单)'] * df['城市配送未完成率得分']
+              df['不满意率得分sup'] = df['城市完成单量(剔除异常单)'] * df['城市不满意率得分']
+              df['准时率得分sup'] = df['城市完成单量(剔除异常单)'] * df['城市准时率得分']
+              df['服务质量得分(运力)sup'] = df['城市完成单量(剔除异常单)'] * df['城市服务质量得分(运力)']
+              result = df
+#        - df_fillna:
+#            value: 0
+        - df_groupby:
+            by: [ 主体,主体ID,区域,区域ID ]
+        - df_sum:
+            column: [ 服务质量得分(运力)sup,贡献积分sup,配送未完成率得分sup,不满意率得分sup,准时率得分sup,城市完成单量(未剔除异常单),城市完成单量(剔除异常单),虚假订单数,完成单量,虚假骑手数,完成单骑手数 ]
+        - df_reset_index: [ ]
+        - df_rename_columns:
+            - 城市完成单量(未剔除异常单): 区域完成单量(未剔除异常单)
+              城市完成单量(剔除异常单): 区域完成单量(剔除异常单)
+        - run_py:
+            - |
+              df['区域贡献积分'] = df['贡献积分sup'] / df['区域完成单量(未剔除异常单)']
+              df['区域配送未完成率得分'] = df['配送未完成率得分sup'] / df['区域完成单量(剔除异常单)']
+              df['区域不满意率得分'] = df['不满意率得分sup'] / df['区域完成单量(剔除异常单)']
+              df['区域准时率得分'] = df['准时率得分sup'] / df['区域完成单量(剔除异常单)']
+              df['区域虚假订单率'] = df['虚假订单数'] / df['完成单量']
+              df['区域虚假骑手率'] = df['虚假骑手数'] / df['完成单骑手数']
+              df['区域服务质量得分(运力)'] = df['服务质量得分(运力)sup'] / df['区域完成单量(剔除异常单)']
+              result = df
+        - stash_push_df: [ ]
+        - use_df:
+            key: zhengzhou_inviolable_site
+            columns: [ 区域,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值 ]
+        - drop_duplicates:
+            subset: [ 区域 ]
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ 区域 ]
+            how: right
+            drop_stash: true
+        - stash_push_df: [ ]
+        - fetch_dataset:
+            template_code: mt_month_69
+            dataset_cate: raw
+            ignore_null_error: true
+        - when_empty_fetch_dataset:
+            template_code: mt_month_69
+            dataset_cate: raw
+            month_offset: -1
+            ignore_null_error: true
+            empty_df_record:
+              区域名称: '-'
+              装备合规率: 0
+              参培率: 0
+              考试通过率: 0
+              meta_month: 197007
+              meta_day: 19701212
+        - df_rename_columns:
+            - 区域名称: 区域
+              装备合规率: 装备合规率得分
+              参培率: 参培率得分
+              考试通过率: 考试通过率得分
+        - drop_duplicates:
+            subset: [区域,装备合规率得分,参培率得分,考试通过率得分,meta_month,meta_day]
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ 区域 ]
+            how: right
+            drop_stash: true
+        - add_cols:
+            - 区域虚假订单得分: 0
+              区域虚假骑手得分: 0
+        - run_py:
+            - |
+
+              df['区域虚假订单得分'] = df['区域虚假订单得分'].mask(df['区域虚假订单率'] == df['虚假订单满分值'],0)
+              df['区域虚假订单得分'] = df['区域虚假订单得分'].mask((df['区域虚假订单率'] > df['虚假订单满分值']) & (df['区域虚假订单率'] <= df['虚假订单目标值']),df['区域虚假订单率']/(df['虚假订单目标值']-df['虚假订单满分值'])*(-2))
+              df['区域虚假订单得分'] = df['区域虚假订单得分'].mask((df['区域虚假订单率'] > df['虚假订单目标值']) & (df['区域虚假订单率'] <= df['虚假订单门槛值']),(df['区域虚假订单率']-df['虚假订单目标值'])/(df['虚假订单门槛值']-df['虚假订单目标值'])*(-3)+(-2))
+              df['区域虚假订单得分'] = df['区域虚假订单得分'].mask(df['区域虚假订单率'] > df['虚假订单门槛值'],-5)
+
+              df['区域虚假骑手得分'] = df['区域虚假骑手得分'].mask(df['区域虚假骑手率'] == df['虚假骑手满分值'],0)
+              df['区域虚假骑手得分'] = df['区域虚假骑手得分'].mask((df['区域虚假骑手率'] > df['虚假骑手满分值']) & (df['区域虚假骑手率'] <= df['虚假骑手目标值']),df['区域虚假骑手率']/(df['虚假骑手目标值']-df['虚假骑手满分值'])*(-2))
+              df['区域虚假骑手得分'] = df['区域虚假骑手得分'].mask((df['区域虚假骑手率'] > df['虚假骑手目标值']) & (df['区域虚假骑手率'] <= df['虚假骑手门槛值']),(df['区域虚假骑手率']-df['虚假骑手目标值'])/(df['虚假骑手门槛值']-df['虚假骑手目标值'])*(-3)+(-2))
+              df['区域虚假骑手得分'] = df['区域虚假骑手得分'].mask(df['区域虚假骑手率'] > df['虚假订单门槛值'],-5)
+              df['区域得分'] = df['区域服务质量得分(运力)'] + df['区域配送未完成率得分'] + df['区域不满意率得分'] + df['区域准时率得分'] + df['区域虚假订单得分'] + df['区域虚假骑手得分'] + df['参培率得分'] + df['考试通过率得分'] + df['装备合规率得分'] + df['区域贡献积分']
+
+              result = df
+        - fetch_cols:
+            columns: [主体,区域,装备合规率得分,区域服务质量得分(运力),区域配送未完成率得分,区域不满意率得分,区域准时率得分,区域虚假订单得分,区域虚假骑手得分,区域得分,参培率得分,考试通过率得分,装备合规率得分]
+        - sort_by_columns:
+            sort_list: [ 主体,区域,装备合规率得分,区域服务质量得分(运力),区域配送未完成率得分,区域不满意率得分,区域准时率得分,区域虚假订单得分,区域虚假骑手得分,区域得分,参培率得分,考试通过率得分,装备合规率得分 ]
+
+mt_month_env:
+  context_defaults:
+    delay_compute: true
+    sync_result_from_cluster: true
+    play_on_dask_cluster: true
+    platform_code: meituan
+    dask_client_set_as_default: true
+    cluster_client_address: 'dask-scheduler-service.databus:8786'
+
+  play:
+    - name: city_score_conversion_table
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            template_code: mt_day_34
+            dataset_cate: raw
+            datakit_pull_way: last_day
+            ignore_null_error: true
+            columns: [总加盟商ID,总加盟商,区域ID,区域,城市ID,城市,站点ID,站点名称,meta_month]
+            empty_df_record:
+              总加盟商ID: '-'
+              总加盟商: '-'
+              区域ID: '-'
+              区域: '-'
+              城市ID: '-'
+              城市: '-'
+              站点ID: '-'
+              站点名称: '-'
+              meta_month: 197901
+        - df_rename_columns:
+            - meta_month: 月份
+        - stash_push_df: []
+        - fetch_dataset:
+            template_code: mt_month_66
+            dataset_cate: raw
+            columns: [ 站点ID,站点名称,提前点送达门槛值,提前点送达目标值,提前点送达满分值,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值 ]
+            ignore_null_error: true
+        - when_empty_fetch_dataset:
+            template_code: mt_month_66
+            dataset_cate: raw
+            month_offset: -1
+            columns: [ 站点ID,站点名称,提前点送达门槛值,提前点送达目标值,提前点送达满分值,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值 ]
+            ignore_null_error: true
+            empty_df_record:
+              站点ID: '-'
+              站点名称: '-'
+              提前点送达门槛值: 0.0
+              提前点送达目标值: 0.0
+              提前点送达满分值: 0.0
+              虚假订单门槛值: 0.0
+              虚假订单目标值: 0.0
+              虚假订单满分值: 0.0
+              虚假骑手门槛值: 0.0
+              虚假骑手目标值: 0.0
+              虚假骑手满分值: 0.0
+        - stash_push_df: []
+        - stash_join_df:
+            on: [站点ID,站点名称]
+            how: left
+            drop_stash: true
+        - drop_duplicates:
+            subset: [月份,城市ID,城市,提前点送达门槛值,提前点送达目标值,提前点送达满分值,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值]
+        - run_py:
+            - |
+              df = df[df['城市ID'].notnull()]
+              result = df
+        - fetch_cols:
+            columns: [ 城市ID,城市,提前点送达门槛值,提前点送达目标值,提前点送达满分值,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值 ]
+
+    - name: region_score_conversion_table
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            template_code: mt_day_34
+            dataset_cate: raw
+            datakit_pull_way: last_day
+            ignore_null_error: true
+            columns: [总加盟商ID,总加盟商,区域ID,区域,城市ID,城市,站点ID,站点名称,meta_month]
+            empty_df_record:
+              总加盟商ID: '-'
+              总加盟商: '-'
+              区域ID: '-'
+              区域: '-'
+              城市ID: '-'
+              城市: '-'
+              站点ID: '-'
+              站点名称: '-'
+              meta_month: 197901
+        - df_rename_columns:
+            - meta_month: 月份
+        - stash_push_df: []
+        - fetch_dataset:
+            template_code: mt_month_66
+            dataset_cate: raw
+            columns: [ 站点ID,站点名称,提前点送达门槛值,提前点送达目标值,提前点送达满分值,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值 ]
+            ignore_null_error: true
+        - when_empty_fetch_dataset:
+            template_code: mt_month_66
+            dataset_cate: raw
+            month_offset: -1
+            columns: [ 站点ID,站点名称,提前点送达门槛值,提前点送达目标值,提前点送达满分值,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值 ]
+            ignore_null_error: true
+            empty_df_record:
+              站点ID: '-'
+              站点名称: '-'
+              提前点送达门槛值: 0.0
+              提前点送达目标值: 0.0
+              提前点送达满分值: 0.0
+              虚假订单门槛值: 0.0
+              虚假订单目标值: 0.0
+              虚假订单满分值: 0.0
+              虚假骑手门槛值: 0.0
+              虚假骑手目标值: 0.0
+              虚假骑手满分值: 0.0
+        - stash_push_df: []
+        - stash_join_df:
+            on: [站点ID,站点名称]
+            how: left
+            drop_stash: true
+        - drop_duplicates:
+            subset: [月份,区域ID,区域,提前点送达门槛值,提前点送达目标值,提前点送达满分值,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值]
+        - run_py:
+            - |
+              df = df[df['区域ID'].notnull()]
+              result = df
+        - fetch_cols:
+            columns: [ 区域ID,区域,提前点送达门槛值,提前点送达目标值,提前点送达满分值,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值 ]
+
+    - name: pervasive_inviolable_rights    # 普适商权益-站点维度中间表
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            template_code: mt_day_34
+            dataset_cate: raw
+            datakit_pull_way: last_day
+            ignore_null_error: true
+            columns: [总加盟商ID,总加盟商,区域ID,区域,城市ID,城市,站点ID,站点名称,完成单量,完成单骑手数,提前点送达量,虚假订单考核量,虚假骑手数,meta_month]
+            empty_df_record:
+              总加盟商ID: '-'
+              总加盟商: '-'
+              区域ID: '-'
+              区域: '-'
+              城市ID: '-'
+              城市: '-'
+              站点ID: '-'
+              站点名称: '-'
+              完成单量: 0
+              完成单骑手数: 0
+              提前点送达量: 0
+              虚假订单考核量: 0
+              虚假骑手数: 0
+              meta_month: 197901
+        - df_rename_columns:
+            - 总加盟商ID: 主体ID
+              总加盟商: 主体
+              提前点送达量: 提前点送达数
+              虚假订单考核量: 虚假订单数
+              meta_month: 月份
+        - drop_duplicates:
+            - [主体ID,主体,区域ID,区域,城市ID,城市,站点ID,站点名称,完成单量,完成单骑手数,提前点送达数,虚假订单数,虚假骑手数,月份]
+        - df_to_int:
+            - 虚假订单数
+        - df_groupby:
+            by: [主体ID,主体,区域ID,区域,城市ID,城市,站点ID,站点名称,月份]
+        - df_sum:
+            column: [完成单量,完成单骑手数,提前点送达数,虚假订单数,虚假骑手数]
+        - df_reset_index: []
+        - stash_push_df: []
+        - fetch_dataset:
+            template_code: mt_month_68
+            dataset_cate: raw
+            columns: [站点名称,站点id]
+            ignore_null_error: true
+        - when_empty_fetch_dataset:
+            template_code: mt_month_68
+            dataset_cate: raw
+            month_offset: -1
+            columns: [站点名称,站点id]
+            ignore_null_error: true
+            empty_df_record:
+              站点名称: '-'
+              站点id: '-'
+        - df_rename_columns:
+            - 站点名称: 站点名称
+              站点id: 站点ID
+        - drop_duplicates:
+            subset: [ 站点名称,站点ID]
+        - stash_push_df: []
+        - stash_join_df:
+            on: [站点名称,站点ID]
+            how: left
+            drop_stash: true
+        - df_select:
+            - '[城市ID] != @v1'
+            - v1: '410100'
+        - run_py:
+            - |
+              df = df[df['区域ID'].notnull()]
+              result = df
+        - stash_push_df: []
+        - fetch_dataset:
+            template_code: mt_day_13
+            datakit_pull_way: last_day
+            dataset_cate: raw
+            columns: [加盟站ID,加盟站名称,完成单(未剔除异常单),完成单量(剔除异常单),配送原因未完成率,一般超时单量(考核),不满意订单数,不满意率,复合准时率（考核）,严重超时单量(考核),配送原因未完成数,meta_day]
+            ignore_null_error: true
+            empty_df_record:
+              加盟站ID: '-'
+              加盟站名称: '-'
+              完成单(未剔除异常单): 0
+              完成单量(剔除异常单): 0
+              不满意订单数: 0
+              不满意率: '0.0%'
+              复合准时率（考核）: '0.0%'
+              配送原因未完成率: '0.0%'
+              一般超时单量(考核): 0
+              严重超时单量(考核): 0
+              配送原因未完成数: 0
+              meta_day: 19790101
+        - df_rename_columns:
+            - 加盟站ID: 站点ID
+              加盟站名称: 站点名称
+              完成单(未剔除异常单): 完成单量（未剔除异常单）
+              完成单量(剔除异常单): 完成单量（剔除异常单）
+              不满意订单数: 不满意单量
+              复合准时率（考核）: 准时率
+              配送原因未完成率: 配送未完成率
+              一般超时单量(考核): 一般超时单量
+              严重超时单量(考核): 严重超时单量
+              配送原因未完成数: 配送取消单量
+        - df_to_int:
+            - 完成单量（未剔除异常单）
+        - df_to_int:
+            - 完成单量（剔除异常单）
+        - df_to_int:
+            - 不满意单量
+        - df_to_int:
+            - 一般超时单量
+        - df_to_int:
+            - 严重超时单量
+        - df_to_int:
+            - 配送取消单量
+        - run_py:
+            - |
+              df = df[df['meta_day']==df['meta_day'].max()]
+              result = df
+        - stash_push_df: []
+        - stash_join_df:
+            on: [站点名称,站点ID]
+            how: right
+            drop_stash: true
+        - stash_push_df: []
+        - fetch_dataset:
+            template_code: mt_month_65
+            dataset_cate: raw
+            columns: [站点id,站点名称,站点贡献度积分]
+            ignore_null_error: true
+        - when_empty_fetch_dataset:
+            template_code: mt_month_65
+            dataset_cate: raw
+            month_offset: -1
+            columns: [站点id,站点名称,站点贡献度积分]
+            ignore_null_error: true
+            empty_df_record:
+              站点id: '-'
+              站点名称: '-'
+              站点贡献度积分: 0.0
+        - df_rename_columns:
+            - 站点贡献度积分: 贡献积分
+              站点id: 站点ID
+        - drop_duplicates:                          #去重
+            subset: [ 站点ID,站点名称,贡献积分  ]
+        - stash_push_df: []
+        - stash_join_df:
+            on: [站点名称,站点ID]
+            how: right
+            drop_stash: true
+        - stash_push_df: []
+        - fetch_dataset:
+            template_code: mt_month_67
+            dataset_cate: raw
+            columns: [商圈,商圈ID,配送未完成目标得分,不满意目标得分,准时率目标得分,提前点送达,虚假订单目标得分,虚假骑手目标得分]
+            ignore_null_error: true
+        - when_empty_fetch_dataset:
+            template_code: mt_month_67
+            dataset_cate: raw
+            month_offset: -1
+            columns: [商圈,商圈ID,配送未完成目标得分,不满意目标得分,准时率目标得分,提前点送达,虚假订单目标得分,虚假骑手目标得分]
+            ignore_null_error: true
+            empty_df_record:
+              商圈ID: '-'
+              商圈: '-'
+              配送未完成目标得分: 0.0
+              不满意目标得分: 0.0
+              准时率目标得分: 0.0
+              提前点送达: 0.0
+              虚假订单目标得分: 0.0
+              虚假骑手目标得分: 0.0
+        - df_rename_columns:
+            - 商圈ID: 站点ID
+              商圈: 站点名称
+              配送未完成目标得分: 配取目标得分
+              提前点送达: 提前点送达目标得分
+        - drop_duplicates:                          #去重
+            subset: [ 站点ID,站点名称,配取目标得分,不满意目标得分,准时率目标得分,提前点送达目标得分,虚假订单目标得分,虚假骑手目标得分  ]
+        - stash_push_df: []
+        - stash_join_df:
+            on: [站点名称,站点ID]
+            how: right
+            drop_stash: true
+        - stash_push_df: []
+        - fetch_dataset:
+            template_code: mt_month_66
+            dataset_cate: raw
+            columns: [站点ID,站点名称,配送原因未完成率门槛值,配送原因未完成率目标值,配送原因未完成率满分值,不满意率门槛值,不满意率标准值,不满意率满分值,复合准时率门槛值,复合准时率标准值,复合准时率满分值,提前点送达门槛值,提前点送达目标值,提前点送达满分值,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值]
+            ignore_null_error: true
+        - when_empty_fetch_dataset:
+            template_code: mt_month_66
+            dataset_cate: raw
+            month_offset: -1
+            columns: [站点ID,站点名称,配送原因未完成率门槛值,配送原因未完成率目标值,配送原因未完成率满分值,不满意率门槛值,不满意率标准值,不满意率满分值,复合准时率门槛值,复合准时率标准值,复合准时率满分值,提前点送达门槛值,提前点送达目标值,提前点送达满分值,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值]
+            ignore_null_error: true
+            empty_df_record:
+              站点ID: '-'
+              站点名称: '-'
+              配送原因未完成率门槛值: 0.0
+              配送原因未完成率目标值: 0.0
+              配送原因未完成率满分值: 0.0
+              不满意率门槛值: 0.0
+              不满意率标准值: 0.0
+              不满意率满分值: 0.0
+              复合准时率门槛值: 0.0
+              复合准时率标准值: 0.0
+              复合准时率满分值: 0.0
+              提前点送达门槛值: 0.0
+              提前点送达目标值: 0.0
+              提前点送达满分值: 0.0
+              虚假订单门槛值: 0.0
+              虚假订单目标值: 0.0
+              虚假订单满分值: 0.0
+              虚假骑手门槛值: 0.0
+              虚假骑手目标值: 0.0
+              虚假骑手满分值: 0.0
+        - df_rename_columns:
+            - 配送原因未完成率门槛值: 配取门槛值
+              配送原因未完成率目标值: 配取目标值
+              配送原因未完成率满分值: 配取满分值
+              复合准时率门槛值: 准时率门槛值
+              复合准时率标准值: 准时率标准值
+              复合准时率满分值: 准时率满分值
+        - drop_duplicates:                          #去重
+            subset: [站点ID,站点名称,配取门槛值,配取目标值,配取满分值,不满意率门槛值,不满意率标准值,不满意率满分值,准时率门槛值,准时率标准值,准时率满分值,提前点送达门槛值,提前点送达目标值,提前点送达满分值,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值]
+        - stash_push_df: []
+        - stash_join_df:
+            on: [站点ID,站点名称]
+            how: right
+            drop_stash: true
+        - run_py:
+            - |
+              df['当月截止昨天天数'] = np.datetime64('today').tolist().day - 1
+              result = df
+        - set_meta_days_column:
+            - 当月总天数
+        - add_cols:
+            - 虚假订单容错值: 0
+              虚假订单目标率: 0
+              虚假骑手容错值: 0
+              虚假骑手目标率: 0
+        - pad_cols:
+            columns: [ '参培率得分','考试通过率得分','装备合规率得分' ]
+            default_value: 0.0
+        - run_py:
+            - |
+              df['月度预估单量'] = (df['完成单量（剔除异常单）'] / df['当月截止昨天天数'] * df['当月总天数']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['提前点送达率'] = (df['提前点送达数'] / df['完成单量']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['虚假订单率'] = (df['虚假订单数'] / df['完成单量']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['虚假骑手率'] = (df['虚假骑手数'] / df['完成单骑手数']).replace([np.inf, -np.inf, "", np.nan],0)
+              result = df
+        - str_strip_column:
+            column: 配送未完成率
+            char: '%'
+        - df_to_float:
+            - 配送未完成率
+        - df_eval:
+            - '[配送未完成率] = [配送未完成率]/100'
+        - str_strip_column:
+            column: 不满意率
+            char: '%'
+        - df_to_float:
+            - 不满意率
+        - df_eval:
+            - '[不满意率] = [不满意率]/100'
+        - str_strip_column:
+            column: 准时率
+            char: '%'
+        - df_to_float:
+            - 准时率
+        - df_eval:
+            - '[准时率] = [准时率]/100'
+
+    - name: pervasive_inviolable_rights_site    # 普适商权益-站点维度中间表
+      sync_result: true
+      cooks:
+        - use_df:
+            key: pervasive_inviolable_rights
+        - df_select:
+            - '[城市ID] != @p1'
+            - p1: '410100'
+        - add_cols:
+            - 配取得分: 0.0
+              配取目标率: 0.0
+              不满意得分: 0.0
+              不满意率目标率: 0.0
+              准时率得分: 0.0
+              超时目标率: 0.0
+              提前点送达得分: 0.0
+              虚假订单得分: 0.0
+              虚假骑手得分: 0.0
+              目标提前点送达率: 0.0
+        - df_to_float:
+            - 配取目标得分
+        - df_to_float:
+            - 配取目标值
+        - df_to_float:
+            - 配取满分值
+        - df_to_int:
+            - 配送取消单量
+        - df_to_int:
+            - 不满意单量
+        - df_to_int:
+            - 一般超时单量
+        - df_to_int:
+            - 严重超时单量
+        - df_to_int:
+            - 完成单量
+        - run_py:
+            - |
+              df['配取得分'] = df['配取得分'].mask(df['配送未完成率']==df['配取满分值'],25)
+              df['配取得分'] = df['配取得分'].mask((df['配取目标值']>=df['配送未完成率'])&(df['配送未完成率']>df['配取满分值']),((df['配送未完成率']-df['配取目标值'])/(df['配取满分值']-df['配取目标值'])*20+80)*0.25).replace([np.inf, -np.inf, "", np.nan], 0)
+              df['配取得分'] = df['配取得分'].mask((df['配取目标值']<df['配送未完成率'])&(df['配送未完成率']<df['配取门槛值']),(df['配送未完成率']-df['配取门槛值'])/(df['配取目标值']-df['配取门槛值'])*80*0.25).replace([np.inf, -np.inf, "", np.nan], 0)
+              df['配取得分'] = df['配取得分'].mask(df['配送未完成率']>=df['配取门槛值'],0)
+
+              df['配取目标率'] = df['配取目标率'].mask(df['配取目标得分']>=20,(20-(df['配取目标得分']-20)/0.25)/20*(df['配取目标值']-df['配取满分值'])).replace([np.inf, -np.inf, "", np.nan], 0)
+              df['配取目标率'] = df['配取目标率'].mask((df['配取目标得分']>=0)&(df['配取目标得分']<20),80-(df['配取目标得分']-0*0.25)/0.25/80/(df['配取门槛值']-df['配取目标值'])+df['配取目标值']).replace([np.inf, -np.inf, "", np.nan], 0)
+
+              df['不满意得分'] = df['不满意得分'].mask(df['不满意率']==df['不满意率满分值'],25)
+              df['不满意得分'] = df['不满意得分'].mask((df['不满意率']<=df['不满意率标准值'])&(df['不满意率']>df['不满意率满分值']),((df['不满意率']-df['不满意率标准值'])/(df['不满意率满分值']-df['不满意率标准值'])*20+80)*0.25).replace([np.inf, -np.inf, "", np.nan], 0)
+              df['不满意得分'] = df['不满意得分'].mask((df['不满意率']>df['不满意率标准值'])&(df['不满意率']<df['不满意率门槛值']),(df['不满意率']-df['不满意率门槛值'])/(df['不满意率标准值']-df['不满意率门槛值'])*20).replace([np.inf, -np.inf, "", np.nan], 0)
+              df['不满意得分'] = df['不满意得分'].mask(df['不满意率']>=df['不满意率门槛值'],0)
+
+              df['不满意率目标率'] = df['不满意率目标率'].mask(df['不满意目标得分']>=20,20-(df['不满意目标得分']-80*0.25)/0.25/20*(df['不满意率标准值']-df['不满意率满分值'])).replace([np.inf, -np.inf, "", np.nan], 0)
+              df['不满意率目标率'] = df['不满意率目标率'].mask((df['不满意目标得分']>=0)&(df['不满意目标得分']<20),(80-0-(df['不满意目标得分']-0*0.25)/0.25)/(80-0)/(df['不满意率门槛值']-df['不满意率标准值'])+df['不满意率标准值']).replace([np.inf, -np.inf, "", np.nan], 0)
+
+              df['准时率得分'] = df['准时率得分'].mask(df['准时率']==df['准时率满分值'],100*0.3)
+              df['准时率得分'] = df['准时率得分'].mask((df['准时率']>=df['准时率标准值'])&(df['准时率']<df['准时率满分值']),(80+20*(df['准时率']-df['准时率标准值'])/(df['准时率满分值']-df['准时率标准值']))*0.3).replace([np.inf, -np.inf, "", np.nan], 0)
+              df['准时率得分'] = df['准时率得分'].mask((df['准时率']>df['准时率门槛值'])&(df['准时率']<df['准时率标准值']),80*(df['准时率']-df['准时率门槛值'])/(df['准时率标准值']-df['准时率门槛值'])*0.3).replace([np.inf, -np.inf, "", np.nan], 0)
+              df['准时率得分'] = df['准时率得分'].mask(df['准时率']<=df['准时率门槛值'],0)
+
+              df['超时目标率'] = df['超时目标率'].mask(df['准时率目标得分'] >= 80 * 0.3,(100-80-(df['准时率目标得分']-80*0.3)/0.3)/(100-80)*(df['准时率满分值']-df['准时率标准值'])).replace([np.inf, -np.inf, "", np.nan], 0)
+              df['超时目标率'] = df['超时目标率'].mask((df['准时率目标得分'] >= 0) & (df['准时率目标得分'] < 80 * 0.3),(80-0-(df['准时率目标得分']-0*0.3)/0.3)/(80-0)*(df['准时率标准值']-df['准时率门槛值'])+(df['准时率满分值']-df['准时率标准值'])).replace([np.inf, -np.inf, "", np.nan], 0)
+
+              df['提前点送达得分'] = df['提前点送达得分'].mask(df['提前点送达率']==df['提前点送达满分值'],100*0.1)
+              df['提前点送达得分'] = df['提前点送达得分'].mask((df['提前点送达率'] > df['提前点送达满分值']) & (df['提前点送达率'] <= df['提前点送达目标值']),((df['提前点送达率']-df['提前点送达目标值'])/(df['提前点送达满分值']-df['提前点送达目标值'])*40+60)*0.1).replace([np.inf, -np.inf, "", np.nan], 0)
+              df['提前点送达得分'] = df['提前点送达得分'].mask((df['提前点送达率'] < df['提前点送达门槛值']) & (df['提前点送达率'] > df['提前点送达目标值']), (df['提前点送达率']-df['提前点送达门槛值'])/(df['提前点送达目标值']-df['提前点送达门槛值'])*60*0.1).replace([np.inf, -np.inf, "", np.nan], 0)
+              df['提前点送达得分'] = df['提前点送达得分'].mask(df['提前点送达率'] >= df['提前点送达门槛值'],0)
+
+              df['虚假订单得分'] = df['虚假订单得分'].mask(df['虚假订单率'] == df['虚假订单满分值'],0)
+              df['虚假订单得分'] = df['虚假订单得分'].mask((df['虚假订单率'] > df['虚假订单满分值']) & (df['虚假订单率'] <= df['虚假订单目标值']),df['虚假订单率']/(df['虚假订单目标值']-df['虚假订单满分值'])*(-2)).replace([np.inf, -np.inf, "", np.nan], 0)
+              df['虚假订单得分'] = df['虚假订单得分'].mask((df['虚假订单率'] > df['虚假订单目标值']) & (df['虚假订单率'] <= df['虚假订单门槛值']),(df['虚假订单率']-df['虚假订单目标值'])/(df['虚假订单门槛值']-df['虚假订单目标值'])*(-3)+(-2)).replace([np.inf, -np.inf, "", np.nan], 0)
+              df['虚假订单得分'] = df['虚假订单得分'].mask(df['虚假订单率'] > df['虚假订单门槛值'],-5)
+
+              df['虚假骑手得分'] = df['虚假骑手得分'].mask(df['虚假骑手率'] == df['虚假骑手满分值'],0)
+              df['虚假骑手得分'] = df['虚假骑手得分'].mask((df['虚假骑手率'] > df['虚假骑手满分值']) & (df['虚假骑手率'] <= df['虚假骑手目标值']),df['虚假骑手率']/(df['虚假骑手目标值']-df['虚假骑手满分值'])*(-2)).replace([np.inf, -np.inf, "", np.nan], 0)
+              df['虚假骑手得分'] = df['虚假骑手得分'].mask((df['虚假骑手率'] > df['虚假骑手目标值']) & (df['虚假骑手率'] <= df['虚假骑手门槛值']),(df['虚假骑手率']-df['虚假骑手目标值'])/(df['虚假骑手门槛值']-df['虚假骑手目标值'])*(-3)+(-2)).replace([np.inf, -np.inf, "", np.nan], 0)
+              df['虚假骑手得分'] = df['虚假骑手得分'].mask(df['虚假骑手率'] > df['虚假骑手门槛值'],-5)
+
+              df['目标提前点送达率'] = df['目标提前点送达率'].mask(df['提前点送达目标得分'] >= 60 * 0.1,(100-60-(df['提前点送达目标得分']-60*0.1)/0.1)/(100-60)*(df['提前点送达目标值']-df['提前点送达满分值'])).replace([np.inf, -np.inf, "", np.nan], 0)
+              df['目标提前点送达率'] = df['目标提前点送达率'].mask((df['提前点送达目标得分'] >= 0) & (df['提前点送达目标得分'] < 60 * 0.1),(60-0-(df['提前点送达目标得分']-0*0.1)/0.1)/(60-0)/(df['提前点送达门槛值']-df['提前点送达目标值'])+df['提前点送达目标值']).replace([np.inf, -np.inf, "", np.nan], 0)
+
+              df['配送未完成率容错值'] = df['月度预估单量'] * df['配取目标率'] - df['配送取消单量']
+              df['不满意率容错值'] = df['月度预估单量'] * df['不满意率目标率'] - df['不满意单量']
+              df['准时率容错值'] = df['月度预估单量'] * df['超时目标率'] - df['一般超时单量'] - 5 * df['严重超时单量']
+              df['体验得分'] = df['配取得分'] + df['不满意得分'] + df['准时率得分']
+              df['提前点送达容错值'] = df['完成单量'] / df['当月截止昨天天数'] * df['当月总天数'] * df['目标提前点送达率'] - df['提前点送达数']
+              df['得分'] = df['体验得分'] + df['提前点送达得分'] + df['虚假订单得分'] + df['虚假骑手得分'] + df['参培率得分'] + df['考试通过率得分'] + df['装备合规率得分'] + df['贡献积分']
+
+              result = df
+        - fetch_cols:
+            columns: [月份,主体ID,主体,区域ID,区域,城市ID,城市,站点ID,站点名称,贡献积分,完成单量（未剔除异常单）,完成单量（剔除异常单）,月度预估单量,配送取消单量,配送未完成率,配送未完成率容错值,配取得分,配取目标得分,配取目标率,配取门槛值,配取目标值,配取满分值,不满意单量,不满意率,不满意率容错值,不满意得分,不满意目标得分,不满意率目标率,不满意率门槛值,不满意率标准值,不满意率满分值,一般超时单量,严重超时单量,准时率,准时率容错值,准时率得分,准时率目标得分,超时目标率,准时率门槛值,准时率标准值,准时率满分值,体验得分,提前点送达数,提前点送达率,提前点送达容错值,提前点送达得分,提前点送达目标得分,目标提前点送达率,提前点送达门槛值,提前点送达目标值,提前点送达满分值,虚假订单数,虚假订单率,虚假订单容错值,虚假订单得分,虚假订单目标得分,虚假订单目标率,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手数,虚假骑手率,虚假骑手容错值,虚假骑手得分,虚假骑手目标得分,虚假骑手目标率,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值,参培率得分,考试通过率得分,装备合规率得分,得分,完成单量,完成单骑手数]
+        - drop_duplicates:
+            - [月份,主体ID,主体,区域ID,区域,城市ID,城市,站点ID,站点名称,贡献积分,完成单量（未剔除异常单）,完成单量（剔除异常单）,月度预估单量,配送取消单量,配送未完成率,配送未完成率容错值,配取得分,配取目标得分,配取目标率,配取门槛值,配取目标值,配取满分值,不满意单量,不满意率,不满意率容错值,不满意得分,不满意目标得分,不满意率目标率,不满意率门槛值,不满意率标准值,不满意率满分值,一般超时单量,严重超时单量,准时率,准时率容错值,准时率得分,准时率目标得分,超时目标率,准时率门槛值,准时率标准值,准时率满分值,体验得分,提前点送达数,提前点送达率,提前点送达容错值,提前点送达得分,提前点送达目标得分,目标提前点送达率,提前点送达门槛值,提前点送达目标值,提前点送达满分值,虚假订单数,虚假订单率,虚假订单容错值,虚假订单得分,虚假订单目标得分,虚假订单目标率,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手数,虚假骑手率,虚假骑手容错值,虚假骑手得分,虚假骑手目标得分,虚假骑手目标率,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值,参培率得分,考试通过率得分,装备合规率得分,得分,完成单量,完成单骑手数]
+        - sort_by_columns:
+            sort_list: [月份,主体ID,主体,区域ID,区域,城市ID,城市,站点ID,站点名称,贡献积分,完成单量（未剔除异常单）,完成单量（剔除异常单）,月度预估单量,配送取消单量,配送未完成率,配送未完成率容错值,配取得分,配取目标得分,配取目标率,配取门槛值,配取目标值,配取满分值,不满意单量,不满意率,不满意率容错值,不满意得分,不满意目标得分,不满意率目标率,不满意率门槛值,不满意率标准值,不满意率满分值,一般超时单量,严重超时单量,准时率,准时率容错值,准时率得分,准时率目标得分,超时目标率,准时率门槛值,准时率标准值,准时率满分值,体验得分,提前点送达数,提前点送达率,提前点送达容错值,提前点送达得分,提前点送达目标得分,目标提前点送达率,提前点送达门槛值,提前点送达目标值,提前点送达满分值,虚假订单数,虚假订单率,虚假订单容错值,虚假订单得分,虚假订单目标得分,虚假订单目标率,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手数,虚假骑手率,虚假骑手容错值,虚假骑手得分,虚假骑手目标得分,虚假骑手目标率,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值,参培率得分,考试通过率得分,装备合规率得分,得分,完成单量,完成单骑手数]
+
+    - name: pervasive_inviolable_rights_city    # 普适商权益-城市维度中间表
+      sync_result: true
+      cooks:
+        - use_df:
+            key: pervasive_inviolable_rights_site
+            columns: [主体ID,主体,区域ID,区域,城市ID,城市,配取得分,完成单量（剔除异常单）,不满意得分,准时率得分,提前点送达数,完成单量,完成单骑手数,虚假订单数,虚假骑手数,贡献积分,完成单量（未剔除异常单）,月份]
+        - df_select:
+            - '[城市ID] != @p1'
+            - p1: '410100'
+        - df_fillna:
+            columns: [ 配取得分,完成单量（剔除异常单）,不满意得分,准时率得分,提前点送达数,完成单量,完成单骑手数,虚假订单数,虚假骑手数,贡献积分,完成单量（未剔除异常单） ]
+            value: 0.0
+        - run_py:
+            - |
+              df['配送未完成率_process'] = df['配取得分'] * df['完成单量（剔除异常单）']
+              df['不满意率_process'] = df['不满意得分'] * df['完成单量（剔除异常单）']
+              df['准时率_process'] = df['准时率得分'] * df['完成单量（剔除异常单）']
+              df['贡献积分_process'] = df['贡献积分'] * df['完成单量（未剔除异常单）']
+              result = df
+        - df_groupby:
+            by: [主体ID,主体,区域ID,区域,城市ID,城市,月份]
+        - df_sum:
+            column: [配送未完成率_process,不满意率_process,准时率_process,贡献积分_process,完成单量（剔除异常单）,提前点送达数,完成单量,完成单骑手数,虚假订单数,虚假骑手数,完成单量（未剔除异常单）]
+        - df_reset_index: []
+        - stash_push_df: []
+        - use_df:
+            key: city_score_conversion_table
+            columns: [城市ID,城市,提前点送达门槛值,提前点送达目标值,提前点送达满分值,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值]
+        - stash_push_df: []
+        - run_py:
+            - |
+              df = df[df['城市ID'].notnull()]
+              result = df
+        - stash_join_df:
+            on: [城市ID]
+            how: right
+            drop_stash: true
+        - run_py:
+            - |
+              df['配送未完成率得分'] = df['配送未完成率_process'] / df['完成单量（剔除异常单）']
+              df['不满意率得分'] = df['不满意率_process'] / df['完成单量（剔除异常单）']
+              df['准时率得分'] = df['准时率_process'] / df['完成单量（剔除异常单）']
+              df['贡献积分'] = df['贡献积分_process'] / df['完成单量（未剔除异常单）']
+              df['提前点送达率'] = df['提前点送达数'] / df['完成单量']
+              df['虚假订单率'] = df['虚假订单数'] / df['完成单量']
+              df['虚假骑手率'] = df['虚假骑手数'] / df['完成单骑手数']
+              result = df
+        - df_rename_columns:
+            - 完成单量（剔除异常单）: 城市完成单量（剔除异常单）
+              完成单量（未剔除异常单）: 城市完成单量（未剔除异常单）
+              meta_month: 月份
+        - add_cols:
+            - 提前点送达得分: 0.0
+              虚假订单得分: 0.0
+              虚假骑手得分: 0.0
+        - run_py:
+            - |
+              df['提前点送达得分'] = df['提前点送达得分'].mask(df['提前点送达率'] == df['提前点送达满分值'],10)
+              df['提前点送达得分'] = df['提前点送达得分'].mask((df['提前点送达率'] > df['提前点送达满分值']) & (df['提前点送达率'] <= df['提前点送达目标值']),((df['提前点送达率']-df['提前点送达目标值'])/(df['提前点送达满分值']-df['提前点送达目标值'])*40+60)*0.1)
+              df['提前点送达得分'] = df['提前点送达得分'].mask((df['提前点送达率'] < df['提前点送达门槛值']) & (df['提前点送达率'] > df['提前点送达目标值']),(df['提前点送达率']-df['提前点送达门槛值'])/(df['提前点送达目标值']-df['提前点送达门槛值'])*60*0.1)
+              df['提前点送达得分'] = df['提前点送达得分'].mask(df['提前点送达率'] >= df['提前点送达门槛值'],0)
+
+              df['虚假订单得分'] = df['虚假订单得分'].mask(df['虚假订单率'] == df['虚假订单满分值'],0)
+              df['虚假订单得分'] = df['虚假订单得分'].mask((df['虚假订单率'] > df['虚假订单满分值']) & (df['虚假订单率'] <= df['虚假订单目标值']),df['虚假订单率']/(df['虚假订单目标值']-df['虚假订单满分值'])*(-2))
+              df['虚假订单得分'] = df['虚假订单得分'].mask((df['虚假订单率'] > df['虚假订单目标值']) & (df['虚假订单率'] <= df['虚假订单门槛值']),(df['虚假订单率']-df['虚假订单目标值'])/(df['虚假订单门槛值']-df['虚假订单目标值'])*(-3)+(-2))
+              df['虚假订单得分'] = df['虚假订单得分'].mask(df['虚假订单率'] > df['虚假订单门槛值'],-5)
+
+              df['虚假骑手得分'] = df['虚假骑手得分'].mask(df['虚假骑手率'] == df['虚假骑手满分值'],0)
+              df['虚假骑手得分'] = df['虚假骑手得分'].mask((df['虚假骑手率'] > df['虚假骑手满分值']) & (df['虚假骑手率'] <= df['虚假骑手目标值']),df['虚假骑手率']/(df['虚假骑手目标值']-df['虚假骑手满分值'])*(-2))
+              df['虚假骑手得分'] = df['虚假骑手得分'].mask((df['虚假骑手率'] > df['虚假骑手目标值']) & (df['虚假骑手率'] <= df['虚假骑手门槛值']),(df['虚假骑手率']-df['虚假骑手目标值'])/(df['虚假骑手门槛值']-df['虚假骑手目标值'])*(-3)+(-2))
+              df['虚假骑手得分'] = df['虚假骑手得分'].mask(df['虚假骑手率'] > df['虚假订单门槛值'],-5)
+
+              result = df
+        - df_fillna:
+            columns: [ 提前点送达得分,完虚假订单得分,虚假骑手得分]
+            value: 0.0
+        - pad_cols:
+            columns: [ '参培率','考试通过率','装备合规率' ]
+            default_value: 0
+        - df_eval:
+            - |
+              [得分] = [配送未完成率得分] + [不满意率得分] + [准时率得分] + [提前点送达得分] + [虚假订单得分] + [虚假骑手得分] + [贡献积分] + [参培率] + [考试通过率] + [装备合规率]
+#        - fetch_cols:
+#            columns: [月份,主体ID,主体,区域ID,区域,城市ID,城市,得分,配送未完成率得分,不满意率得分,准时率得分,提前点送达率,提前点送达得分,虚假订单率,虚假订单得分,虚假骑手率,虚假骑手得分,贡献积分,参培率,考试通过率,装备合规率,城市完成单量（剔除异常单）,城市完成单量（未剔除异常单）]
+        - drop_duplicates:
+            - [ 月份,主体ID,主体,区域ID,区域,城市ID,城市,得分,配送未完成率得分,不满意率得分,准时率得分,提前点送达率,提前点送达得分,虚假订单率,虚假订单得分,虚假骑手率,虚假骑手得分,贡献积分,参培率,考试通过率,装备合规率,城市完成单量（剔除异常单）,城市完成单量（未剔除异常单） ]
+        - sort_by_columns:
+            sort_list: [月份,主体ID,主体,区域ID,区域,城市ID,城市,得分,配送未完成率得分,不满意率得分,准时率得分,提前点送达率,提前点送达得分,虚假订单率,虚假订单得分,虚假骑手率,虚假骑手得分,贡献积分,参培率,考试通过率,装备合规率,城市完成单量（剔除异常单）,城市完成单量（未剔除异常单）]
+
+    - name: pervasive_inviolable_rights_region    # 普适商权益-区域维度中间表
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            dataset_type_code: pervasive_inviolable_rights_city
+            dataset_cate: std
+            month_offset: -1
+            ignore_null_error: true
+            empty_df_record:
+              月份: 197901
+              主体ID: '-'
+              主体: '-'
+              区域ID: '-'
+              区域: '-'
+              城市ID: '-'
+              城市: '-'
+              配送未完成率得分: 0.0
+              不满意率得分: 0.0
+              准时率得分: 0.0
+              贡献积分: 0.0
+              城市完成单量（剔除异常单）: 0.0
+              城市完成单量（未剔除异常单）: 0.0
+              提前点送达数: 0.0
+              完成单量: 0.0
+              虚假订单数: 0.0
+              虚假骑手数: 0.0
+              完成单骑手数: 0.0
+        - fetch_cols:
+            columns: [月份,主体ID,主体,区域ID,区域,城市ID,城市,配送未完成率得分,不满意率得分,准时率得分,贡献积分,城市完成单量（剔除异常单）,城市完成单量（未剔除异常单）,提前点送达数,完成单量,虚假订单数,虚假骑手数,完成单骑手数]
+        - stash_push_df: []
+        - fetch_dataset:
+            dataset_type_code: pervasive_inviolable_rights_city
+            dataset_cate: std
+            month_offset: -2
+            ignore_null_error: true
+            empty_df_record:
+              月份: 197901
+              主体ID: '-'
+              主体: '-'
+              区域ID: '-'
+              区域: '-'
+              城市ID: '-'
+              城市: '-'
+              配送未完成率得分: 0.0
+              不满意率得分: 0.0
+              准时率得分: 0.0
+              贡献积分: 0.0
+              城市完成单量（剔除异常单）: 0.0
+              城市完成单量（未剔除异常单）: 0.0
+              提前点送达数: 0.0
+              完成单量: 0.0
+              虚假订单数: 0.0
+              虚假骑手数: 0.0
+              完成单骑手数: 0.0
+        - fetch_cols:
+            columns: [月份,主体ID,主体,区域ID,区域,城市ID,城市,配送未完成率得分,不满意率得分,准时率得分,贡献积分,城市完成单量（剔除异常单）,城市完成单量（未剔除异常单）,提前点送达数,完成单量,虚假订单数,虚假骑手数,完成单骑手数]
+        - stash_push_df: []
+        - fetch_dataset:
+            dataset_type_code: pervasive_inviolable_rights_city
+            dataset_cate: std
+            month_offset: -3
+            ignore_null_error: true
+            empty_df_record:
+              月份: 197901
+              主体ID: '-'
+              主体: '-'
+              区域ID: '-'
+              区域: '-'
+              城市ID: '-'
+              城市: '-'
+              配送未完成率得分: 0.0
+              不满意率得分: 0.0
+              准时率得分: 0.0
+              贡献积分: 0.0
+              城市完成单量（剔除异常单）: 0.0
+              城市完成单量（未剔除异常单）: 0.0
+              提前点送达数: 0.0
+              完成单量: 0.0
+              虚假订单数: 0.0
+              虚假骑手数: 0.0
+              完成单骑手数: 0.0
+        - fetch_cols:
+            columns: [月份,主体ID,主体,区域ID,区域,城市ID,城市,配送未完成率得分,不满意率得分,准时率得分,贡献积分,城市完成单量（剔除异常单）,城市完成单量（未剔除异常单）,提前点送达数,完成单量,虚假订单数,虚假骑手数,完成单骑手数]
+        - stash_push_df: []
+        - fetch_dataset:
+            dataset_type_code: pervasive_inviolable_rights_city
+            dataset_cate: std
+            month_offset: 0
+            ignore_null_error: true
+            empty_df_record:
+              月份: 197901
+              主体ID: '-'
+              主体: '-'
+              区域ID: '-'
+              区域: '-'
+              城市ID: '-'
+              城市: '-'
+              配送未完成率得分: 0.0
+              不满意率得分: 0.0
+              准时率得分: 0.0
+              贡献积分: 0.0
+              城市完成单量（剔除异常单）: 0.0
+              城市完成单量（未剔除异常单）: 0.0
+              提前点送达数: 0.0
+              完成单量: 0.0
+              虚假订单数: 0.0
+              虚假骑手数: 0.0
+              完成单骑手数: 0.0
+        - fetch_cols:
+            columns: [月份,主体ID,主体,区域ID,区域,城市ID,城市,配送未完成率得分,不满意率得分,准时率得分,贡献积分,城市完成单量（剔除异常单）,城市完成单量（未剔除异常单）,提前点送达数,完成单量,虚假订单数,虚假骑手数,完成单骑手数]
+        - stash_push_df: []
+        - stash_concat_df:
+            drop_stash: true
+        - drop_duplicates:
+            subset: [月份,主体ID,主体,区域ID,区域,城市ID,城市,配送未完成率得分,不满意率得分,准时率得分,贡献积分,城市完成单量（剔除异常单）,城市完成单量（未剔除异常单）,提前点送达数,完成单量,虚假订单数,虚假骑手数,完成单骑手数]
+        - df_select:
+            - '[城市ID] != @p1'
+            - p1: '410100'
+        - run_py:
+            - |
+              df=to_df(df)
+              df['月份'].astype(int)
+              df['时间先后情况']=df['月份']-(int(np.datetime64('today').tolist().year)*100+(np.datetime64('today').tolist().month//4-(np.datetime64('today').tolist().month-(np.datetime64('today').tolist().month//4*4) ==0))*4+1)
+              df=df[df['时间先后情况']>=0]
+              df['配送未完成率_process'] = df['配送未完成率得分'] * df['城市完成单量（剔除异常单）']
+              df['不满意率_process'] = df['不满意率得分'] * df['城市完成单量（剔除异常单）']
+              df['准时率_process'] = df['准时率得分'] * df['城市完成单量（剔除异常单）']
+              df['贡献积分_process'] = df['贡献积分'] * df['城市完成单量（未剔除异常单）']
+              result= to_dd(df)
+        - df_groupby:
+            by: [主体ID,主体,区域ID,区域]
+        - df_sum:
+            column: [配送未完成率_process,不满意率_process,准时率_process,贡献积分_process,城市完成单量（剔除异常单）,城市完成单量（未剔除异常单）,提前点送达数,完成单量,虚假订单数,虚假骑手数,完成单骑手数]
+        - df_reset_index: []
+        - stash_push_df: []
+        - use_df:
+            key: region_score_conversion_table
+        - fetch_cols:
+            columns: [主体ID,主体,区域ID,区域,提前点送达门槛值,提前点送达目标值,提前点送达满分值,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值]
+        - run_py:
+            - |
+              df = df[df['区域ID'].notnull()]
+              result = df
+        - stash_push_df: []
+        - stash_join_df:
+            on: [区域ID,区域]
+            how: right
+            drop_stash: true
+        - add_cols:
+            - 提前点送达得分: 0.0
+              虚假订单得分: 0.0
+              虚假骑手得分: 0.0
+        - run_py:
+            - |
+              df['配送未完成率得分'] = df['配送未完成率_process'] / df['城市完成单量（剔除异常单）']
+              df['不满意率得分'] = df['不满意率_process'] / df['城市完成单量（剔除异常单）']
+              df['准时率得分'] = df['准时率_process'] / df['城市完成单量（剔除异常单）']
+              df['贡献积分'] = df['贡献积分_process'] / df['城市完成单量（未剔除异常单）']
+              df['提前点送达率'] = df['提前点送达数'] / df['完成单量']
+              df['虚假订单率'] = df['虚假订单数'] / df['完成单量']
+              df['虚假骑手率'] = df['虚假骑手数'] / df['完成单骑手数']
+
+              df['提前点送达得分'] = df['提前点送达得分'].mask(df['提前点送达率'] == df['提前点送达满分值'],10)
+              df['提前点送达得分'] = df['提前点送达得分'].mask((df['提前点送达率'] > df['提前点送达满分值']) & (df['提前点送达率'] <= df['提前点送达目标值']),((df['提前点送达率']-df['提前点送达目标值'])/(df['提前点送达满分值']-df['提前点送达目标值'])*40+60)*0.1)
+              df['提前点送达得分'] = df['提前点送达得分'].mask((df['提前点送达率'] < df['提前点送达门槛值']) & (df['提前点送达率'] > df['提前点送达目标值']),(df['提前点送达率']-df['提前点送达门槛值'])/(df['提前点送达目标值']-df['提前点送达门槛值'])*60*0.1)
+              df['提前点送达得分'] = df['提前点送达得分'].mask(df['提前点送达率'] >= df['提前点送达门槛值'],0)
+
+              df['虚假订单得分'] = df['虚假订单得分'].mask(df['虚假订单率'] == df['虚假订单满分值'],0)
+              df['虚假订单得分'] = df['虚假订单得分'].mask((df['虚假订单率'] > df['虚假订单满分值']) & (df['虚假订单率'] <= df['虚假订单目标值']),df['虚假订单率']/(df['虚假订单目标值']-df['虚假订单满分值'])*(-2))
+              df['虚假订单得分'] = df['虚假订单得分'].mask((df['虚假订单率'] > df['虚假订单目标值']) & (df['虚假订单率'] <= df['虚假订单门槛值']),(df['虚假订单率']-df['虚假订单目标值'])/(df['虚假订单门槛值']-df['虚假订单目标值'])*(-3)+(-2))
+              df['虚假订单得分'] = df['虚假订单得分'].mask(df['虚假订单率'] > df['虚假订单门槛值'],-5)
+
+              df['虚假骑手得分'] = df['虚假骑手得分'].mask(df['虚假骑手率'] == df['虚假骑手满分值'],0)
+              df['虚假骑手得分'] = df['虚假骑手得分'].mask((df['虚假骑手率'] > df['虚假骑手满分值']) & (df['虚假骑手率'] <= df['虚假骑手目标值']),df['虚假骑手率']/(df['虚假骑手目标值']-df['虚假骑手满分值'])*(-2))
+              df['虚假骑手得分'] = df['虚假骑手得分'].mask((df['虚假骑手率'] > df['虚假骑手目标值']) & (df['虚假骑手率'] <= df['虚假骑手门槛值']),(df['虚假骑手率']-df['虚假骑手目标值'])/(df['虚假骑手门槛值']-df['虚假骑手目标值'])*(-3)+(-2))
+              df['虚假骑手得分'] = df['虚假骑手得分'].mask(df['虚假骑手率'] > df['虚假订单门槛值'],-5)
+
+              result = df
+        - stash_push_df: [ ]
+        - fetch_dataset:
+            template_code: mt_month_69
+            dataset_cate: raw
+            ignore_null_error: true
+        - when_empty_fetch_dataset:
+            template_code: mt_month_69
+            dataset_cate: raw
+            month_offset: -1
+            ignore_null_error: true
+            empty_df_record:
+              区域名称: '-'
+              装备合规率: 0
+              参培率: 0
+              考试通过率: 0
+              meta_month: 197007
+              meta_day: 19701212
+        - df_rename_columns:
+            - 区域名称: 区域
+        - drop_duplicates:
+            subset: [区域,装备合规率,参培率,考试通过率,meta_month,meta_day]
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: 区域
+            how: right
+            drop_stash: true
+        - df_fillna:
+            value: 0
+        - pad_cols:
+            columns: [ '参培率','考试通过率','装备合规率' ]
+            default_value: 0
+        - run_py:
+            - |
+              df['得分'] = df['装备合规率'] + df['参培率'] + df['考试通过率'] + df['提前点送达得分'] + df['虚假订单得分'] + df['虚假骑手得分'] + df['配送未完成率得分'] + df['不满意率得分'] + df['准时率得分'] + df['贡献积分']
+              result = df
+        - fetch_cols:
+            columns: [ 主体ID,主体,区域ID,区域,得分,配送未完成率得分,不满意率得分,准时率得分,提前点送达率,提前点送达得分,虚假订单率,虚假订单得分,虚假骑手率,虚假骑手得分,贡献积分,参培率,考试通过率,装备合规率 ]
+        - drop_duplicates:
+            - [ 主体ID,主体,区域ID,区域,得分,配送未完成率得分,不满意率得分,准时率得分,提前点送达率,提前点送达得分,虚假订单率,虚假订单得分,虚假骑手率,虚假骑手得分,贡献积分,参培率,考试通过率,装备合规率 ]
+        - sort_by_columns:
+            sort_list: [ 主体ID,主体,区域ID,区域,得分,配送未完成率得分,不满意率得分,准时率得分,提前点送达率,提前点送达得分,虚假订单率,虚假订单得分,虚假骑手率,虚假骑手得分,贡献积分,参培率,考试通过率,装备合规率 ]
+
+    - name: pervasive_inviolable_base
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            template_code: mt_day_34
+            dataset_cate: raw
+            datakit_pull_way: last_day
+            ignore_null_error: true
+            columns: [ 总加盟商ID,总加盟商,区域ID,区域,城市ID,城市,站点ID,站点名称,完成单量,完成单骑手数,提前点送达量,虚假订单考核量,虚假骑手数,meta_month ]
+            empty_df_record:
+              总加盟商ID: '-'
+              总加盟商: '-'
+              区域ID: '-'
+              区域: '-'
+              城市ID: '-'
+              城市: '-'
+              站点ID: '-'
+              站点名称: '-'
+              完成单量: 0
+              完成单骑手数: 0
+              提前点送达量: 0
+              虚假订单考核量: 0
+              虚假骑手数: 0
+              meta_month: 197901
+        - df_rename_columns:
+            - 总加盟商ID: 主体ID
+              总加盟商: 主体
+              提前点送达量: 提前点送达数
+              虚假订单考核量: 虚假订单数
+              meta_month: 月份
+        - drop_duplicates:
+            subset: [主体ID,主体,区域ID,区域,城市ID,城市,站点ID,站点名称,完成单量,完成单骑手数,提前点送达数,虚假订单数,虚假骑手数,月份]
+        - df_to_int:
+            - 虚假订单数
+        - df_groupby:
+            by: [ 主体ID,主体,区域ID,区域,城市ID,城市,站点ID,站点名称,月份 ]
+        - df_sum:
+            column: [ 完成单量,完成单骑手数,提前点送达数,虚假订单数,虚假骑手数 ]
+        - df_reset_index: [ ]
+        - stash_push_df: [ ]
+        - fetch_dataset:
+            template_code: mt_month_68
+            dataset_cate: raw
+            columns: [ 站点名称,站点id ]
+            ignore_null_error: true
+        - when_empty_fetch_dataset:
+            template_code: mt_month_68
+            dataset_cate: raw
+            month_offset: -1
+            columns: [ 站点名称,站点id ]
+            ignore_null_error: true
+            empty_df_record:
+              站点名称: '-'
+              站点id: '-'
+        - df_rename_columns:
+            - 站点id: 站点ID
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ 站点名称,站点ID ]
+            how: left
+            drop_stash: true
+        - stash_push_df: [ ]
+        - fetch_dataset:
+            template_code: mt_day_13
+            dataset_cate: raw
+            datakit_pull_way: last_day
+            columns: [ 加盟站ID,加盟站名称,完成单(未剔除异常单),完成单量(剔除异常单),配送原因未完成率,一般超时单量(考核),不满意订单数,不满意率,复合准时率（考核）,严重超时单量(考核),配送原因未完成数,meta_day ]
+            ignore_null_error: true
+            empty_df_record:
+              加盟站ID: '-'
+              加盟站名称: '-'
+              完成单(未剔除异常单): 0
+              完成单量(剔除异常单): 0
+              不满意订单数: 0
+              不满意率: '0.0%'
+              复合准时率（考核）: '0.0%'
+              配送原因未完成率: '0.0%'
+              一般超时单量(考核): 0
+              严重超时单量(考核): 0
+              配送原因未完成数: 0
+              meta_day: 19790101
+        - df_rename_columns:
+            - 加盟站ID: 站点ID
+              加盟站名称: 站点名称
+              完成单(未剔除异常单): 完成单量(未剔除异常单)
+              不满意订单数: 不满意单量
+              复合准时率（考核）: 准时率
+              配送原因未完成率: 配送未完成率
+              一般超时单量(考核): 一般超时单量
+              严重超时单量(考核): 严重超时单量
+              配送原因未完成数: 配送取消单量
+        - df_to_int:
+            - 一般超时单量
+        - df_to_int:
+            - 严重超时单量
+        - df_to_int:
+            - 严重超时单量
+        - df_to_int:
+            - 完成单量(未剔除异常单)
+        - df_to_int:
+            - 完成单量(剔除异常单)
+        - df_to_int:
+            - 不满意单量
+        - run_py:
+            - |
+              a = df['meta_day'].max()
+              df = df[df['meta_day']==a]
+              result = df
+        - fetch_cols:
+            columns: [ 站点ID,站点名称,完成单量(未剔除异常单),完成单量(剔除异常单),配送未完成率,一般超时单量,不满意单量,不满意率,准时率,严重超时单量,配送取消单量 ]
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ 站点名称,站点ID ]
+            how: right
+            drop_stash: true
+        - stash_push_df: [ ]
+        - fetch_dataset:
+            template_code: mt_month_65
+            dataset_cate: raw
+            columns: [ 站点id,站点名称,站点贡献度积分 ]
+            ignore_null_error: true
+        - when_empty_fetch_dataset:
+            template_code: mt_month_65
+            dataset_cate: raw
+            month_offset: -1
+            columns: [ 站点id,站点名称,站点贡献度积分 ]
+            ignore_null_error: true
+            empty_df_record:
+              站点id: '-'
+              站点名称: '-'
+              站点贡献度积分: 0.0
+        - df_rename_columns:
+            - 站点id: 站点ID
+              站点贡献度积分: 贡献积分
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ 站点名称,站点ID ]
+            how: right
+            drop_stash: true
+        - stash_push_df: [ ]
+        - fetch_dataset:
+            template_code: mt_month_67
+            dataset_cate: raw
+            columns: [ 商圈ID,商圈,配送未完成目标得分,不满意目标得分,准时率目标得分,提前点送达,虚假订单目标得分,虚假骑手目标得分 ]
+            ignore_null_error: true
+        - when_empty_fetch_dataset:
+            template_code: mt_month_67
+            dataset_cate: raw
+            month_offset: -1
+            columns: [ 商圈ID,商圈,配送未完成目标得分,不满意目标得分,准时率目标得分,提前点送达,虚假订单目标得分,虚假骑手目标得分 ]
+            ignore_null_error: true
+            empty_df_record:
+              商圈ID: '-'
+              商圈: '-'
+              配送未完成目标得分: 0.0
+              不满意目标得分: 0.0
+              准时率目标得分: 0.0
+              提前点送达: 0.0
+              虚假订单目标得分: 0.0
+              虚假骑手目标得分: 0.0
+        - df_rename_columns:
+            - 商圈ID: 站点ID
+              商圈: 站点名称
+              配送未完成目标得分: 配取目标得分
+              提前点送达: 提前点送达目标得分
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ 站点名称,站点ID ]
+            how: right
+            drop_stash: true
+        - stash_push_df: [ ]
+        - fetch_dataset:
+            template_code: mt_month_66
+            dataset_cate: raw
+            columns: [ 站点ID,站点名称,配送原因未完成率门槛值,配送原因未完成率目标值,配送原因未完成率满分值,不满意率门槛值,不满意率标准值,不满意率满分值,复合准时率门槛值,复合准时率标准值,复合准时率满分值,提前点送达门槛值,提前点送达目标值,提前点送达满分值,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值 ]
+            ignore_null_error: true
+        - when_empty_fetch_dataset:
+            template_code: mt_month_66
+            dataset_cate: raw
+            month_offset: -1
+            columns: [ 站点ID,站点名称,配送原因未完成率门槛值,配送原因未完成率目标值,配送原因未完成率满分值,不满意率门槛值,不满意率标准值,不满意率满分值,复合准时率门槛值,复合准时率标准值,复合准时率满分值,提前点送达门槛值,提前点送达目标值,提前点送达满分值,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值 ]
+            ignore_null_error: true
+            empty_df_record:
+              站点ID: '-'
+              站点名称: '-'
+              配送原因未完成率门槛值: 0.0
+              配送原因未完成率目标值: 0.0
+              配送原因未完成率满分值: 0.0
+              不满意率门槛值: 0.0
+              不满意率标准值: 0.0
+              不满意率满分值: 0.0
+              复合准时率门槛值: 0.0
+              复合准时率标准值: 0.0
+              复合准时率满分值: 0.0
+              提前点送达门槛值: 0.0
+              提前点送达目标值: 0.0
+              提前点送达满分值: 0.0
+              虚假订单门槛值: 0.0
+              虚假订单目标值: 0.0
+              虚假订单满分值: 0.0
+              虚假骑手门槛值: 0.0
+              虚假骑手目标值: 0.0
+              虚假骑手满分值: 0.0
+        - df_rename_columns:
+            - 站点ID: 站点ID
+              站点名称: 站点名称
+              配送原因未完成率门槛值: 配取门槛值
+              配送原因未完成率目标值: 配取目标值
+              配送原因未完成率满分值: 配取满分值
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ 站点ID,站点名称 ]
+            how: right
+            drop_stash: true
+        - drop_duplicates:
+            - [站点ID,站点名称]
+        - str_strip_column:
+            column: 配送未完成率
+            char: '%'
+        - df_to_float:
+            - 配送未完成率
+        - str_strip_column:
+            column: 不满意率
+            char: '%'
+        - df_to_float:
+            - 不满意率
+        - str_strip_column:
+            column: 准时率
+            char: '%'
+        - df_to_float:
+            - 准时率
+        - run_py:
+            - |
+              df = df[df['配取目标得分'].notnull()]
+              df['当月截止昨天天数'] = np.datetime64('today').tolist().day - 1
+              result = df
+        - set_meta_days_column:
+            - 当月总天数
+        - add_cols:
+            - 虚假订单容错值: 0
+              虚假订单目标率: 0
+              虚假骑手容错值: 0
+              虚假骑手目标率: 0
+              参培率得分: 0
+              考试通过率得分: 0
+              装备合规率得分: 0
+        - run_py:
+            - |
+              df['准时率'] = df['准时率'] / 100
+              df['不满意率'] = df['不满意率'] / 100
+              df['配送未完成率'] = df['配送未完成率'] / 100
+              df['月度预估单量'] = df['完成单量(剔除异常单)'] / df['当月截止昨天天数'] * df['当月总天数']
+              df['虚假订单率'] = df['虚假订单数'] / df['完成单量']
+              df['虚假骑手率'] = df['虚假骑手数'] / df['完成单骑手数']
+
+    - name: zhengzhou_inviolable_base
+      sync_result: true
+      cooks:
+        - fetch_dataset:
+            template_code: mt_day_63
+            dataset_cate: raw
+            datakit_pull_way: last_day
+            ignore_null_error: true
+            columns: [ 时间,城市名称,站点名称,站点ID,达成人数 ]
+        - when_empty_fetch_dataset:
+            template_code: mt_day_63
+            dataset_cate: raw
+            datakit_pull_way: last_day
+            month_offset: -1
+            columns: [ 时间,城市名称,站点名称,站点ID,达成人数 ]
+            ignore_null_error: true
+            empty_df_record:
+              时间: '-'
+              城市名称: '-'
+              站点名称: '-'
+              站点ID: '-'
+              达成人数: 0
+        - df_groupby:
+            by: [ 时间,城市名称,站点名称,站点ID ]
+        - df_sum:
+            column: [ 达成人数 ]
+        - df_reset_index: [ ]
+        - stash_push_df: [ ]
+        - fetch_dataset:
+            template_code: mt_month_68
+            dataset_cate: raw
+            columns: [ 站点名称,站点id ]
+            ignore_null_error: true
+        - when_empty_fetch_dataset:
+            template_code: mt_month_68
+            dataset_cate: raw
+            month_offset: -1
+            columns: [ 站点名称,站点id ]
+            ignore_null_error: true
+            empty_df_record:
+              站点名称: '-'
+              站点id: '-'
+        - df_rename_columns:
+            - 站点id: 站点ID
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ 站点名称,站点ID ]
+            how: right
+            drop_stash: true
+        - stash_push_df: [ ]
+        - fetch_dataset:
+            template_code: mt_day_64
+            dataset_cate: raw
+            ignore_null_error: true
+            columns: [ 日期,站点名称,门槛值,封顶值 ]
+        - when_empty_fetch_dataset:
+            template_code: mt_day_64
+            dataset_cate: raw
+            month_offset: -1
+            ignore_null_error: true
+            columns: [ 日期,站点名称,门槛值,封顶值 ]
+            empty_df_record:
+              日期: '-'
+              站点名称: '-'
+              门槛值: 0.0
+              封顶值: 0.0
+        - df_rename_columns:
+            - 日期: 时间
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ 时间,站点名称 ]
+            how: left
+            drop_stash: true
+        - add_cols:
+            - 得分: 0
+        - drop_duplicates:
+            subset: [ 时间,站点名称,门槛值,封顶值,站点ID,达成人数 ]
+        - run_py:
+            - |
+              df = df[df['达成人数'].notnull()]
+              result = df
+
+    - name: zhengzhou_inviolable_site_service
+      sync_result: true
+      cooks:
+        - use_df:
+            key: zhengzhou_inviolable_base
+        - df_select:
+            - '[达成人数] >= [封顶值]'
+        - df_eval:
+            - '[得分] = 60'
+        - stash_push_df: [ ]
+        - use_df:
+            key: zhengzhou_inviolable_base
+        - df_select:
+            - '[门槛值] <= [达成人数] & [达成人数] < [封顶值]'
+        - df_eval:
+            - '[得分] = 48 + 12*([达成人数] - [门槛值])/([封顶值] - [门槛值])'
+        - stash_push_df: [ ]
+        - use_df:
+            key: zhengzhou_inviolable_base
+        - df_select:
+            - '0 <= [达成人数] & [达成人数] < [门槛值]'
+        - df_eval:
+            - '[得分] = 96*[达成人数] / [门槛值] - 60'
+        - stash_push_df: [ ]
+        - stash_concat_df:
+            drop_stash: true
+        - df_groupby:
+            by: [ 站点名称,站点ID ]
+        - df_mean:
+            column: 得分
+            rename: 服务质量得分(运力)
+        - df_reset_index: [ ]
+
+    - name: zhengzhou_inviolable_site
+      sync_result: true
+      cooks:
+        #### 站点维度
+        - use_df:
+            key: pervasive_inviolable_base
+        - stash_push_df: [ ]
+        - use_df:
+            key: zhengzhou_inviolable_site_service
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ 站点名称,站点ID ]
+            how: right
+            drop_stash: true
+        - df_select:
+            - '[城市ID] == @v1'
+            - v1: '410100'
+        - add_cols:
+            - 配取得分: 0
+              配取目标率: 0
+              不满意得分: 0
+              不满意率目标率: 0
+              准时率得分: 0
+              超时目标率: 0
+              虚假订单得分: 0
+              虚假骑手得分: 0
+        - df_to_int:
+            - 配送取消单量
+        - df_to_float:
+            - 配取门槛值
+        - df_to_float:
+            - 配取目标值
+        - df_to_float:
+            - 配取满分值
+        - df_to_float:
+            - 不满意率门槛值
+        - df_to_float:
+            - 不满意率标准值
+        - df_to_float:
+            - 不满意率满分值
+        - df_to_float:
+            - 复合准时率门槛值
+        - df_to_float:
+            - 复合准时率标准值
+        - df_to_float:
+            - 复合准时率满分值
+        - df_to_float:
+            - 不满意率目标率
+        - df_to_float:
+            - 超时目标率
+        - df_to_float:
+            - 不满意单量
+        - df_to_float:
+            - 一般超时单量
+        - df_to_float:
+            - 严重超时单量
+        - run_py:
+            - |
+              df['配取得分'] = df['配取得分'].mask(df['配送未完成率']==df['配取满分值'],10)
+              df['配取得分'] = df['配取得分'].mask((df['配取目标值']>=df['配送未完成率'])&(df['配送未完成率']>df['配取满分值']),((df['配送未完成率']-df['配取目标值'])/(df['配取满分值']-df['配取目标值'])*20+80)*0.1)
+              df['配取得分'] = df['配取得分'].mask((df['配取目标值']<df['配送未完成率'])&(df['配送未完成率']<df['配取门槛值']),(df['配送未完成率']-df['配取门槛值'])/(df['配取目标值']-df['配取门槛值'])*80*0.1)
+              df['配取得分'] = df['配取得分'].mask(df['配送未完成率']>=df['配取门槛值'],0)
+              df['配取目标率'] = df['配取目标率'].mask(df['配取目标得分'] >= (80 * 0.1),(20-(df['配取目标得分']-df['配取目标值']*0.1)/0.1)/20*(df['配取目标值']-df['配取满分值']))
+              df['配取目标率'] = df['配取目标率'].mask((df['配取目标得分']>=0)&(df['配取目标得分'] < 8),(80-(df['配取目标得分']-df['配取门槛值']*0.1)/0.1)/80/(df['配取门槛值']-df['配取目标值'])+df['配取目标值'])
+
+              df['不满意得分'] = df['不满意得分'].mask(df['不满意率']==df['不满意率满分值'],(100*0.1))
+              df['不满意得分'] = df['不满意得分'].mask((df['不满意率']<=df['不满意率标准值'])&(df['不满意率']>df['不满意率满分值']),((df['不满意率']-df['不满意率标准值'])/(df['不满意率满分值']-df['不满意率标准值'])*20+80)*0.1)
+              df['不满意得分'] = df['不满意得分'].mask((df['不满意率']>df['不满意率标准值'])&(df['不满意率']<df['不满意率门槛值']),((df['不满意率']-df['不满意率门槛值'])/(df['不满意率标准值']-df['不满意率门槛值'])*80*0.1))
+              df['不满意得分'] = df['不满意得分'].mask(df['不满意率']>=df['不满意率门槛值'],0)
+
+              df['不满意率目标率'] = df['不满意率目标率'].mask(df['不满意目标得分']>=(80 * 0.1),20-(df['不满意目标得分']-80*0.1)/0.1/20*(df['不满意率标准值']-df['不满意率满分值']))
+              df['不满意率目标率'] = df['不满意率目标率'].mask((df['不满意目标得分']>=0)&(df['不满意目标得分']<(80 * 0.1)),(80-0-(df['不满意目标得分']-0*0.1)/0.1)/(80-0)/(df['不满意率门槛值']-df['不满意率标准值'])+df['不满意率标准值'])
+
+              df['准时率得分'] = df['准时率得分'].mask(df['准时率']==df['复合准时率满分值'],100*0.1)
+              df['准时率得分'] = df['准时率得分'].mask((df['准时率']>=df['复合准时率标准值'])&(df['准时率']<df['复合准时率满分值']),(80+20*(df['准时率']-df['复合准时率标准值'])/(df['复合准时率满分值']-df['复合准时率标准值']))*0.1)
+              df['准时率得分'] = df['准时率得分'].mask((df['准时率']>df['复合准时率门槛值'])&(df['准时率']<df['复合准时率标准值']),80*(df['准时率']-df['复合准时率门槛值'])/(df['复合准时率标准值']-df['复合准时率门槛值'])*0.1)
+              df['准时率得分'] = df['准时率得分'].mask(df['准时率']<=df['复合准时率门槛值'],0)
+
+              df['超时目标率'] = df['超时目标率'].mask(df['准时率目标得分'] >= 80 * 0.1,(100-80-(df['准时率目标得分']-80*0.1)/0.1)/(100-80)*(df['复合准时率满分值']-df['复合准时率标准值']))
+              df['超时目标率'] = df['超时目标率'].mask((df['准时率目标得分'] >= 0) & (df['准时率目标得分'] < 80 * 0.1),(80-0-(df['准时率目标得分']-0*0.1)/0.1)/(80-0)*(df['复合准时率标准值']-df['复合准时率门槛值'])+(df['复合准时率满分值']-df['复合准时率标准值']))
+
+              df['虚假订单得分'] = df['虚假订单得分'].mask(df['虚假订单率'] == df['虚假订单满分值'],0)
+              df['虚假订单得分'] = df['虚假订单得分'].mask((df['虚假订单率'] > df['虚假订单满分值']) & (df['虚假订单率'] <= df['虚假订单目标值']),df['虚假订单率']/(df['虚假订单目标值']-df['虚假订单满分值'])*(-2))
+              df['虚假订单得分'] = df['虚假订单得分'].mask((df['虚假订单率'] > df['虚假订单目标值']) & (df['虚假订单率'] <= df['虚假订单门槛值']),(df['虚假订单率']-df['虚假订单目标值'])/(df['虚假订单门槛值']-df['虚假订单目标值'])*(-3)+(-2))
+              df['虚假订单得分'] = df['虚假订单得分'].mask(df['虚假订单率'] > df['虚假订单门槛值'],-5)
+
+              df['虚假骑手得分'] = df['虚假骑手得分'].mask(df['虚假骑手率'] == df['虚假骑手满分值'],0)
+              df['虚假骑手得分'] = df['虚假骑手得分'].mask((df['虚假骑手率'] > df['虚假骑手满分值']) & (df['虚假骑手率'] <= df['虚假骑手目标值']),df['虚假骑手率']/(df['虚假骑手目标值']-df['虚假骑手满分值'])*(-2))
+              df['虚假骑手得分'] = df['虚假骑手得分'].mask((df['虚假骑手率'] > df['虚假骑手目标值']) & (df['虚假骑手率'] <= df['虚假骑手门槛值']),(df['虚假骑手率']-df['虚假骑手目标值'])/(df['虚假骑手门槛值']-df['虚假骑手目标值'])*(-3)+(-2))
+              df['虚假骑手得分'] = df['虚假骑手得分'].mask(df['虚假骑手率'] > df['虚假骑手门槛值'],-5)
+
+              df['配送未完成率容错值'] = df['月度预估单量'] * df['配取目标率'] - df['配送取消单量']
+              df['不满意率容错值'] = df['月度预估单量'] * df['不满意率目标率'] - df['不满意单量']
+              df['准时率容错值'] = df['月度预估单量'] * df['超时目标率'] - df['一般超时单量'] - 5 * df['严重超时单量']
+              df['体验得分'] = df['配取得分'] + df['不满意得分'] + df['准时率得分']
+              df['得分'] = df['体验得分'] + df['服务质量得分(运力)'] + df['虚假订单得分'] + df['虚假骑手得分'] + df['参培率得分'] + df['考试通过率得分'] + df['装备合规率得分'] + df['贡献积分']
+
+              result = df
+        - fetch_cols:
+            columns: [月份,主体ID,主体,区域ID,区域,城市ID,城市,站点ID,站点名称,贡献积分,服务质量得分(运力),完成单量(未剔除异常单),完成单量(剔除异常单),月度预估单量,配送取消单量,配送未完成率,配送未完成率容错值,配取得分,配取目标得分,配取目标率,配取门槛值,配取目标值,配取满分值,不满意单量,不满意率,不满意率容错值,不满意得分,不满意目标得分,不满意率目标率,不满意率门槛值,不满意率标准值,不满意率满分值,一般超时单量,严重超时单量,准时率,准时率容错值,准时率得分,准时率目标得分,超时目标率,复合准时率门槛值,复合准时率标准值,复合准时率满分值,体验得分,虚假订单数,虚假订单率,虚假订单容错值,虚假订单得分,虚假订单目标得分,虚假订单目标率,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手数,虚假骑手率,虚假骑手容错值,虚假骑手得分,虚假骑手目标得分,虚假骑手目标率,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值,参培率得分,考试通过率得分,装备合规率得分,得分,完成单量,完成单骑手数]
+        - drop_duplicates:
+            - [ 月份,主体ID,主体,区域ID,区域,城市ID,城市,站点ID,站点名称,贡献积分,服务质量得分(运力),完成单量(未剔除异常单),完成单量(剔除异常单),月度预估单量,配送取消单量,配送未完成率,配送未完成率容错值,配取得分,配取目标得分,配取目标率,配取门槛值,配取目标值,配取满分值,不满意单量,不满意率,不满意率容错值,不满意得分,不满意目标得分,不满意率目标率,不满意率门槛值,不满意率标准值,不满意率满分值,一般超时单量,严重超时单量,准时率,准时率容错值,准时率得分,准时率目标得分,超时目标率,复合准时率门槛值,复合准时率标准值,复合准时率满分值,体验得分,虚假订单数,虚假订单率,虚假订单容错值,虚假订单得分,虚假订单目标得分,虚假订单目标率,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手数,虚假骑手率,虚假骑手容错值,虚假骑手得分,虚假骑手目标得分,虚假骑手目标率,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值,参培率得分,考试通过率得分,装备合规率得分,得分,完成单量,完成单骑手数 ]
+        - sort_by_columns:
+            sort_list: [月份,主体ID,主体,区域ID,区域,城市ID,城市,站点ID,站点名称,贡献积分,服务质量得分(运力),完成单量(未剔除异常单),完成单量(剔除异常单),月度预估单量,配送取消单量,配送未完成率,配送未完成率容错值,配取得分,配取目标得分,配取目标率,配取门槛值,配取目标值,配取满分值,不满意单量,不满意率,不满意率容错值,不满意得分,不满意目标得分,不满意率目标率,不满意率门槛值,不满意率标准值,不满意率满分值,一般超时单量,严重超时单量,准时率,准时率容错值,准时率得分,准时率目标得分,超时目标率,复合准时率门槛值,复合准时率标准值,复合准时率满分值,体验得分,虚假订单数,虚假订单率,虚假订单容错值,虚假订单得分,虚假订单目标得分,虚假订单目标率,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手数,虚假骑手率,虚假骑手容错值,虚假骑手得分,虚假骑手目标得分,虚假骑手目标率,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值,参培率得分,考试通过率得分,装备合规率得分,得分,完成单量,完成单骑手数]
+
+    - name: zhengzhou_inviolable_city
+      sync_result: true
+      cooks:
+        ### 城市纬度
+        - use_df:
+            key: zhengzhou_inviolable_site
+            columns: [ 主体,主体ID,区域,区域ID,城市,城市ID,站点名称,站点ID,完成单量(剔除异常单),完成单量(未剔除异常单),服务质量得分(运力),贡献积分,配取得分,不满意得分,准时率得分,虚假订单数,完成单量,虚假骑手数,完成单骑手数,月份 ]
+        - df_select:
+            - '[城市ID] == @v1'
+            - v1: '410100'
+        - push_dataset:
+            key: zhengzhou_inviolable_city_min
+        - use_df:
+            key: zhengzhou_inviolable_city_min
+
+        - df_to_float:
+            - 完成单量(剔除异常单)
+        - df_to_float:
+            - 完成单量(未剔除异常单)
+        - df_to_float:
+            - 贡献积分
+        - df_to_float:
+            - 配取得分
+        - df_to_float:
+            - 准时率得分
+        - df_to_float:
+            - 不满意得分
+        - df_to_float:
+            - 服务质量得分(运力)
+        - df_to_float:
+            - 虚假订单数
+        - df_to_float:
+            - 完成单量
+        - df_to_float:
+            - 虚假骑手数
+        - df_to_float:
+            - 完成单骑手数
+        - run_py:
+            - |
+              df['贡献积分sup'] = df['完成单量(未剔除异常单)'] * df['贡献积分']
+              df['配送未完成率得分sup'] = df['完成单量(剔除异常单)'] * df['配取得分']
+              df['不满意率得分sup'] = df['完成单量(剔除异常单)'] * df['不满意得分']
+              df['准时率得分sup'] = df['完成单量(剔除异常单)'] * df['准时率得分']
+              df['服务质量得分(运力)sup'] = df['完成单量(剔除异常单)'] * df['服务质量得分(运力)']
+              result = df
+        - df_to_str:
+            - 主体ID
+        - df_to_str:
+            - 区域ID
+        - df_to_str:
+            - 城市ID
+        - df_to_str:
+            - 月份
+        - df_groupby:
+            by: [ 主体ID,主体,区域,区域ID,城市,城市ID,月份 ]
+        - df_sum:
+            column: [ 服务质量得分(运力)sup,贡献积分sup,配送未完成率得分sup,不满意率得分sup,准时率得分sup,完成单量(未剔除异常单),完成单量(剔除异常单),虚假订单数,完成单量,虚假骑手数,完成单骑手数 ]
+        - df_reset_index: [ ]
+        - df_rename_columns:
+            - 完成单量(未剔除异常单): 城市完成单量(未剔除异常单)
+              完成单量(剔除异常单): 城市完成单量(剔除异常单)
+        - run_py:
+            - |
+              df['城市贡献积分'] = df['贡献积分sup'] / df['城市完成单量(未剔除异常单)']
+              df['城市配送未完成率得分'] = df['配送未完成率得分sup'] / df['城市完成单量(剔除异常单)']
+              df['城市不满意率得分'] = df['不满意率得分sup'] / df['城市完成单量(剔除异常单)']
+              df['城市准时率得分'] = df['准时率得分sup'] / df['城市完成单量(剔除异常单)']
+              df['城市虚假订单率'] = df['虚假订单数'] / df['完成单量']
+              df['城市虚假骑手率'] = df['虚假骑手数'] / df['完成单骑手数']
+              df['城市服务质量得分(运力)'] = df['服务质量得分(运力)sup'] / df['城市完成单量(剔除异常单)']
+              result = df
+        - stash_push_df: [ ]
+        - use_df:
+            key: zhengzhou_inviolable_site
+            columns: [ 城市,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值 ]
+        - drop_duplicates:
+            subset: [ 城市 ]
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ 城市 ]
+            how: right
+            drop_stash: true
+        - push_dataset:
+            key: result_mini_city
+        - add_cols:
+            - 城市虚假订单得分: 0
+              城市虚假骑手得分: 0
+              参培率得分: 0
+              考试通过率得分: 0
+              装备合规率得分: 0
+        - run_py:
+            - |
+              df['城市虚假订单得分'] = df['城市虚假订单得分'].mask(df['城市虚假订单率'] == df['虚假订单满分值'],0)
+              df['城市虚假订单得分'] = df['城市虚假订单得分'].mask((df['城市虚假订单率'] > df['虚假订单满分值']) & (df['城市虚假订单率'] <= df['虚假订单目标值']),df['城市虚假订单率']/(df['虚假订单目标值']-df['虚假订单满分值'])*(-2))
+              df['城市虚假订单得分'] = df['城市虚假订单得分'].mask((df['城市虚假订单率'] > df['虚假订单目标值']) & (df['城市虚假订单率'] <= df['虚假订单门槛值']),(df['城市虚假订单率']-df['虚假订单目标值'])/(df['虚假订单门槛值']-df['虚假订单目标值'])*(-3)+(-2))
+              df['城市虚假订单得分'] = df['城市虚假订单得分'].mask(df['城市虚假订单率'] > df['虚假订单门槛值'],-5)
+
+              df['城市虚假骑手得分'] = df['城市虚假骑手得分'].mask(df['城市虚假骑手率'] == df['虚假骑手满分值'],0)
+              df['城市虚假骑手得分'] = df['城市虚假骑手得分'].mask((df['城市虚假骑手率'] > df['虚假骑手满分值']) & (df['城市虚假骑手率'] <= df['虚假骑手目标值']),df['城市虚假骑手率']/(df['虚假骑手目标值']-df['虚假骑手满分值'])*(-2))
+              df['城市虚假骑手得分'] = df['城市虚假骑手得分'].mask((df['城市虚假骑手率'] > df['虚假骑手目标值']) & (df['城市虚假骑手率'] <= df['虚假骑手门槛值']),(df['城市虚假骑手率']-df['虚假骑手目标值'])/(df['虚假骑手门槛值']-df['虚假骑手目标值'])*(-3)+(-2))
+              df['城市虚假骑手得分'] = df['城市虚假骑手得分'].mask(df['城市虚假骑手率'] > df['虚假订单门槛值'],-5)
+              df['城市得分'] = df['城市服务质量得分(运力)'] + df['城市配送未完成率得分'] + df['城市不满意率得分'] + df['城市准时率得分'] + df['城市虚假订单得分'] + df['城市虚假骑手得分'] + df['参培率得分'] + df['考试通过率得分'] + df['装备合规率得分'] + df['城市贡献积分']
+
+              result = df
+        - fetch_cols:
+            columns: [月份,主体ID,主体,区域ID,区域,城市ID,城市,城市得分,城市服务质量得分(运力),城市配送未完成率得分,城市不满意率得分,城市准时率得分,城市虚假订单率,城市虚假订单得分,城市虚假骑手率,城市虚假骑手得分,城市贡献积分,参培率得分,考试通过率得分,装备合规率得分,城市完成单量(剔除异常单),城市完成单量(未剔除异常单),虚假订单数,完成单量,虚假骑手数,完成单骑手数]
+        - sort_by_columns:
+            sort_list: [月份,主体ID,主体,区域ID,区域,城市ID,城市,城市得分,城市服务质量得分(运力),城市配送未完成率得分,城市不满意率得分,城市准时率得分,城市虚假订单率,城市虚假订单得分,城市虚假骑手率,城市虚假骑手得分,城市贡献积分,参培率得分,考试通过率得分,装备合规率得分,城市完成单量(剔除异常单),城市完成单量(未剔除异常单),虚假订单数,完成单量,虚假骑手数,完成单骑手数]
+
+    - name: zhengzhou_inviolable_region
+      sync_result: true
+      cooks:
+        #### 区域维度
+        - fetch_dataset:
+            dataset_type_code: zhengzhou_inviolable_city
+            dataset_cate: std
+            ignore_null_error: true
+            month_offset: 0
+            empty_df_record:
+              月份: 197901
+              主体ID: '-'
+              主体: '-'
+              区域ID: '-'
+              区域: '-'
+              城市ID: '-'
+              城市: '-'
+              城市得分: 0.0
+              城市服务质量得分(运力): 0.0
+              城市配送未完成率得分: 0.0
+              城市不满意率得分: 0.0
+              城市虚假订单率: 0.0
+              城市准时率得分: 0.0
+              城市虚假订单得分: 0.0
+              城市虚假骑手率: 0.0
+              城市虚假骑手得分: 0.0
+              城市贡献积分: 0.0
+              参培率得分: 0.0
+              考试通过率得分: 0.0
+              装备合规率得分: 0.0
+              城市完成单量(剔除异常单): 0.0
+              城市完成单量(未剔除异常单): 0.0
+              虚假订单数: 0
+              完成单量: 0
+              虚假骑手数: 0
+              完成单骑手数: 0
+        - df_to_int:
+            - 月份
+        - stash_push_df: [ ]
+        - fetch_dataset:
+            dataset_type_code: zhengzhou_inviolable_city
+            dataset_cate: std
+            ignore_null_error: true
+            month_offset: -1
+            empty_df_record:
+              月份: 197901
+              主体ID: '-'
+              主体: '-'
+              区域ID: '-'
+              区域: '-'
+              城市ID: '-'
+              城市: '-'
+              城市得分: 0.0
+              城市服务质量得分(运力): 0.0
+              城市配送未完成率得分: 0.0
+              城市不满意率得分: 0.0
+              城市虚假订单率: 0.0
+              城市准时率得分: 0.0
+              城市虚假订单得分: 0.0
+              城市虚假骑手率: 0.0
+              城市虚假骑手得分: 0.0
+              城市贡献积分: 0.0
+              参培率得分: 0.0
+              考试通过率得分: 0.0
+              装备合规率得分: 0.0
+              城市完成单量(剔除异常单): 0.0
+              城市完成单量(未剔除异常单): 0.0
+              虚假订单数: 0
+              完成单量: 0
+              虚假骑手数: 0
+              完成单骑手数: 0
+        - df_to_int:
+            - 月份
+        - stash_push_df: [ ]
+
+        - fetch_dataset:
+            dataset_type_code: zhengzhou_inviolable_city
+            dataset_cate: std
+            ignore_null_error: true
+            month_offset: -2
+            empty_df_record:
+              月份: 197901
+              主体ID: '-'
+              主体: '-'
+              区域ID: '-'
+              区域: '-'
+              城市ID: '-'
+              城市: '-'
+              城市得分: 0.0
+              城市服务质量得分(运力): 0.0
+              城市配送未完成率得分: 0.0
+              城市不满意率得分: 0.0
+              城市虚假订单率: 0.0
+              城市准时率得分: 0.0
+              城市虚假订单得分: 0.0
+              城市虚假骑手率: 0.0
+              城市虚假骑手得分: 0.0
+              城市贡献积分: 0.0
+              参培率得分: 0.0
+              考试通过率得分: 0.0
+              装备合规率得分: 0.0
+              城市完成单量(剔除异常单): 0.0
+              城市完成单量(未剔除异常单): 0.0
+              虚假订单数: 0
+              完成单量: 0
+              虚假骑手数: 0
+              完成单骑手数: 0
+        - df_to_int:
+            - 月份
+        - stash_push_df: [ ]
+
+        - fetch_dataset:
+            dataset_type_code: zhengzhou_inviolable_city
+            dataset_cate: std
+            ignore_null_error: true
+            month_offset: -3
+            empty_df_record:
+              月份: 197901
+              主体ID: '-'
+              主体: '-'
+              区域ID: '-'
+              区域: '-'
+              城市ID: '-'
+              城市: '-'
+              城市得分: 0.0
+              城市服务质量得分(运力): 0.0
+              城市配送未完成率得分: 0.0
+              城市不满意率得分: 0.0
+              城市虚假订单率: 0.0
+              城市准时率得分: 0.0
+              城市虚假订单得分: 0.0
+              城市虚假骑手率: 0.0
+              城市虚假骑手得分: 0.0
+              城市贡献积分: 0.0
+              参培率得分: 0.0
+              考试通过率得分: 0.0
+              装备合规率得分: 0.0
+              城市完成单量(剔除异常单): 0.0
+              城市完成单量(未剔除异常单): 0.0
+              虚假订单数: 0
+              完成单量: 0
+              虚假骑手数: 0
+              完成单骑手数: 0
+        - df_to_int:
+            - 月份
+        - stash_push_df: [ ]
+        - stash_concat_df:
+            drop_stash: true
+        - df_fillna:
+            columns: [月份]
+            value: 0
+        - run_py:
+            - |
+              df=to_df(df)
+              df['月份'].astype(int)
+              df['时间先后情况']=df['月份']-(int(np.datetime64('today').tolist().year)*100+(np.datetime64('today').tolist().month//4-(np.datetime64('today').tolist().month-(np.datetime64('today').tolist().month//4*4) ==0))*4+1)
+              df=df[df['时间先后情况']>=0]
+              df['贡献积分sup'] = df['城市完成单量(未剔除异常单)'] * df['城市贡献积分']
+              df['配送未完成率得分sup'] = df['城市完成单量(剔除异常单)'] * df['城市配送未完成率得分']
+              df['不满意率得分sup'] = df['城市完成单量(剔除异常单)'] * df['城市不满意率得分']
+              df['准时率得分sup'] = df['城市完成单量(剔除异常单)'] * df['城市准时率得分']
+              df['服务质量得分(运力)sup'] = df['城市完成单量(剔除异常单)'] * df['城市服务质量得分(运力)']
+              result = df
+#        - df_fillna:
+#            value: 0
+        - df_groupby:
+            by: [ 主体,主体ID,区域,区域ID ]
+        - df_sum:
+            column: [ 服务质量得分(运力)sup,贡献积分sup,配送未完成率得分sup,不满意率得分sup,准时率得分sup,城市完成单量(未剔除异常单),城市完成单量(剔除异常单),虚假订单数,完成单量,虚假骑手数,完成单骑手数 ]
+        - df_reset_index: [ ]
+        - df_rename_columns:
+            - 城市完成单量(未剔除异常单): 区域完成单量(未剔除异常单)
+              城市完成单量(剔除异常单): 区域完成单量(剔除异常单)
+        - run_py:
+            - |
+              df['区域贡献积分'] = df['贡献积分sup'] / df['区域完成单量(未剔除异常单)']
+              df['区域配送未完成率得分'] = df['配送未完成率得分sup'] / df['区域完成单量(剔除异常单)']
+              df['区域不满意率得分'] = df['不满意率得分sup'] / df['区域完成单量(剔除异常单)']
+              df['区域准时率得分'] = df['准时率得分sup'] / df['区域完成单量(剔除异常单)']
+              df['区域虚假订单率'] = df['虚假订单数'] / df['完成单量']
+              df['区域虚假骑手率'] = df['虚假骑手数'] / df['完成单骑手数']
+              df['区域服务质量得分(运力)'] = df['服务质量得分(运力)sup'] / df['区域完成单量(剔除异常单)']
+              result = df
+        - stash_push_df: [ ]
+        - use_df:
+            key: zhengzhou_inviolable_site
+            columns: [ 区域,虚假订单门槛值,虚假订单目标值,虚假订单满分值,虚假骑手门槛值,虚假骑手目标值,虚假骑手满分值 ]
+        - drop_duplicates:
+            subset: [ 区域 ]
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ 区域 ]
+            how: right
+            drop_stash: true
+        - stash_push_df: [ ]
+        - fetch_dataset:
+            template_code: mt_month_69
+            dataset_cate: raw
+            ignore_null_error: true
+        - when_empty_fetch_dataset:
+            template_code: mt_month_69
+            dataset_cate: raw
+            month_offset: -1
+            ignore_null_error: true
+            empty_df_record:
+              区域名称: '-'
+              装备合规率: 0
+              参培率: 0
+              考试通过率: 0
+              meta_month: 197007
+              meta_day: 19701212
+        - df_rename_columns:
+            - 区域名称: 区域
+              装备合规率: 装备合规率得分
+              参培率: 参培率得分
+              考试通过率: 考试通过率得分
+        - drop_duplicates:
+            subset: [区域,装备合规率得分,参培率得分,考试通过率得分,meta_month,meta_day]
+        - stash_push_df: [ ]
+        - stash_join_df:
+            on: [ 区域 ]
+            how: right
+            drop_stash: true
+        - add_cols:
+            - 区域虚假订单得分: 0
+              区域虚假骑手得分: 0
+        - run_py:
+            - |
+              df['区域虚假订单得分'] = df['区域虚假订单得分'].mask(df['区域虚假订单率'] == df['虚假订单满分值'],0)
+              df['区域虚假订单得分'] = df['区域虚假订单得分'].mask((df['区域虚假订单率'] > df['虚假订单满分值']) & (df['区域虚假订单率'] <= df['虚假订单目标值']),df['区域虚假订单率']/(df['虚假订单目标值']-df['虚假订单满分值'])*(-2))
+              df['区域虚假订单得分'] = df['区域虚假订单得分'].mask((df['区域虚假订单率'] > df['虚假订单目标值']) & (df['区域虚假订单率'] <= df['虚假订单门槛值']),(df['区域虚假订单率']-df['虚假订单目标值'])/(df['虚假订单门槛值']-df['虚假订单目标值'])*(-3)+(-2))
+              df['区域虚假订单得分'] = df['区域虚假订单得分'].mask(df['区域虚假订单率'] > df['虚假订单门槛值'],-5)
+
+              df['区域虚假骑手得分'] = df['区域虚假骑手得分'].mask(df['区域虚假骑手率'] == df['虚假骑手满分值'],0)
+              df['区域虚假骑手得分'] = df['区域虚假骑手得分'].mask((df['区域虚假骑手率'] > df['虚假骑手满分值']) & (df['区域虚假骑手率'] <= df['虚假骑手目标值']),df['区域虚假骑手率']/(df['虚假骑手目标值']-df['虚假骑手满分值'])*(-2))
+              df['区域虚假骑手得分'] = df['区域虚假骑手得分'].mask((df['区域虚假骑手率'] > df['虚假骑手目标值']) & (df['区域虚假骑手率'] <= df['虚假骑手门槛值']),(df['区域虚假骑手率']-df['虚假骑手目标值'])/(df['虚假骑手门槛值']-df['虚假骑手目标值'])*(-3)+(-2))
+              df['区域虚假骑手得分'] = df['区域虚假骑手得分'].mask(df['区域虚假骑手率'] > df['虚假订单门槛值'],-5)
+              df['区域得分'] = df['区域服务质量得分(运力)'] + df['区域配送未完成率得分'] + df['区域不满意率得分'] + df['区域准时率得分'] + df['区域虚假订单得分'] + df['区域虚假骑手得分'] + df['参培率得分'] + df['考试通过率得分'] + df['装备合规率得分'] + df['区域贡献积分']
+
+              result = df
+        - fetch_cols:
+            columns: [主体,区域,装备合规率得分,区域服务质量得分(运力),区域配送未完成率得分,区域不满意率得分,区域准时率得分,区域虚假订单得分,区域虚假骑手得分,区域得分,参培率得分,考试通过率得分,装备合规率得分]
+        - sort_by_columns:
+            sort_list: [ 主体,区域,装备合规率得分,区域服务质量得分(运力),区域配送未完成率得分,区域不满意率得分,区域准时率得分,区域虚假订单得分,区域虚假骑手得分,区域得分,参培率得分,考试通过率得分,装备合规率得分 ]
