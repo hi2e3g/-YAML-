@@ -6,7 +6,7 @@ ele_month_env:
     play_on_dask_cluster: true
     dask_client_set_as_default: true
     platform_code: elem
-    cluster_client_address: tcp://172.31.54.193:8786
+    cluster_client_address: 'dask-scheduler-service.databus:8786'
   play:
     - cooks:
         - fetch_dataset:
@@ -40,9 +40,6 @@ ele_month_env:
             - 团队ID: 站点ID
         - set_date_column:
             src_column: 账单时间
-            format:
-              - MM-DD-YY
-              - YYYY-MM-DD
         - set_meta_month_column:
             - month
         - set_weekday_column:
@@ -548,9 +545,9 @@ ele_month_env:
     - name: ele_month_48_std
       sync_result: true
       cooks:
-      - fetch_dataset:
-          datakit_pull_way: last_day
-          columns:
+        - fetch_dataset:
+            datakit_pull_way: last_day
+            columns:
               - 骑手ID
               - 团队ID
               - 考勤日期
@@ -562,30 +559,30 @@ ele_month_env:
               - 晚高峰在线时长
               - 晚间在线时长
               - 晚间夜宵在线时长
-          dataset_cate: raw
-          template_code: ele_month_48
-          rename:
-              团队ID: 站点ID
-      - set_meta_month_column:
-          - month
-      - set_date_column:
-          src_column: 考勤日期
-      - df_fillna:
-          columns: [ 全天在线时长,凌晨夜宵在线时长,早餐在线时长,午高峰在线时长,下午在线时长,晚高峰在线时长,晚间在线时长,晚间夜宵在线时长 ]
-          value: '-'
-      - run_py:
-          - |
-            df = to_df(df)
-            fn = lambda x: (int(re.match(u'(.*)小时(.*)分钟', x, ).group(1)) * 60 + int(re.match(u'(.*)小时(.*)分钟', x, ).group(2))) if re.match(u'(.*)小时(.*)分钟', x, ) else 0
-            df[u'全天在线时长-分钟'] = df[u'全天在线时长'].apply(fn)
-            df[u'凌晨夜宵在线时长-分钟'] = df[u'凌晨夜宵在线时长'].apply(fn)
-            df[u'早餐在线时长-分钟'] = df[u'早餐在线时长'].apply(fn)
-            df[u'午高峰在线时长-分钟'] = df[u'午高峰在线时长'].apply(fn)
-            df[u'下午在线时长-分钟'] = df[u'下午在线时长'].apply(fn)
-            df[u'晚高峰在线时长-分钟'] = df[u'晚高峰在线时长'].apply(fn)
-            df[u'晚间在线时长-分钟'] = df[u'晚间在线时长'].apply(fn)
-            df[u'晚间夜宵在线时长-分钟'] = df[u'晚间夜宵在线时长'].apply(fn)
-            result = to_dd(df)
+            dataset_cate: raw
+            template_code: ele_month_48
+            rename:
+                团队ID: 站点ID
+        - set_meta_month_column:
+            - month
+        - set_date_column:
+            src_column: 考勤日期
+        - df_fillna:
+            columns: [ 全天在线时长,凌晨夜宵在线时长,早餐在线时长,午高峰在线时长,下午在线时长,晚高峰在线时长,晚间在线时长,晚间夜宵在线时长 ]
+            value: '-'
+        - run_py:
+            - |
+              df = to_df(df).copy()
+              fn = lambda x: (int(re.match(u'(.*)小时(.*)分钟', x, ).group(1)) * 60 + int(re.match(u'(.*)小时(.*)分钟', x, ).group(2))) if re.match(u'(.*)小时(.*)分钟', x, ) else 0
+              df[u'全天在线时长-分钟'] = df[u'全天在线时长'].apply(fn)
+              df[u'凌晨夜宵在线时长-分钟'] = df[u'凌晨夜宵在线时长'].apply(fn)
+              df[u'早餐在线时长-分钟'] = df[u'早餐在线时长'].apply(fn)
+              df[u'午高峰在线时长-分钟'] = df[u'午高峰在线时长'].apply(fn)
+              df[u'下午在线时长-分钟'] = df[u'下午在线时长'].apply(fn)
+              df[u'晚高峰在线时长-分钟'] = df[u'晚高峰在线时长'].apply(fn)
+              df[u'晚间在线时长-分钟'] = df[u'晚间在线时长'].apply(fn)
+              df[u'晚间夜宵在线时长-分钟'] = df[u'晚间夜宵在线时长'].apply(fn)
+              result = to_dd(df)
 
 
 ele_daily_env:
@@ -595,7 +592,7 @@ ele_daily_env:
     play_on_dask_cluster: true
     dask_client_set_as_default: true
     platform_code: elem
-    cluster_client_address: tcp://172.31.54.193:8786
+    cluster_client_address: 'dask-scheduler-service.databus:8786'
   play:
     - cooks:
         - fetch_dataset:
