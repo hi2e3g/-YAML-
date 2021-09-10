@@ -7,7 +7,7 @@ new_finance_weekly_report_env:
     cluster_client_address: 'dask-scheduler-service.databus:8786'
 
   play:
-    - name: biz_monthly_map_copy       # 处理商圈与code转换表
+    - name: biz_monthly_map_finance_weekly_copy       # 处理商圈与code转换表
       sync_result: true
       cooks:
         - fetch_datasource: # 三张转化表合并
@@ -84,7 +84,7 @@ new_finance_weekly_report_env:
             drop_stash: true
         - stash_push_df: [ ]
         - use_df:    # 商圈code转换表
-            key: biz_monthly_map_copy
+            key: biz_monthly_map_finance_weekly_copy
         - df_select:
             - '([platform_code] == @p1) & ([supplier_id] == @p2)'
             - p1: 'elem'
@@ -134,7 +134,6 @@ new_finance_weekly_report_env:
             value: 0.0
         - run_py:
             - |
-              df = to_df(df)
               df['上月兼职单成本'] = df['上月兼职单成本'].mask(df['上月兼职单成本'] == 0,df['上月全职单成本'])
               df['日均单'] =  df['完成单量'] / 7
               df['单均KPI收入'] = (df['KPI收入'] / df['完成单量']).replace([np.inf, -np.inf, "", np.nan],0)
@@ -145,9 +144,9 @@ new_finance_weekly_report_env:
               df['一线服务费（全职）'] =  (df['全职单量'] * df['上月全职单成本']).replace([np.inf, -np.inf, "", np.nan],0)
               df['一线服务费'] =  (df['一线服务费（全职）'] + df['一线服务费（兼职）']).replace([np.inf, -np.inf, "", np.nan],0)
               df['单均一线服务费'] =  (df['一线服务费'] / df['完成单量']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['毛利'] = (df['单均一线服务费'] - df['单均收入']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['毛利'] = (df['单均收入'] - df['单均一线服务费']).replace([np.inf, -np.inf, "", np.nan],0)
               df['毛利率'] = (df['毛利'] / df['单均收入']).replace([np.inf, -np.inf, "", np.nan],0)
-              result = to_dd(df)
+              result = df
         - df_rename_columns:
             - code_name: code名称
               完成单量: 单量
@@ -185,10 +184,10 @@ new_finance_weekly_report_env:
             columns: [code名称,主营业务收入,单均收入,单均基础收入,单均KPI收入,单量,日均单,一线服务费,一线服务费（全职）,全职单量,上月全职单成本,一线服务费（兼职）,兼职单量,上月兼职单成本,单均一线服务费,毛利,毛利率]
         - run_py:
             - |
-              df = to_df(df)
+              df = to_df(df).copy()
               df = df.set_index(['code名称'])
               df = df.transpose()
-              df.reset_index(drop=False, inplace=True)
+              df = df.reset_index(drop=False)
               result = to_dd(df)
         - df_rename_columns:
             - index: ac_code
@@ -249,7 +248,7 @@ new_finance_weekly_report_env:
         - df_reset_index: [ ]
         - stash_push_df: [ ]
         - use_df: # 商圈code转换表
-            key: biz_monthly_map_copy
+            key: biz_monthly_map_finance_weekly_copy
         - df_select:
             - '([platform_code] == @p1) & ([supplier_id] == @p2)'
             - p1: 'meituan'
@@ -302,7 +301,6 @@ new_finance_weekly_report_env:
             value: 0.0
         - run_py:
             - |
-              df = to_df(df)
               df['上月兼职单成本'] = df['上月兼职单成本'].mask(df['上月兼职单成本'] == 0,df['上月全职单成本'])
               df['日均单'] =  df['完成单量'] / 7
               df['单均KPI收入'] = (df['KPI收入'] / df['完成单量']).replace([np.inf, -np.inf, "", np.nan],0)
@@ -313,9 +311,9 @@ new_finance_weekly_report_env:
               df['一线服务费（全职）'] =  (df['全职单量'] * df['上月全职单成本']).replace([np.inf, -np.inf, "", np.nan],0)
               df['一线服务费'] =  (df['一线服务费（全职）'] + df['一线服务费（兼职）']).replace([np.inf, -np.inf, "", np.nan],0)
               df['单均一线服务费'] =  (df['一线服务费'] / df['完成单量']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['毛利'] = (df['单均一线服务费'] - df['单均收入']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['毛利'] = (df['单均收入'] - df['单均一线服务费']).replace([np.inf, -np.inf, "", np.nan],0)
               df['毛利率'] = (df['毛利'] / df['单均收入']).replace([np.inf, -np.inf, "", np.nan],0)
-              result = to_dd(df)
+              result = df
         - df_rename_columns:
             - code_name: code名称
               完成单量: 单量
@@ -353,10 +351,10 @@ new_finance_weekly_report_env:
             columns: [code名称,主营业务收入,单均收入,单均基础收入,单均KPI收入,单量,日均单,一线服务费,一线服务费（全职）,全职单量,上月全职单成本,一线服务费（兼职）,兼职单量,上月兼职单成本,单均一线服务费,毛利,毛利率]
         - run_py:
             - |
-              df = to_df(df)
+              df = to_df(df).copy()
               df = df.set_index(['code名称'])
               df = df.transpose()
-              df.reset_index(drop=False, inplace=True)
+              df = df.reset_index(drop=False)
               result = to_dd(df)
         - df_rename_columns:
             - index: ac_code
@@ -378,14 +376,6 @@ new_finance_weekly_report_env:
         - df_select:
             - '[supplier_id] == @p1'
             - p1: 5b9738f5ce6d2abdaed16e09      # 润达
-        - run_py:
-            - |
-              df = to_df(df)
-              df['days'] = pd.datetime.now()
-              df['日期'] = pd.to_datetime(df['日期'],format = '%Y%m%d')
-              df['data_days'] = ((df['days'] - df['日期'])/pd.Timedelta(1, 'D')).map(int)
-              df=df[df['data_days']<=7]
-              result = to_dd(df)
         - df_groupby:
             by: dc_id
         - df_sum:
@@ -393,7 +383,7 @@ new_finance_weekly_report_env:
         - df_reset_index: [ ]
         - stash_push_df: [ ]
         - use_df: # 商圈code转换表
-            key: biz_monthly_map_copy
+            key: biz_monthly_map_finance_weekly_copy
         - df_select:
             - '([platform_code] == @p1) & ([supplier_id] == @p2)'
             - p1: 'meituan'
@@ -446,7 +436,6 @@ new_finance_weekly_report_env:
             value: 0.0
         - run_py:
             - |
-              df = to_df(df)
               df['上月兼职单成本'] = df['上月兼职单成本'].mask(df['上月兼职单成本'] == 0,df['上月全职单成本'])
               df['日均单'] =  df['完成单量'] / 7
               df['单均KPI收入'] = (df['KPI收入'] / df['完成单量']).replace([np.inf, -np.inf, "", np.nan],0)
@@ -457,9 +446,9 @@ new_finance_weekly_report_env:
               df['一线服务费（全职）'] =  (df['全职单量'] * df['上月全职单成本']).replace([np.inf, -np.inf, "", np.nan],0)
               df['一线服务费'] =  (df['一线服务费（全职）'] + df['一线服务费（兼职）']).replace([np.inf, -np.inf, "", np.nan],0)
               df['单均一线服务费'] =  (df['一线服务费'] / df['完成单量']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['毛利'] = (df['单均一线服务费'] - df['单均收入']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['毛利'] = (df['单均收入'] - df['单均一线服务费']).replace([np.inf, -np.inf, "", np.nan],0)
               df['毛利率'] = (df['毛利'] / df['单均收入']).replace([np.inf, -np.inf, "", np.nan],0)
-              result = to_dd(df)
+              result = df
         - df_rename_columns:
             - code_name: code名称
               完成单量: 单量
@@ -497,10 +486,10 @@ new_finance_weekly_report_env:
             columns: [code名称,主营业务收入,单均收入,单均基础收入,单均KPI收入,单量,日均单,一线服务费,一线服务费（全职）,全职单量,上月全职单成本,一线服务费（兼职）,兼职单量,上月兼职单成本,单均一线服务费,毛利,毛利率]
         - run_py:
             - |
-              df = to_df(df)
+              df = to_df(df).copy()
               df = df.set_index(['code名称'])
               df = df.transpose()
-              df.reset_index(drop=False, inplace=True)
+              df = df.reset_index(drop=False)
               result = to_dd(df)
         - df_rename_columns:
             - index: ac_code
@@ -522,14 +511,6 @@ new_finance_weekly_report_env:
         - df_select:
             - '[supplier_id] == @p1'
             - p1: 5b9738f4ce6d2abdaed16a8e      # 易即达
-        - run_py:
-            - |
-              df = to_df(df)
-              df['days'] = pd.datetime.now()
-              df['日期'] = pd.to_datetime(df['日期'],format = '%Y%m%d')
-              df['data_days'] = ((df['days'] - df['日期'])/pd.Timedelta(1, 'D')).map(int)
-              df=df[df['data_days']<=7]
-              result = to_dd(df)
         - df_groupby:
             by: dc_id
         - df_sum:
@@ -537,7 +518,7 @@ new_finance_weekly_report_env:
         - df_reset_index: [ ]
         - stash_push_df: [ ]
         - use_df: # 商圈code转换表
-            key: biz_monthly_map_copy
+            key: biz_monthly_map_finance_weekly_copy
         - df_select:
             - '([platform_code] == @p1) & ([supplier_id] == @p2)'
             - p1: 'meituan'
@@ -590,7 +571,6 @@ new_finance_weekly_report_env:
             value: 0.0
         - run_py:
             - |
-              df = to_df(df)
               df['上月兼职单成本'] = df['上月兼职单成本'].mask(df['上月兼职单成本'] == 0,df['上月全职单成本'])
               df['日均单'] =  df['完成单量'] / 7
               df['单均KPI收入'] = (df['KPI收入'] / df['完成单量']).replace([np.inf, -np.inf, "", np.nan],0)
@@ -601,9 +581,9 @@ new_finance_weekly_report_env:
               df['一线服务费（全职）'] =  (df['全职单量'] * df['上月全职单成本']).replace([np.inf, -np.inf, "", np.nan],0)
               df['一线服务费'] =  (df['一线服务费（全职）'] + df['一线服务费（兼职）']).replace([np.inf, -np.inf, "", np.nan],0)
               df['单均一线服务费'] =  (df['一线服务费'] / df['完成单量']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['毛利'] = (df['单均一线服务费'] - df['单均收入']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['毛利'] = (df['单均收入'] - df['单均一线服务费']).replace([np.inf, -np.inf, "", np.nan],0)
               df['毛利率'] = (df['毛利'] / df['单均收入']).replace([np.inf, -np.inf, "", np.nan],0)
-              result = to_dd(df)
+              result = df
         - df_rename_columns:
             - code_name: code名称
               完成单量: 单量
@@ -641,10 +621,10 @@ new_finance_weekly_report_env:
             columns: [code名称,主营业务收入,单均收入,单均基础收入,单均KPI收入,单量,日均单,一线服务费,一线服务费（全职）,全职单量,上月全职单成本,一线服务费（兼职）,兼职单量,上月兼职单成本,单均一线服务费,毛利,毛利率]
         - run_py:
             - |
-              df = to_df(df)
+              df = to_df(df).copy()
               df = df.set_index(['code名称'])
               df = df.transpose()
-              df.reset_index(drop=False, inplace=True)
+              df = df.reset_index(drop=False)
               result = to_dd(df)
         - df_rename_columns:
             - index: ac_code
