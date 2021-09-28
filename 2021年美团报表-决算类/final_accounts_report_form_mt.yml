@@ -9,14 +9,13 @@ mt_report_from_final_accounts_daily_env:
     cluster_client_address: 'dask-scheduler-service.databus:8786'
 
   play:
-    - name: wages_copy     # 工资表标准化，获取我们所需数据
+    - name: wages_copy     # 工资表标准化，获取我们所需数据(单位：元)
       sync_result: true
       cooks:
         - fetch_datasource:   # 工资表
             datasource: datahub
             table: salaryflow.batch_data_log
             ignore_null_error: true
-            month_offset: -1
             empty_df_record:
               staff_id: '-'
               staff_id_card_num: '-'
@@ -65,11 +64,10 @@ mt_report_from_final_accounts_daily_env:
     - name: add_wages_copy
       sync_result: true
       cooks:
-        - fetch_datasource:   # 追加工资表
+        - fetch_datasource:   # 追加工资表（单位：元）
             datasource: datahub
             table: datasource.biz_ext_salaryflow_log
             ignore_null_error: true
-            month_offset: -1
             empty_df_record:
               staff_id: '-'
               staff_id_card_num: '-'
@@ -127,14 +125,13 @@ mt_report_from_final_accounts_daily_env:
 
 
 
-    - name: biz_ext_data_log_copy     # 收入表标准化，获取我们所需数据
+    - name: biz_ext_data_log_copy     # 收入表标准化，获取我们所需数据（单位：分）需要对分进行处理为：元
       sync_result: true
       cooks:
         - fetch_datasource:    # 收入表，四张所需原始数据集汇总表
             datasource: datahub
             table: datasource.biz_ext_data_log
             ignore_null_error: true
-            month_offset: -1
             empty_df_record:
               datasource_kind: '-'
               dc_id: '-'
@@ -171,6 +168,9 @@ mt_report_from_final_accounts_daily_env:
             columns: [datasource_kind,supplier_id,dc_id,dc_name,cost_mode,money,cost_type,child_ac_code,worker_num,staff_id_card_num,vendor_dc_id,book_month,ac_code,ac_name,team_id,team_code,team_name]
         - df_to_float:
             - money
+        - df_eval:   ## 收入单位为分，换算为元，但有部分科目为单量与人数，计算时需重新 * 100
+            - |
+              [money] = [money] / 100
 
 
     - name: biz_monthly_map_copy     # 转换表标准化，获取我们所需数据
@@ -181,7 +181,6 @@ mt_report_from_final_accounts_daily_env:
             table: datasource.biz_monthly_map
             meta_month_column_name: month
             ignore_null_error: true
-            month_offset: -1
             empty_df_record:
               map_name: '-'
               value1: '-'
@@ -284,6 +283,15 @@ mt_report_from_final_accounts_daily_env:
         - pad_cols:
             columns: [ 'D-101','M-1010101','M-1010102','M-1010103-1','M-1010103-2','M-1010103-3','M-1010104-1','M-1010104-2','M-1010104-3','M-1010104-4','M-70102','M-70105' ]
             default_value: 0
+        - df_rename_columns:
+            - D-101: 单量
+        - df_eval:
+            - |
+              [单量] = [单量] * 100
+        - df_to_int:
+            - 单量
+        - df_rename_columns:
+            - 单量: D-101
         - stash_push_df: [ ]
         - stash_join_df:
             on: dc_name
@@ -406,6 +414,10 @@ mt_report_from_final_accounts_daily_env:
         - pad_cols:
             columns: [C50101,C50201]
             default_value: 0
+        - df_eval:
+            - |
+              [C50101] = [C50101] * 100
+              [C50201] = [C50201] * 100
         - fetch_cols:
             columns: [dc_name,C50101,C50201]
         - stash_push_df: []
@@ -441,11 +453,8 @@ mt_report_from_final_accounts_daily_env:
             on: dc_name
             how: outer
             drop_stash: true
-        - run_py:
-            - |
-              df = to_df(df)
-              df["S6"] = (pd.datetime.now()-pd.Timedelta(days=pd.datetime.now().day)).day
-              result = to_dd(df)
+        - set_meta_days_column:
+            - S6
         - df_fillna:
             value: 0
         - add_cols:
@@ -580,30 +589,30 @@ mt_report_from_final_accounts_daily_env:
         - run_py:
             - |
               df['D-10101'] = (df['D-101'] / df['S6']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['S1'] = (df['A101011'] + df['A101021'] + df['A101031']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['S1'] = df['A101011'] + df['A101021'] + df['A101031']
               df['M-1010101-1'] = (df['M-1010101'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-1010102-1'] = (df['M-1010102'] / 1.06).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-1010103'] = (df['M-1010103-1'] + df['M-1010103-2'] + df['M-1010103-3']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-1010104'] = (df['M-1010104-1'] + df['M-1010104-2'] + df['M-1010104-3'] + df['M-1010104-4']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-1010102-1'] = df['M-1010102'] / 1.06
+              df['M-1010103'] = df['M-1010103-1'] + df['M-1010103-2'] + df['M-1010103-3']
+              df['M-1010104'] = df['M-1010104-1'] + df['M-1010104-2'] + df['M-1010104-3'] + df['M-1010104-4']
               df['M-1010104-5'] = (df['M-1010104'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['M-1010104-6'] = (df['M-1010104-1'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-10101'] = (df['M-1010101'] + df['M-1010102'] + df['M-1010103'] + df['M-1010104']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-10101'] = df['M-1010101'] + df['M-1010102'] + df['M-1010103'] + df['M-1010104']
               df['M-10102'] = (df['M-10101'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-70101'] = (df['M-70102'] - df['M-70105']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-701'] = (df['M-70101'] + df['M-70106']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-70101'] = df['M-70102'] - df['M-70105']
+              df['M-701'] = df['M-70101'] + df['M-70106']
               df['A101033'] = (df['A10103'] / df['A101032']).replace([np.inf, -np.inf, "", np.nan],0)
               df['A101023'] = (df['A10102'] / df['A101022']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['A101'] = (df['A10101'] + df['A101023'] + df['A101033'] + df['A10104']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['A1'] = (df['A101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A101'] = df['A10101'] + df['A101023'] + df['A101033'] + df['A10104']
+              df['A1'] = df['A101']
               df['A102'] = (df['A101'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['A103'] = (df['A101'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
               df['A101013'] = (df['A10101'] / df['A101012']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['A11'] = (df['A101012'] + df['A101022'] + df['A101032']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['A2'] = (df['A201'] + df['A206']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A11'] = df['A101012'] + df['A101022'] + df['A101032']
+              df['A2'] = df['A201'] + df['A206']
               df['A203'] = (df['D-10101'] / df['A202']).replace([np.inf, -np.inf, "", np.nan],0)
               df['A204'] = (df['A201'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['A205'] = (df['A201'] / df['A202']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C1'] = (df['C101'] + df['C102'] + df['C103'] + df['C104'] + df['C105']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C1'] = df['C101'] + df['C102'] + df['C103'] + df['C104'] + df['C105']
               df['C10101'] = (df['C101'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C10102'] = (df['C101'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C10201'] = (df['C102'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
@@ -614,7 +623,7 @@ mt_report_from_final_accounts_daily_env:
               df['C10402'] = (df['C104'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
               df['C10501'] = (df['C105'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C10502'] = (df['C105'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C201'] = (df['C201-1'] + df['C201-201'] + df['C201-301']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201'] = df['C201-1'] + df['C201-201'] + df['C201-301']
               df['C20101'] = (df['C201'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C20102'] = (df['C201'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
               df['C201-102'] = (df['C201-1'] / df['C201-101']).replace([np.inf, -np.inf, "", np.nan],0)
@@ -623,13 +632,13 @@ mt_report_from_final_accounts_daily_env:
               df['C201-204'] = (df['C201-201'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C201-303'] = (df['C201-301'] / df['C201-302']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C201-304'] = (df['C201-301'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C202'] = (df['C202-1'] + df['C202-2'] + df['C202-3'] + df['C202-4'] + df['C202-5']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C2'] = (df['C201'] + df['C202'] + df['C203']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C202'] = df['C202-1'] + df['C202-2'] + df['C202-3'] + df['C202-4'] + df['C202-5']
+              df['C2'] = df['C201'] + df['C202'] + df['C203']
               df['C20201'] = (df['C202'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C20202'] = (df['C202'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
               df['C20301'] = (df['C203'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C20302'] = (df['C203'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C3'] = (df['C301'] + df['C302'] + df['C303'] + df['C304'] + df['C305'] + df['C306']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C3'] = df['C301'] + df['C302'] + df['C303'] + df['C304'] + df['C305'] + df['C306']
               df['C30101'] = (df['C301'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C30102'] = (df['C301'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C30201'] = (df['C302'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
@@ -642,14 +651,14 @@ mt_report_from_final_accounts_daily_env:
               df['C30502'] = (df['C305'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
               df['C30601'] = (df['C306'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C30602'] = (df['C306'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C4'] = (df['C401'] + df['C402'] + df['C403']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C4'] = df['C401'] + df['C402'] + df['C403']
               df['C40101'] = (df['C401'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C40102'] = (df['C401'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C40201'] = (df['C402'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C40202'] = (df['C402'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C40301'] = (df['C403'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C40302'] = (df['C403'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C5'] = (df['C501'] + df['C502'] + df['C503'] + df['C504']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C5'] = df['C501'] + df['C502'] + df['C503'] + df['C504']
               df['C50102'] = (df['C501'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C50103'] = (df['C501'] / df['C50101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C50202'] = (df['C502'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
@@ -658,23 +667,23 @@ mt_report_from_final_accounts_daily_env:
               df['C50302'] = (df['C503'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
               df['C50401'] = (df['C504'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C50402'] = (df['C504'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C6'] = (df['C601'] + df['C602']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C6'] = df['C601'] + df['C602']
               df['C60101'] = (df['C601'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C60102'] = (df['C601'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
               df['C60201'] = (df['C602'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C60202'] = (df['C602'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C7'] = (df['C701']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C7'] = df['C701']
               df['C70101'] = (df['C701'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C70102'] = (df['C701'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
               df['B3'] = (df['B1'] / df['B2']).replace([np.inf, -np.inf, "", np.nan],0)
               df['B404'] = (df['B4'] / df['B401']).replace([np.inf, -np.inf, "", np.nan],0)
               df['B405'] = (df['B4'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-1'] = (df['M-10101'] + df['M-701']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-2'] = (df['A1'] + df['A2'] + df['C1'] + df['C2'] + df['C3'] + df['C4'] + df['C5'] + df['C6'] + df['C7']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-1'] = df['M-10101'] + df['M-701']
+              df['M-2'] = df['A1'] + df['A2'] + df['C1'] + df['C2'] + df['C3'] + df['C4'] + df['C5'] + df['C6'] + df['C7']
               df['M-101'] = (df['M-1'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['M-102'] = ((df['M-1'] - df['M-2']) / df['M-1']).replace([np.inf, -np.inf, "", np.nan],0)
               df['M-201'] = (df['M-2'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-3'] = (df['M-1'] - df['M-2']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-3'] = df['M-1'] - df['M-2']
               df['M-301'] = (df['M-3'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['M-302'] = (df['M-3'] / df['M-1']).replace([np.inf, -np.inf, "", np.nan],0)
               df['M-103'] = (df['D-10101'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
@@ -827,6 +836,10 @@ mt_report_from_final_accounts_daily_env:
         - pad_cols:
             columns: [ C50101,C50201 ]
             default_value: 0
+        - df_eval:
+            - |
+              [C50101] = [C50101] * 100
+              [C50201] = [C50201] * 100
         - fetch_cols:
             columns: [dc_name,C50101,C50201]
         - stash_push_df: [ ]
@@ -863,11 +876,8 @@ mt_report_from_final_accounts_daily_env:
             on: dc_name
             how: outer
             drop_stash: true
-        - run_py:
-            - |
-              df = to_df(df)
-              df["S6"] = (pd.datetime.now()-pd.Timedelta(days=pd.datetime.now().day)).day
-              result = to_dd(df)
+        - set_meta_days_column:
+            - S6
         - df_fillna:
             value: 0
         - add_cols:
@@ -1033,17 +1043,17 @@ mt_report_from_final_accounts_daily_env:
         - run_py:
             - |
               df['D-10101'] = (df['D-101'] / df['S6']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['S1'] = (df['A101011'] + df['A101021'] + df['A101031']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['A101'] = (df['A10101'] + df['A101023'] + df['A101033'] + df['A10104']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['A1'] = (df['A101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['S1'] = df['A101011'] + df['A101021'] + df['A101031']
+              df['A101'] = df['A10101'] + df['A101023'] + df['A101033'] + df['A10104']
+              df['A1'] = df['A101']
               df['A102'] = (df['A101'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['A103'] = (df['A101'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['A11'] = (df['A101012'] + df['A101022'] + df['A101032']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['A2'] = (df['A201'] + df['A206']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A11'] = df['A101012'] + df['A101022'] + df['A101032']
+              df['A2'] = df['A201'] + df['A206']
               df['A203'] = (df['D-10101'] / df['A202']).replace([np.inf, -np.inf, "", np.nan],0)
               df['A204'] = (df['A201'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['A205'] = (df['A201'] / df['A202']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C1'] = (df['C101'] + df['C102'] + df['C103'] + df['C104'] + df['C105']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C1'] = df['C101'] + df['C102'] + df['C103'] + df['C104'] + df['C105']
               df['C10101'] = (df['C101'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C10102'] = (df['C101'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C10201'] = (df['C102'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
@@ -1054,7 +1064,7 @@ mt_report_from_final_accounts_daily_env:
               df['C10402'] = (df['C104'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
               df['C10501'] = (df['C105'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C10502'] = (df['C105'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C201'] = (df['C201-1'] + df['C201-201'] + df['C201-301']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201'] = df['C201-1'] + df['C201-201'] + df['C201-301']
               df['C20101'] = (df['C201'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C20102'] = (df['C201'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
               df['C201-102'] = (df['C201-1'] / df['C201-101']).replace([np.inf, -np.inf, "", np.nan],0)
@@ -1063,13 +1073,13 @@ mt_report_from_final_accounts_daily_env:
               df['C201-204'] = (df['C201-201'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C201-303'] = (df['C201-301'] / df['C201-302']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C201-304'] = (df['C201-301'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C202'] = (df['C202-1'] + df['C202-2'] + df['C202-3'] + df['C202-4'] + df['C202-5']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C2'] = (df['C201'] + df['C202'] + df['C203']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C202'] = df['C202-1'] + df['C202-2'] + df['C202-3'] + df['C202-4'] + df['C202-5']
+              df['C2'] = df['C201'] + df['C202'] + df['C203']
               df['C20201'] = (df['C202'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C20202'] = (df['C202'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
               df['C20301'] = (df['C203'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C20302'] = (df['C203'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C3'] = (df['C301'] + df['C302'] + df['C303'] + df['C304'] + df['C305'] + df['C306']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C3'] = df['C301'] + df['C302'] + df['C303'] + df['C304'] + df['C305'] + df['C306']
               df['C30101'] = (df['C301'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C30102'] = (df['C301'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C30201'] = (df['C302'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
@@ -1082,14 +1092,14 @@ mt_report_from_final_accounts_daily_env:
               df['C30502'] = (df['C305'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
               df['C30601'] = (df['C306'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C30602'] = (df['C306'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C4'] = (df['C401'] + df['C402'] + df['C403']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C4'] = df['C401'] + df['C402'] + df['C403']
               df['C40101'] = (df['C401'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C40102'] = (df['C401'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C40201'] = (df['C402'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C40202'] = (df['C402'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C40301'] = (df['C403'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C40302'] = (df['C403'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C5'] = (df['C501'] + df['C502'] + df['C503'] + df['C504']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C5'] = df['C501'] + df['C502'] + df['C503'] + df['C504']
               df['C50102'] = (df['C501'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C50103'] = (df['C501'] / df['C50101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C50202'] = (df['C502'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
@@ -1098,23 +1108,23 @@ mt_report_from_final_accounts_daily_env:
               df['C50302'] = (df['C503'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
               df['C50401'] = (df['C504'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C50402'] = (df['C504'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C6'] = (df['C601'] + df['C602']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C6'] = df['C601'] + df['C602']
               df['C60101'] = (df['C601'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C60102'] = (df['C601'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
               df['C60201'] = (df['C602'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C60202'] = (df['C602'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C7'] = (df['C701']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C7'] = df['C701']
               df['C70101'] = (df['C701'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C70102'] = (df['C701'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
               df['B3'] = (df['B1'] / df['B2']).replace([np.inf, -np.inf, "", np.nan],0)
               df['B404'] = (df['B4'] / df['B401']).replace([np.inf, -np.inf, "", np.nan],0)
               df['B405'] = (df['B4'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-1'] = (df['M-10101'] + df['M-701']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-2'] = (df['A1'] + df['A2'] + df['C1'] + df['C2'] + df['C3'] + df['C4'] + df['C5'] + df['C6'] + df['C7']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-1'] = df['M-10101'] + df['M-701']
+              df['M-2'] = df['A1'] + df['A2'] + df['C1'] + df['C2'] + df['C3'] + df['C4'] + df['C5'] + df['C6'] + df['C7']
               df['M-101'] = (df['M-1'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['M-102'] = ((df['M-1'] - df['M-2']) / df['M-1']).replace([np.inf, -np.inf, "", np.nan],0)
               df['M-201'] = (df['M-2'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-3'] = (df['M-1'] - df['M-2']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-3'] = df['M-1'] - df['M-2']
               df['M-301'] = (df['M-3'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['M-302'] = (df['M-3'] / df['M-1']).replace([np.inf, -np.inf, "", np.nan],0)
               df['M-103'] = (df['D-10101'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
@@ -1583,304 +1593,301 @@ mt_report_from_final_accounts_daily_env:
         - add_cols:
             - S8: 1
               S9: 0
-        - run_py:
-            - |
-              df = to_df(df)
-              df["S6"] = (pd.datetime.now()-pd.Timedelta(days=pd.datetime.now().day)).day
-              result = to_dd(df)
+        - set_meta_days_column:
+            - S6
         - df_fillna:
             value: 0
         - run_py:
             - |
-              df['D-101'] = (df['D-101_as'] + df['D-101_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['D-101'] = df['D-101_as'] + df['D-101_pr']
               df['D-10101'] = (df['D-101'] / df['S6']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-1'] = (df['M-1_as'] + df['M-1_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-1'] = df['M-1_as'] + df['M-1_pr']
               df['M-101'] = (df['M-1'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-2'] = (df['M-2_as'] + df['M-2_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-2'] = df['M-2_as'] + df['M-2_pr']
               df['M-102'] = ((df['M-1'] - df['M-2']) / df['M-1']).replace([np.inf, -np.inf, "", np.nan],0)
               df['M-201'] = (df['M-2'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-3'] = (df['M-1'] - df['M-2']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-3'] = df['M-1'] - df['M-2']
               df['M-301'] = (df['M-3'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['Z-02'] = (df['Z-02_as'] + df['Z-02_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['Z-01'] = (df['Z-01_as'] + df['Z-01_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['Z-02'] = df['Z-02_as'] + df['Z-02_pr']
+              df['Z-01'] = df['Z-01_as'] + df['Z-01_pr']
               df['M-302'] = (df['M-3'] / df['M-1']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['S1'] = (df['S1_as'] + df['S1_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['S2'] = (df['S2_as'] + df['S2_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['S3'] = (df['S3_as'] + df['S3_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['S4'] = (df['S4_as'] + df['S4_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['S1'] = df['S1_as'] + df['S1_pr']
+              df['S2'] = df['S2_as'] + df['S2_pr']
+              df['S3'] = df['S3_as'] + df['S3_pr']
+              df['S4'] = df['S4_as'] + df['S4_pr']
               df['M-103'] = (df['D-10101'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
               df['M-104'] = (df['M-1'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
               df['M-105'] = (df['M-3'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
               df['M-106'] = (df['M-1'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
               df['M-107'] = (df['M-3'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['S301'] = (df['S301_as'] + df['S301_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['S302'] = (df['S302_as'] + df['S302_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['S303'] = (df['S303_as'] + df['S303_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['S304'] = (df['S304_as'] + df['S304_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['S305'] = (df['S305_as'] + df['S305_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['S306'] = (df['S306_as'] + df['S306_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['S307'] = (df['S307_as'] + df['S307_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['S411'] = (df['S411_as'] + df['S411_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['S412'] = (df['S412_as'] + df['S412_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['S421'] = (df['S421_as'] + df['S421_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['S422'] = (df['S422_as'] + df['S422_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['S423'] = (df['S423_as'] + df['S423_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['S424'] = (df['S424_as'] + df['S424_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['S425'] = (df['S425_as'] + df['S425_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['S426'] = (df['S426_as'] + df['S426_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['S427'] = (df['S427_as'] + df['S427_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['S428'] = (df['S428_as'] + df['S428_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['S429'] = (df['S429_as'] + df['S429_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['S5'] = (df['S5_as'] + df['S5_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-10101'] = (df['M-10101_as'] + df['M-10101_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['S301'] = df['S301_as'] + df['S301_pr']
+              df['S302'] = df['S302_as'] + df['S302_pr']
+              df['S303'] = df['S303_as'] + df['S303_pr']
+              df['S304'] = df['S304_as'] + df['S304_pr']
+              df['S305'] = df['S305_as'] + df['S305_pr']
+              df['S306'] = df['S306_as'] + df['S306_pr']
+              df['S307'] = df['S307_as'] + df['S307_pr']
+              df['S411'] = df['S411_as'] + df['S411_pr']
+              df['S412'] = df['S412_as'] + df['S412_pr']
+              df['S421'] = df['S421_as'] + df['S421_pr']
+              df['S422'] = df['S422_as'] + df['S422_pr']
+              df['S423'] = df['S423_as'] + df['S423_pr']
+              df['S424'] = df['S424_as'] + df['S424_pr']
+              df['S425'] = df['S425_as'] + df['S425_pr']
+              df['S426'] = df['S426_as'] + df['S426_pr']
+              df['S427'] = df['S427_as'] + df['S427_pr']
+              df['S428'] = df['S428_as'] + df['S428_pr']
+              df['S429'] = df['S429_as'] + df['S429_pr']
+              df['S5'] = df['S5_as'] + df['S5_pr']
+              df['M-10101'] = df['M-10101_as'] + df['M-10101_pr']
               df['M-10102'] = (df['M-10101'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-1010101'] = (df['M-1010101_as'] + df['M-1010101_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-1010101'] = df['M-1010101_as'] + df['M-1010101_pr']
               df['M-1010101-1'] = (df['M-1010101'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-1010102'] = (df['M-1010102_as'] + df['M-1010102_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-1010102-1'] = (df['M-1010102'] / 1.06).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-1010102-2'] = (df['M-1010102-2_as'] + df['M-1010102-2_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-1010103'] = (df['M-1010103_as'] + df['M-1010103_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-1010103-1'] = (df['M-1010103-1_as'] + df['M-1010103-1_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-1010103-2'] = (df['M-1010103-2_as'] + df['M-1010103-2_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-1010103-3'] = (df['M-1010103-3_as'] + df['M-1010103-3_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-1010104'] = (df['M-1010104_as'] + df['M-1010104_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-1010102'] = df['M-1010102_as'] + df['M-1010102_pr']
+              df['M-1010102-1'] = df['M-1010102'] / 1.06
+              df['M-1010102-2'] = df['M-1010102-2_as'] + df['M-1010102-2_pr']
+              df['M-1010103'] = df['M-1010103_as'] + df['M-1010103_pr']
+              df['M-1010103-1'] = df['M-1010103-1_as'] + df['M-1010103-1_pr']
+              df['M-1010103-2'] = df['M-1010103-2_as'] + df['M-1010103-2_pr']
+              df['M-1010103-3'] = df['M-1010103-3_as'] + df['M-1010103-3_pr']
+              df['M-1010104'] = df['M-1010104_as'] + df['M-1010104_pr']
               df['M-1010104-5'] = (df['M-1010104'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-1010104-1'] = (df['M-1010104-1_as'] + df['M-1010104-1_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-1010104-1'] = df['M-1010104-1_as'] + df['M-1010104-1_pr']
               df['M-1010104-6'] = (df['M-1010104-1'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-1010104-2'] = (df['M-1010104-2_as'] + df['M-1010104-2_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-1010104-3'] = (df['M-1010104-3_as'] + df['M-1010104-3_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-1010104-4'] = (df['M-1010104-4_as'] + df['M-1010104-4_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-701'] = (df['M-701_as'] + df['M-701_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-70101'] = (df['M-70101_as'] + df['M-70101_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-70102'] = (df['M-70102_as'] + df['M-70102_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-70103'] = (df['M-70103_as'] + df['M-70103_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-70104'] = (df['M-70104_as'] + df['M-70104_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-70105'] = (df['M-70105_as'] + df['M-70105_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-70106'] = (df['M-70106_as'] + df['M-70106_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['A1'] = (df['A1_as'] + df['A1_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['A101'] = (df['A101_as'] + df['A101_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-1010104-2'] = df['M-1010104-2_as'] + df['M-1010104-2_pr']
+              df['M-1010104-3'] = df['M-1010104-3_as'] + df['M-1010104-3_pr']
+              df['M-1010104-4'] = df['M-1010104-4_as'] + df['M-1010104-4_pr']
+              df['M-701'] = df['M-701_as'] + df['M-701_pr']
+              df['M-70101'] = df['M-70101_as'] + df['M-70101_pr']
+              df['M-70102'] = df['M-70102_as'] + df['M-70102_pr']
+              df['M-70103'] = df['M-70103_as'] + df['M-70103_pr']
+              df['M-70104'] = df['M-70104_as'] + df['M-70104_pr']
+              df['M-70105'] = df['M-70105_as'] + df['M-70105_pr']
+              df['M-70106'] = df['M-70106_as'] + df['M-70106_pr']
+              df['A1'] = df['A1_as'] + df['A1_pr']
+              df['A101'] = df['A101_as'] + df['A101_pr']
               df['A102'] = (df['A101'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['A103'] = (df['A101'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['A101011'] = (df['A101011_as'] + df['A101011_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['A101012'] = (df['A101012_as'] + df['A101012_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['A10101'] = (df['A10101_as'] + df['A10101_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A101011'] = df['A101011_as'] + df['A101011_pr']
+              df['A101012'] = df['A101012_as'] + df['A101012_pr']
+              df['A10101'] = df['A10101_as'] + df['A10101_pr']
               df['A101013'] = (df['A10101'] / df['A101012']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['A101021'] = (df['A101021_as'] + df['A101021_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['A101022'] = (df['A101022_as'] + df['A101022_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['A10102'] = (df['A10102_as'] + df['A10102_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A101021'] = df['A101021_as'] + df['A101021_pr']
+              df['A101022'] = df['A101022_as'] + df['A101022_pr']
+              df['A10102'] = df['A10102_as'] + df['A10102_pr']
               df['A101023'] = (df['A10102'] / df['A101022']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['A101031'] = (df['A101031_as'] + df['A101031_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['A101032'] = (df['A101032_as'] + df['A101032_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['A10103'] = (df['A10103_as'] + df['A10103_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A101031'] = df['A101031_as'] + df['A101031_pr']
+              df['A101032'] = df['A101032_as'] + df['A101032_pr']
+              df['A10103'] = df['A10103_as'] + df['A10103_pr']
               df['A101033'] = (df['A10103'] / df['A101032']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['A10105'] = (df['A10105_as'] + df['A10105_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['A10104'] = (df['A10104_as'] + df['A10104_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['A11'] = (df['A11_as'] + df['A11_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['A2'] = (df['A2_as'] + df['A2_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['A201'] = (df['A201_as'] + df['A201_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['A202'] = (df['A202_as'] + df['A202_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A10105'] = df['A10105_as'] + df['A10105_pr']
+              df['A10104'] = df['A10104_as'] + df['A10104_pr']
+              df['A11'] = df['A11_as'] + df['A11_pr']
+              df['A2'] = df['A2_as'] + df['A2_pr']
+              df['A201'] = df['A201_as'] + df['A201_pr']
+              df['A202'] = df['A202_as'] + df['A202_pr']
               df['A203'] = (df['D-10101'] / df['A202']).replace([np.inf, -np.inf, "", np.nan],0)
               df['A204'] = (df['A201'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['A205'] = (df['A201'] / df['A202']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['3-1'] = (df['3-1_as'] + df['3-1_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['3-101'] = (df['3-101_as'] + df['3-101_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['3-102'] = (df['3-102_as'] + df['3-102_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['3-103'] = (df['3-103_as'] + df['3-103_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['3-104'] = (df['3-104_as'] + df['3-104_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['3-2'] = (df['3-2_as'] + df['3-2_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['3-201'] = (df['3-201_as'] + df['3-201_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['3-202'] = (df['3-202_as'] + df['3-202_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['3-203'] = (df['3-203_as'] + df['3-203_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['3-204'] = (df['3-204_as'] + df['3-204_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['3-3'] = (df['3-3_as'] + df['3-3_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['3-301'] = (df['3-301_as'] + df['3-301_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['3-302'] = (df['3-302_as'] + df['3-302_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['3-303'] = (df['3-303_as'] + df['3-303_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['3-304'] = (df['3-304_as'] + df['3-304_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['3-4'] = (df['3-4_as'] + df['3-4_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['3-401'] = (df['3-401_as'] + df['3-401_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['3-402'] = (df['3-402_as'] + df['3-402_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['3-403'] = (df['3-403_as'] + df['3-403_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['3-404'] = (df['3-404_as'] + df['3-404_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['3-5'] = (df['3-5_as'] + df['3-5_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['3-501'] = (df['3-501_as'] + df['3-501_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['3-502'] = (df['3-502_as'] + df['3-502_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['3-503'] = (df['3-503_as'] + df['3-503_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['3-504'] = (df['3-504_as'] + df['3-504_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['3-6'] = (df['3-6_as'] + df['3-6_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['3-601'] = (df['3-601_as'] + df['3-601_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['3-602'] = (df['3-602_as'] + df['3-602_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['3-603'] = (df['3-603_as'] + df['3-603_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['3-604'] = (df['3-604_as'] + df['3-604_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['3-7'] = (df['3-7_as'] + df['3-7_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['3-701'] = (df['3-701_as'] + df['3-701_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['3-702'] = (df['3-702_as'] + df['3-702_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['3-703'] = (df['3-703_as'] + df['3-703_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['3-704'] = (df['3-704_as'] + df['3-704_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-1-1'] = (df['4-1-1_as'] + df['4-1-1_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-1-101'] = (df['4-1-101_as'] + df['4-1-101_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-1-102'] = (df['4-1-102_as'] + df['4-1-102_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-1-103'] = (df['4-1-103_as'] + df['4-1-103_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-1-104'] = (df['4-1-104_as'] + df['4-1-104_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-1-2'] = (df['4-1-2_as'] + df['4-1-2_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-1-201'] = (df['4-1-201_as'] + df['4-1-201_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-1-202'] = (df['4-1-202_as'] + df['4-1-202_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-1-203'] = (df['4-1-203_as'] + df['4-1-203_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-1-204'] = (df['4-1-204_as'] + df['4-1-204_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-1'] = (df['4-2-1_as'] + df['4-2-1_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-101'] = (df['4-2-101_as'] + df['4-2-101_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-102'] = (df['4-2-102_as'] + df['4-2-102_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-103'] = (df['4-2-103_as'] + df['4-2-103_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-104'] = (df['4-2-104_as'] + df['4-2-104_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-2'] = (df['4-2-2_as'] + df['4-2-2_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-201'] = (df['4-2-201_as'] + df['4-2-201_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-202'] = (df['4-2-202_as'] + df['4-2-202_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-203'] = (df['4-2-203_as'] + df['4-2-203_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-204'] = (df['4-2-204_as'] + df['4-2-204_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-3'] = (df['4-2-3_as'] + df['4-2-3_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-301'] = (df['4-2-301_as'] + df['4-2-301_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-302'] = (df['4-2-302_as'] + df['4-2-302_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-303'] = (df['4-2-303_as'] + df['4-2-303_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-304'] = (df['4-2-304_as'] + df['4-2-304_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-4'] = (df['4-2-4_as'] + df['4-2-4_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-401'] = (df['4-2-401_as'] + df['4-2-401_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-402'] = (df['4-2-402_as'] + df['4-2-402_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-403'] = (df['4-2-403_as'] + df['4-2-403_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-404'] = (df['4-2-404_as'] + df['4-2-404_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-5'] = (df['4-2-5_as'] + df['4-2-5_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-501'] = (df['4-2-501_as'] + df['4-2-501_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-502'] = (df['4-2-502_as'] + df['4-2-502_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-503'] = (df['4-2-503_as'] + df['4-2-503_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-504'] = (df['4-2-504_as'] + df['4-2-504_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-6'] = (df['4-2-6_as'] + df['4-2-6_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-601'] = (df['4-2-601_as'] + df['4-2-601_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-602'] = (df['4-2-602_as'] + df['4-2-602_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-603'] = (df['4-2-603_as'] + df['4-2-603_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-604'] = (df['4-2-604_as'] + df['4-2-604_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-7'] = (df['4-2-7_as'] + df['4-2-7_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-701'] = (df['4-2-701_as'] + df['4-2-701_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-702'] = (df['4-2-702_as'] + df['4-2-702_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-703'] = (df['4-2-703_as'] + df['4-2-703_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-704'] = (df['4-2-704_as'] + df['4-2-704_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-8'] = (df['4-2-8_as'] + df['4-2-8_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-801'] = (df['4-2-801_as'] + df['4-2-801_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-802'] = (df['4-2-802_as'] + df['4-2-802_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-803'] = (df['4-2-803_as'] + df['4-2-803_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-804'] = (df['4-2-804_as'] + df['4-2-804_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-9'] = (df['4-2-9_as'] + df['4-2-9_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-901'] = (df['4-2-901_as'] + df['4-2-901_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-902'] = (df['4-2-902_as'] + df['4-2-902_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-903'] = (df['4-2-903_as'] + df['4-2-903_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['4-2-904'] = (df['4-2-904_as'] + df['4-2-904_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['A206'] = (df['A206_as'] + df['A206_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C1'] = (df['C1_as'] + df['C1_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C101'] = (df['C101_as'] + df['C101_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['3-1'] = df['3-1_as'] + df['3-1_pr']
+              df['3-101'] = df['3-101_as'] + df['3-101_pr']
+              df['3-102'] = df['3-102_as'] + df['3-102_pr']
+              df['3-103'] = df['3-103_as'] + df['3-103_pr']
+              df['3-104'] = df['3-104_as'] + df['3-104_pr']
+              df['3-2'] = df['3-2_as'] + df['3-2_pr']
+              df['3-201'] = df['3-201_as'] + df['3-201_pr']
+              df['3-202'] = df['3-202_as'] + df['3-202_pr']
+              df['3-203'] = df['3-203_as'] + df['3-203_pr']
+              df['3-204'] = df['3-204_as'] + df['3-204_pr']
+              df['3-3'] = df['3-3_as'] + df['3-3_pr']
+              df['3-301'] = df['3-301_as'] + df['3-301_pr']
+              df['3-302'] = df['3-302_as'] + df['3-302_pr']
+              df['3-303'] = df['3-303_as'] + df['3-303_pr']
+              df['3-304'] = df['3-304_as'] + df['3-304_pr']
+              df['3-4'] = df['3-4_as'] + df['3-4_pr']
+              df['3-401'] = df['3-401_as'] + df['3-401_pr']
+              df['3-402'] = df['3-402_as'] + df['3-402_pr']
+              df['3-403'] = df['3-403_as'] + df['3-403_pr']
+              df['3-404'] = df['3-404_as'] + df['3-404_pr']
+              df['3-5'] = df['3-5_as'] + df['3-5_pr']
+              df['3-501'] = df['3-501_as'] + df['3-501_pr']
+              df['3-502'] = df['3-502_as'] + df['3-502_pr']
+              df['3-503'] = df['3-503_as'] + df['3-503_pr']
+              df['3-504'] = df['3-504_as'] + df['3-504_pr']
+              df['3-6'] = df['3-6_as'] + df['3-6_pr']
+              df['3-601'] = df['3-601_as'] + df['3-601_pr']
+              df['3-602'] = df['3-602_as'] + df['3-602_pr']
+              df['3-603'] = df['3-603_as'] + df['3-603_pr']
+              df['3-604'] = df['3-604_as'] + df['3-604_pr']
+              df['3-7'] = df['3-7_as'] + df['3-7_pr']
+              df['3-701'] = df['3-701_as'] + df['3-701_pr']
+              df['3-702'] = df['3-702_as'] + df['3-702_pr']
+              df['3-703'] = df['3-703_as'] + df['3-703_pr']
+              df['3-704'] = df['3-704_as'] + df['3-704_pr']
+              df['4-1-1'] = df['4-1-1_as'] + df['4-1-1_pr']
+              df['4-1-101'] = df['4-1-101_as'] + df['4-1-101_pr']
+              df['4-1-102'] = df['4-1-102_as'] + df['4-1-102_pr']
+              df['4-1-103'] = df['4-1-103_as'] + df['4-1-103_pr']
+              df['4-1-104'] = df['4-1-104_as'] + df['4-1-104_pr']
+              df['4-1-2'] = df['4-1-2_as'] + df['4-1-2_pr']
+              df['4-1-201'] = df['4-1-201_as'] + df['4-1-201_pr']
+              df['4-1-202'] = df['4-1-202_as'] + df['4-1-202_pr']
+              df['4-1-203'] = df['4-1-203_as'] + df['4-1-203_pr']
+              df['4-1-204'] = df['4-1-204_as'] + df['4-1-204_pr']
+              df['4-2-1'] = df['4-2-1_as'] + df['4-2-1_pr']
+              df['4-2-101'] = df['4-2-101_as'] + df['4-2-101_pr']
+              df['4-2-102'] = df['4-2-102_as'] + df['4-2-102_pr']
+              df['4-2-103'] = df['4-2-103_as'] + df['4-2-103_pr']
+              df['4-2-104'] = df['4-2-104_as'] + df['4-2-104_pr']
+              df['4-2-2'] = df['4-2-2_as'] + df['4-2-2_pr']
+              df['4-2-201'] = df['4-2-201_as'] + df['4-2-201_pr']
+              df['4-2-202'] = df['4-2-202_as'] + df['4-2-202_pr']
+              df['4-2-203'] = df['4-2-203_as'] + df['4-2-203_pr']
+              df['4-2-204'] = df['4-2-204_as'] + df['4-2-204_pr']
+              df['4-2-3'] = df['4-2-3_as'] + df['4-2-3_pr']
+              df['4-2-301'] = df['4-2-301_as'] + df['4-2-301_pr']
+              df['4-2-302'] = df['4-2-302_as'] + df['4-2-302_pr']
+              df['4-2-303'] = df['4-2-303_as'] + df['4-2-303_pr']
+              df['4-2-304'] = df['4-2-304_as'] + df['4-2-304_pr']
+              df['4-2-4'] = df['4-2-4_as'] + df['4-2-4_pr']
+              df['4-2-401'] = df['4-2-401_as'] + df['4-2-401_pr']
+              df['4-2-402'] = df['4-2-402_as'] + df['4-2-402_pr']
+              df['4-2-403'] = df['4-2-403_as'] + df['4-2-403_pr']
+              df['4-2-404'] = df['4-2-404_as'] + df['4-2-404_pr']
+              df['4-2-5'] = df['4-2-5_as'] + df['4-2-5_pr']
+              df['4-2-501'] = df['4-2-501_as'] + df['4-2-501_pr']
+              df['4-2-502'] = df['4-2-502_as'] + df['4-2-502_pr']
+              df['4-2-503'] = df['4-2-503_as'] + df['4-2-503_pr']
+              df['4-2-504'] = df['4-2-504_as'] + df['4-2-504_pr']
+              df['4-2-6'] = df['4-2-6_as'] + df['4-2-6_pr']
+              df['4-2-601'] = df['4-2-601_as'] + df['4-2-601_pr']
+              df['4-2-602'] = df['4-2-602_as'] + df['4-2-602_pr']
+              df['4-2-603'] = df['4-2-603_as'] + df['4-2-603_pr']
+              df['4-2-604'] = df['4-2-604_as'] + df['4-2-604_pr']
+              df['4-2-7'] = df['4-2-7_as'] + df['4-2-7_pr']
+              df['4-2-701'] = df['4-2-701_as'] + df['4-2-701_pr']
+              df['4-2-702'] = df['4-2-702_as'] + df['4-2-702_pr']
+              df['4-2-703'] = df['4-2-703_as'] + df['4-2-703_pr']
+              df['4-2-704'] = df['4-2-704_as'] + df['4-2-704_pr']
+              df['4-2-8'] = df['4-2-8_as'] + df['4-2-8_pr']
+              df['4-2-801'] = df['4-2-801_as'] + df['4-2-801_pr']
+              df['4-2-802'] = df['4-2-802_as'] + df['4-2-802_pr']
+              df['4-2-803'] = df['4-2-803_as'] + df['4-2-803_pr']
+              df['4-2-804'] = df['4-2-804_as'] + df['4-2-804_pr']
+              df['4-2-9'] = df['4-2-9_as'] + df['4-2-9_pr']
+              df['4-2-901'] = df['4-2-901_as'] + df['4-2-901_pr']
+              df['4-2-902'] = df['4-2-902_as'] + df['4-2-902_pr']
+              df['4-2-903'] = df['4-2-903_as'] + df['4-2-903_pr']
+              df['4-2-904'] = df['4-2-904_as'] + df['4-2-904_pr']
+              df['A206'] = df['A206_as'] + df['A206_pr']
+              df['C1'] = df['C1_as'] + df['C1_pr']
+              df['C101'] = df['C101_as'] + df['C101_pr']
               df['C10101'] = (df['C101'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C10102'] = (df['C101'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C102'] = (df['C102_as'] + df['C102_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C102'] = df['C102_as'] + df['C102_pr']
               df['C10201'] = (df['C102'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C10202'] = (df['C102'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C103'] = (df['C103_as'] + df['C103_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C103'] = df['C103_as'] + df['C103_pr']
               df['C10301'] = (df['C103'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C10302'] = (df['C103'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C104'] = (df['C104_as'] + df['C104_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C104'] = df['C104_as'] + df['C104_pr']
               df['C10401'] = (df['C104'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C10402'] = (df['C104'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C105'] = (df['C105_as'] + df['C105_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C105'] = df['C105_as'] + df['C105_pr']
               df['C10501'] = (df['C105'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C10502'] = (df['C105'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C2'] = (df['C2_as'] + df['C2_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C201'] = (df['C201_as'] + df['C201_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C2'] = df['C2_as'] + df['C2_pr']
+              df['C201'] = df['C201_as'] + df['C201_pr']
               df['C20101'] = (df['C201'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C20102'] = (df['C201'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C201-1'] = (df['C201-1_as'] + df['C201-1_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C201-101'] = (df['C201-101_as'] + df['C201-101_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201-1'] = df['C201-1_as'] + df['C201-1_pr']
+              df['C201-101'] = df['C201-101_as'] + df['C201-101_pr']
               df['C201-102'] = (df['C201-1'] / df['C201-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C201-103'] = (df['C201-1'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C201-201'] = (df['C201-201_as'] + df['C201-201_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C201-202'] = (df['C201-202_as'] + df['C201-202_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201-201'] = df['C201-201_as'] + df['C201-201_pr']
+              df['C201-202'] = df['C201-202_as'] + df['C201-202_pr']
               df['C201-203'] = (df['C201-201'] / df['C201-202']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C201-204'] = (df['C201-201'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C201-301'] = (df['C201-301_as'] + df['C201-301_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C201-302'] = (df['C201-302_as'] + df['C201-302_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201-301'] = df['C201-301_as'] + df['C201-301_pr']
+              df['C201-302'] = df['C201-302_as'] + df['C201-302_pr']
               df['C201-303'] = (df['C201-301'] / df['C201-302']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C201-304'] = (df['C201-301'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C202'] = (df['C202_as'] + df['C202_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C202'] = df['C202_as'] + df['C202_pr']
               df['C20201'] = (df['C202'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C20202'] = (df['C202'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C202-1'] = (df['C202-1_as'] + df['C202-1_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C202-2'] = (df['C202-2_as'] + df['C202-2_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C202-3'] = (df['C202-3_as'] + df['C202-3_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C202-4'] = (df['C202-4_as'] + df['C202-4_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C202-5'] = (df['C202-5_as'] + df['C202-5_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C203'] = (df['C203_as'] + df['C203_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C202-1'] = df['C202-1_as'] + df['C202-1_pr']
+              df['C202-2'] = df['C202-2_as'] + df['C202-2_pr']
+              df['C202-3'] = df['C202-3_as'] + df['C202-3_pr']
+              df['C202-4'] = df['C202-4_as'] + df['C202-4_pr']
+              df['C202-5'] = df['C202-5_as'] + df['C202-5_pr']
+              df['C203'] = df['C203_as'] + df['C203_pr']
               df['C20301'] = (df['C203'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C20302'] = (df['C203'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C3'] = (df['C3_as'] + df['C3_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C301'] = (df['C301_as'] + df['C301_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C3'] = df['C3_as'] + df['C3_pr']
+              df['C301'] = df['C301_as'] + df['C301_pr']
               df['C30101'] = (df['C301'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C30102'] = (df['C301'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C302'] = (df['C302_as'] + df['C302_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C302'] = df['C302_as'] + df['C302_pr']
               df['C30201'] = (df['C302'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C30202'] = (df['C302'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C303'] = (df['C303_as'] + df['C303_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C303'] = df['C303_as'] + df['C303_pr']
               df['C30301'] = (df['C303'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C30302'] = (df['C303'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C304'] = (df['C304_as'] + df['C304_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C304'] = df['C304_as'] + df['C304_pr']
               df['C30401'] = (df['C304'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C30402'] = (df['C304'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C305'] = (df['C305_as'] + df['C305_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C305'] = df['C305_as'] + df['C305_pr']
               df['C30501'] = (df['C305'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C30502'] = (df['C305'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C306'] = (df['C306_as'] + df['C306_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C306'] = df['C306_as'] + df['C306_pr']
               df['C30601'] = (df['C306'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C30602'] = (df['C306'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C4'] = (df['C4_as'] + df['C4_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C401'] = (df['C401_as'] + df['C401_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C4'] = df['C4_as'] + df['C4_pr']
+              df['C401'] = df['C401_as'] + df['C401_pr']
               df['C40101'] = (df['C401'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C40102'] = (df['C401'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C402'] = (df['C402_as'] + df['C402_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C402'] = df['C402_as'] + df['C402_pr']
               df['C40201'] = (df['C402'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C40202'] = (df['C402'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C403'] = (df['C403_as'] + df['C403_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C403'] = df['C403_as'] + df['C403_pr']
               df['C40301'] = (df['C403'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C40302'] = (df['C403'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C5'] = (df['C5_as'] + df['C5_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C501'] = (df['C501_as'] + df['C501_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C50101'] = (df['C50101_as'] + df['C50101_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C5'] = df['C5_as'] + df['C5_pr']
+              df['C501'] = df['C501_as'] + df['C501_pr']
+              df['C50101'] = df['C50101_as'] + df['C50101_pr']
               df['C50102'] = (df['C501'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C50103'] = (df['C501'] / df['C50101']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C502'] = (df['C502_as'] + df['C502_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C50201'] = (df['C50201_as'] + df['C50201_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C502'] = df['C502_as'] + df['C502_pr']
+              df['C50201'] = df['C50201_as'] + df['C50201_pr']
               df['C50202'] = (df['C502'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C50203'] = (df['C502'] / df['C50201']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C503'] = (df['C503_as'] + df['C503_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C503'] = df['C503_as'] + df['C503_pr']
               df['C50301'] = (df['C503'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C50302'] = (df['C503'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C504'] = (df['C504_as'] + df['C504_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C504'] = df['C504_as'] + df['C504_pr']
               df['C50401'] = (df['C504'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C50402'] = (df['C504'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C6'] = (df['C6_as'] + df['C6_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C601'] = (df['C601_as'] + df['C601_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C6'] = df['C6_as'] + df['C6_pr']
+              df['C601'] = df['C601_as'] + df['C601_pr']
               df['C60101'] = (df['C601'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C60102'] = (df['C601'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C602'] = (df['C602_as'] + df['C602_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C602'] = df['C602_as'] + df['C602_pr']
               df['C60201'] = (df['C602'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C60202'] = (df['C602'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C7'] = (df['C7_as'] + df['C7_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C701'] = (df['C701_as'] + df['C701_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C7'] = df['C7_as'] + df['C7_pr']
+              df['C701'] = df['C701_as'] + df['C701_pr']
               df['C70101'] = (df['C701'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C70102'] = (df['C701'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
-              df['B1'] = (df['B1_as'] + df['B1_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['B2'] = (df['B2_as'] + df['B2_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['B1'] = df['B1_as'] + df['B1_pr']
+              df['B2'] = df['B2_as'] + df['B2_pr']
               df['B3'] = (df['B1'] / df['B2']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['B4'] = (df['B4_as'] + df['B4_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['B401'] = (df['B401_as'] + df['B401_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['B402'] = (df['B402_as'] + df['B402_pr']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['B403'] = (df['B403_as'] + df['B403_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['B4'] = df['B4_as'] + df['B4_pr']
+              df['B401'] = df['B401_as'] + df['B401_pr']
+              df['B402'] = df['B402_as'] + df['B402_pr']
+              df['B403'] = df['B403_as'] + df['B403_pr']
               df['B404'] = (df['B4'] / df['B401']).replace([np.inf, -np.inf, "", np.nan],0)
               df['B405'] = (df['B4'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['B5'] = (df['B5_as'] + df['B5_pr']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['B5'] = df['B5_as'] + df['B5_pr']
               result = df
 
         - fetch_cols:
@@ -2168,6 +2175,10 @@ mt_report_from_final_accounts_daily_env:
         - pad_cols:
             columns: [ C50101,C50201 ]
             default_value: 0
+        - df_eval:
+            - |
+              [C50101] = [C50101] * 100
+              [C50201] = [C50201] * 100
         - fetch_cols:
             columns: [team_code,C50101,C50201]
         - stash_push_df: [ ]
@@ -2222,11 +2233,8 @@ mt_report_from_final_accounts_daily_env:
             how: outer
             drop_stash: true
 
-        - run_py:
-            - |
-              df = to_df(df)
-              df["S6"] = (pd.datetime.now()-pd.Timedelta(days=pd.datetime.now().day)).day
-              result = to_dd(df)
+        - set_meta_days_column:
+            - S6
         - add_cols:
             - S9: 0
               S8: 0
@@ -2284,14 +2292,14 @@ mt_report_from_final_accounts_daily_env:
             value: 0
         - run_py:
             - |
-              df['S3'] = (df['S301'] + df['S302'] + df['S303'] + df['S304'] + df['S305'] + df['S306'] + df['S307']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['S4'] = (df['S411'] + df['S412'] + df['S421'] + df['S422'] + df['S423'] + df['S424'] + df['S425'] + df['S426'] + df['S427'] + df['S428'] + df['S429']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['A101'] = (df['A10101'] + df['A101023'] + df['A101033'] + df['A10104']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['A1'] = (df['A101']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['S3'] = df['S301'] + df['S302'] + df['S303'] + df['S304'] + df['S305'] + df['S306'] + df['S307']
+              df['S4'] = df['S411'] + df['S412'] + df['S421'] + df['S422'] + df['S423'] + df['S424'] + df['S425'] + df['S426'] + df['S427'] + df['S428'] + df['S429']
+              df['A101'] = df['A10101'] + df['A101023'] + df['A101033'] + df['A10104']
+              df['A1'] = df['A101']
               df['A102'] = (df['A101'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['A103'] = (df['A101'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['A11'] = (df['A101012'] + df['A101022'] + df['A101032']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['A2'] = (df['A201'] + df['A206']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['A11'] = df['A101012'] + df['A101022'] + df['A101032']
+              df['A2'] = df['A201'] + df['A206']
               df['A203'] = (df['D-10101'] / df['A202']).replace([np.inf, -np.inf, "", np.nan],0)
               df['A204'] = (df['A201'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['A205'] = (df['A201'] / df['A202']).replace([np.inf, -np.inf, "", np.nan],0)
@@ -2349,7 +2357,7 @@ mt_report_from_final_accounts_daily_env:
               df['4-2-902'] = (df['D-10101'] / df['4-2-901']).replace([np.inf, -np.inf, "", np.nan],0)
               df['4-2-903'] = (df['4-2-9'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['4-2-904'] = (df['4-2-9'] / df['4-2-901']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C1'] = (df['C101'] + df['C102'] + df['C103'] + df['C104'] + df['C105']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C1'] = df['C101'] + df['C102'] + df['C103'] + df['C104'] + df['C105']
               df['C10101'] = (df['C101'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C10102'] = (df['C101'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C10201'] = (df['C102'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
@@ -2360,7 +2368,7 @@ mt_report_from_final_accounts_daily_env:
               df['C10402'] = (df['C104'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
               df['C10501'] = (df['C105'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C10502'] = (df['C105'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C201'] = (df['C201-1'] + df['C201-201'] + df['C201-301']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C201'] = df['C201-1'] + df['C201-201'] + df['C201-301']
               df['C20101'] = (df['C201'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C20102'] = (df['C201'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
               df['C201-102'] = (df['C201-1'] / df['C201-101']).replace([np.inf, -np.inf, "", np.nan],0)
@@ -2369,13 +2377,13 @@ mt_report_from_final_accounts_daily_env:
               df['C201-204'] = (df['C201-201'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C201-303'] = (df['C201-301'] / df['C201-302']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C201-304'] = (df['C201-301'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C202'] = (df['C202-1'] + df['C202-2'] + df['C202-3'] + df['C202-4'] + df['C202-5']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C2'] = (df['C201'] + df['C202'] + df['C203']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C202'] = df['C202-1'] + df['C202-2'] + df['C202-3'] + df['C202-4'] + df['C202-5']
+              df['C2'] = df['C201'] + df['C202'] + df['C203']
               df['C20201'] = (df['C202'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C20202'] = (df['C202'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
               df['C20301'] = (df['C203'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C20302'] = (df['C203'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C3'] = (df['C301'] + df['C302'] + df['C303'] + df['C304'] + df['C305'] + df['C306']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C3'] = df['C301'] + df['C302'] + df['C303'] + df['C304'] + df['C305'] + df['C306']
               df['C30101'] = (df['C301'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C30102'] = (df['C301'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C30201'] = (df['C302'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
@@ -2388,14 +2396,14 @@ mt_report_from_final_accounts_daily_env:
               df['C30502'] = (df['C305'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
               df['C30601'] = (df['C306'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C30602'] = (df['C306'] / (df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C4'] = (df['C401'] + df['C402'] + df['C403']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C4'] = df['C401'] + df['C402'] + df['C403']
               df['C40101'] = (df['C401'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C40102'] = (df['C401'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C40201'] = (df['C402'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C40202'] = (df['C402'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C40301'] = (df['C403'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C40302'] = (df['C403'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C5'] = (df['C501'] + df['C502'] + df['C503'] + df['C504']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C5'] = df['C501'] + df['C502'] + df['C503'] + df['C504']
               df['C50102'] = (df['C501'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C50103'] = (df['C501'] / df['C50101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C50202'] = (df['C502'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
@@ -2404,22 +2412,22 @@ mt_report_from_final_accounts_daily_env:
               df['C50302'] = (df['C503'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
               df['C50401'] = (df['C504'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C50402'] = (df['C504'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C6'] = (df['C601'] + df['C602']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C6'] = df['C601'] + df['C602']
               df['C60101'] = (df['C601'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C60102'] = (df['C601'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
               df['C60201'] = (df['C602'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C60202'] = (df['C602'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
-              df['C7'] = (df['C701']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['C7'] = df['C701']
               df['C70101'] = (df['C701'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['C70102'] = (df['C701'] / (df['S1'] + df['S2'] + df['S3'] + df['S4'])).replace([np.inf, -np.inf, "", np.nan],0)
               df['B3'] = (df['B1'] / df['B2']).replace([np.inf, -np.inf, "", np.nan],0)
               df['B404'] = (df['B4'] / df['B401']).replace([np.inf, -np.inf, "", np.nan],0)
               df['B405'] = (df['B4'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-1'] = (df['M-10101'] + df['M-701']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-2'] = (df['A1'] + df['A2'] + df['C1'] + df['C2'] + df['C3'] + df['C4'] + df['C5'] + df['C6'] + df['C7']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-1'] = df['M-10101'] + df['M-701']
+              df['M-2'] = df['A1'] + df['A2'] + df['C1'] + df['C2'] + df['C3'] + df['C4'] + df['C5'] + df['C6'] + df['C7']
               df['M-101'] = (df['M-1'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['M-201'] = (df['M-2'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
-              df['M-3'] = (df['M-1'] - df['M-2']).replace([np.inf, -np.inf, "", np.nan],0)
+              df['M-3'] = df['M-1'] - df['M-2']
               df['M-301'] = (df['M-3'] / df['D-101']).replace([np.inf, -np.inf, "", np.nan],0)
               df['M-302'] = (df['M-3'] / df['M-1']).replace([np.inf, -np.inf, "", np.nan],0)
               df['M-103'] = (df['D-10101'] / df['S1']).replace([np.inf, -np.inf, "", np.nan],0)
@@ -2447,7 +2455,7 @@ mt_report_from_final_accounts_daily_env:
 
         - run_py:
             - |
-              df = to_df(df)
+              df = to_df(df).copy()
               df = df.set_index(['dc_name'])
               df = df.transpose()
               df.reset_index(drop=False, inplace=True)
@@ -2460,7 +2468,7 @@ mt_report_from_final_accounts_daily_env:
             - ac_code: 编号
         - run_py:
             - |
-              df = to_df(df)
+              df = to_df(df).copy()
               df['指标名称'] = ['日均单量','总收入(税后)','单均收入','毛利率','总成本','单均成本','净利润','单均利润','红冲','预提','净利润率','人效','人创收入(团队)','人创利润（团队）','人创收入（骑士）','人创利润（骑士）','商圈数量','城市数量','骑手人数','商圈管理人数','城市管理人数','城市经理','城市招聘','城市运维','城市人事','城市安全','城市商务','教练培训','项目主体总部人数','区域经理','区域其他','主体管理者','商务','薪资','保险','运维','数据','物资','招聘','安全','项目总部人数','单量','营业天数','主营业务收入（税后）','综合单均收入（税后）','基础收入（税后）','单均基础收入（税后）','KPI奖励收入（税后）','单均奖励（税后）','加权平均星级/星级','政策收入（税后）','政策性收入-商权益','政策性收入-强分摊','政策性收入-其他','运营罚款收入（税后）','运营罚款单均','履约扣罚','履约扣罚单均','骑手活动扣罚','其他常态扣罚','其他非常态扣罚','营业外收入（税后）','站点变卖损益','站点变卖值','卖站体量（单）','市单率','站点收购原值','物资变卖收入','骑士配送费','骑士工资','单均工资','人均工资','全职骑士人数','全职骑士单量','全职骑士工资','全职单均工资','兼职骑士人数','兼职骑士单量','兼职骑士工资','兼职单均工资','特定兼职人数','特定兼职单量','特定兼职工资','特定兼职单均工资','缓发冲抵工资','预提工资','单量合计','工资','工资金额','结算人数','管理带宽','单成本','人均工资','城市经理','结算人数','管理带宽','单成本','人均工资','城市招聘','结算人数','管理带宽','单成本','人均工资','城市运维','结算人数','管理带宽','单成本','人均工资','城市人事','结算人数','管理带宽','单成本','人均工资','城市安全','结算人数','管理带宽','单成本','人均工资','城市商务','结算人数','管理带宽','单成本','人均工资','教练培训','结算人数','管理带宽','单成本','人均工资','区域经理','结算人数','管理带宽','单成本','人均工资','区域其他','结算人数','管理带宽','单成本','人均工资','主体管理者','结算人数','管理带宽','单成本','人均工资','商务','结算人数','管理带宽','单成本','人均工资','薪资','结算人数','管理带宽','单成本','人均工资','保险','结算人数','管理带宽','单成本','人均工资','运维','结算人数','管理带宽','单成本','人均工资','数据','结算人数','管理带宽','单成本','人均工资','物资','结算人数','管理带宽','单成本','人均工资','招聘','结算人数','管理带宽','单成本','人均工资','安全','结算人数','管理带宽','单成本','人均工资','外包结算款','人员类','平台意外险（资产）','单均成本','人均成本','平台意外险（团队）','单均成本','人均成本','社会保险费、住房公积金（资产）','单均成本','人均成本','社会保险费、住房公积金（团队）','单均成本','人均成本','线下工伤险','单均成本','人均成本','房屋类','房屋租金','单均成本','人均成本','办公房屋租金','办公房屋数量','办公房屋单价','办公房屋单均','城市办公房屋租金','城市办公房屋数量','城市办公房屋单价','城市办公房屋单均','住宿房屋租金','住宿房屋数量','住宿房屋单价','住宿房屋单均','房屋物业其他费用','单均成本','人均成本','水电成本','中介成本','物业成本','其他（盛世库房）','税金成本','房屋押金损失','单均成本','人均成本','管理费用类','骑手团建福利费','单均成本','人均成本','管理团建福利费','单均成本','人均成本','差旅费','单均成本','人均成本','招待费','单均成本','人均成本','办公费','单均成本','人均成本','站点资产','单均成本','人均成本','装备类','车辆/装备/电瓶押金损失','单均成本','人均成本','电动车及电池','单均成本','人均成本','骑士装备','单均成本','人均成本','招聘类','内部推荐费','内荐人数','单均成本','人均内荐费','三方推荐费','三方推荐人数','单均成本','人均三方推荐费','招聘平台费用','单均成本','人均成本','招聘其他费用','单均成本','人均成本','意外类','意外支出','单均成本','人均成本','仲裁支出','单均成本','人均成本','商圈管理类','平台保证金损失','单均成本','人均成本','上月发薪全职骑手数','上月发薪全职骑手离职数','离职率','盛世工伤险费用','总人数','增员人数','减员人数','人均成本','单均成本','管理费用率']
               result = to_dd(df)
         - sort_by_columns:
@@ -2482,7 +2490,7 @@ mt_report_from_final_accounts_daily_env:
 
         - run_py:
             - |
-              df = to_df(df)
+              df = to_df(df).copy()
               df = df.set_index(['dc_name'])
               df = df.transpose()
               df.reset_index(drop=False, inplace=True)
@@ -2495,7 +2503,7 @@ mt_report_from_final_accounts_daily_env:
             - ac_code: 编号
         - run_py:
             - |
-              df = to_df(df)
+              df = to_df(df).copy()
               df['指标名称'] = ['日均单量','总收入(税后)','单均收入','毛利率','总成本','单均成本','净利润','单均利润','红冲','预提','净利润率','人效','人创收入(团队)','人创利润（团队）','人创收入（骑士）','人创利润（骑士）','商圈数量','城市数量','骑手人数','商圈管理人数','城市管理人数','城市经理','城市招聘','城市运维','城市人事','城市安全','城市商务','教练培训','项目主体总部人数','区域经理','区域其他','主体管理者','商务','薪资','保险','运维','数据','物资','招聘','安全','项目总部人数','单量','营业天数','主营业务收入（税后）','综合单均收入（税后）','基础收入（税后）','单均基础收入（税后）','KPI奖励收入（税后）','单均奖励（税后）','加权平均星级/星级','政策收入（税后）','政策性收入-商权益','政策性收入-强分摊','政策性收入-其他','运营罚款收入（税后）','运营罚款单均','履约扣罚','履约扣罚单均','骑手活动扣罚','其他常态扣罚','其他非常态扣罚','营业外收入（税后）','站点变卖损益','站点变卖值','卖站体量（单）','市单率','站点收购原值','物资变卖收入','骑士配送费','骑士工资','单均工资','人均工资','全职骑士人数','全职骑士单量','全职骑士工资','全职单均工资','兼职骑士人数','兼职骑士单量','兼职骑士工资','兼职单均工资','特定兼职人数','特定兼职单量','特定兼职工资','特定兼职单均工资','缓发冲抵工资','预提工资','单量合计','工资','工资金额','结算人数','管理带宽','单成本','人均工资','城市经理','结算人数','管理带宽','单成本','人均工资','城市招聘','结算人数','管理带宽','单成本','人均工资','城市运维','结算人数','管理带宽','单成本','人均工资','城市人事','结算人数','管理带宽','单成本','人均工资','城市安全','结算人数','管理带宽','单成本','人均工资','城市商务','结算人数','管理带宽','单成本','人均工资','教练培训','结算人数','管理带宽','单成本','人均工资','区域经理','结算人数','管理带宽','单成本','人均工资','区域其他','结算人数','管理带宽','单成本','人均工资','主体管理者','结算人数','管理带宽','单成本','人均工资','商务','结算人数','管理带宽','单成本','人均工资','薪资','结算人数','管理带宽','单成本','人均工资','保险','结算人数','管理带宽','单成本','人均工资','运维','结算人数','管理带宽','单成本','人均工资','数据','结算人数','管理带宽','单成本','人均工资','物资','结算人数','管理带宽','单成本','人均工资','招聘','结算人数','管理带宽','单成本','人均工资','安全','结算人数','管理带宽','单成本','人均工资','外包结算款','人员类','平台意外险（资产）','单均成本','人均成本','平台意外险（团队）','单均成本','人均成本','社会保险费、住房公积金（资产）','单均成本','人均成本','社会保险费、住房公积金（团队）','单均成本','人均成本','线下工伤险','单均成本','人均成本','房屋类','房屋租金','单均成本','人均成本','办公房屋租金','办公房屋数量','办公房屋单价','办公房屋单均','城市办公房屋租金','城市办公房屋数量','城市办公房屋单价','城市办公房屋单均','住宿房屋租金','住宿房屋数量','住宿房屋单价','住宿房屋单均','房屋物业其他费用','单均成本','人均成本','水电成本','中介成本','物业成本','其他（盛世库房）','税金成本','房屋押金损失','单均成本','人均成本','管理费用类','骑手团建福利费','单均成本','人均成本','管理团建福利费','单均成本','人均成本','差旅费','单均成本','人均成本','招待费','单均成本','人均成本','办公费','单均成本','人均成本','站点资产','单均成本','人均成本','装备类','车辆/装备/电瓶押金损失','单均成本','人均成本','电动车及电池','单均成本','人均成本','骑士装备','单均成本','人均成本','招聘类','内部推荐费','内荐人数','单均成本','人均内荐费','三方推荐费','三方推荐人数','单均成本','人均三方推荐费','招聘平台费用','单均成本','人均成本','招聘其他费用','单均成本','人均成本','意外类','意外支出','单均成本','人均成本','仲裁支出','单均成本','人均成本','商圈管理类','平台保证金损失','单均成本','人均成本','上月发薪全职骑手数','上月发薪全职骑手离职数','离职率','盛世工伤险费用','总人数','增员人数','减员人数','人均成本','单均成本','管理费用率']
               result = to_dd(df)
         - sort_by_columns:
@@ -2516,7 +2524,7 @@ mt_report_from_final_accounts_daily_env:
 
         - run_py:
             - |
-              df = to_df(df)
+              df = to_df(df).copy()
               df = df.set_index(['dc_name'])
               df = df.transpose()
               df.reset_index(drop=False, inplace=True)
@@ -2529,7 +2537,7 @@ mt_report_from_final_accounts_daily_env:
             - ac_code: 编号
         - run_py:
             - |
-              df = to_df(df)
+              df = to_df(df).copy()
               df['指标名称'] = ['日均单量','总收入(税后)','单均收入','毛利率','总成本','单均成本','净利润','单均利润','红冲','预提','净利润率','人效','人创收入(团队)','人创利润（团队）','人创收入（骑士）','人创利润（骑士）','商圈数量','城市数量','骑手人数','商圈管理人数','城市管理人数','城市经理','城市招聘','城市运维','城市人事','城市安全','城市商务','教练培训','项目主体总部人数','区域经理','区域其他','主体管理者','商务','薪资','保险','运维','数据','物资','招聘','安全','项目总部人数','单量','营业天数','主营业务收入（税后）','综合单均收入（税后）','基础收入（税后）','单均基础收入（税后）','KPI奖励收入（税后）','单均奖励（税后）','加权平均星级/星级','政策收入（税后）','政策性收入-商权益','政策性收入-强分摊','政策性收入-其他','运营罚款收入（税后）','运营罚款单均','履约扣罚','履约扣罚单均','骑手活动扣罚','其他常态扣罚','其他非常态扣罚','营业外收入（税后）','站点变卖损益','站点变卖值','卖站体量（单）','市单率','站点收购原值','物资变卖收入','骑士配送费','骑士工资','单均工资','人均工资','全职骑士人数','全职骑士单量','全职骑士工资','全职单均工资','兼职骑士人数','兼职骑士单量','兼职骑士工资','兼职单均工资','特定兼职人数','特定兼职单量','特定兼职工资','特定兼职单均工资','缓发冲抵工资','预提工资','单量合计','工资','工资金额','结算人数','管理带宽','单成本','人均工资','城市经理','结算人数','管理带宽','单成本','人均工资','城市招聘','结算人数','管理带宽','单成本','人均工资','城市运维','结算人数','管理带宽','单成本','人均工资','城市人事','结算人数','管理带宽','单成本','人均工资','城市安全','结算人数','管理带宽','单成本','人均工资','城市商务','结算人数','管理带宽','单成本','人均工资','教练培训','结算人数','管理带宽','单成本','人均工资','区域经理','结算人数','管理带宽','单成本','人均工资','区域其他','结算人数','管理带宽','单成本','人均工资','主体管理者','结算人数','管理带宽','单成本','人均工资','商务','结算人数','管理带宽','单成本','人均工资','薪资','结算人数','管理带宽','单成本','人均工资','保险','结算人数','管理带宽','单成本','人均工资','运维','结算人数','管理带宽','单成本','人均工资','数据','结算人数','管理带宽','单成本','人均工资','物资','结算人数','管理带宽','单成本','人均工资','招聘','结算人数','管理带宽','单成本','人均工资','安全','结算人数','管理带宽','单成本','人均工资','外包结算款','人员类','平台意外险（资产）','单均成本','人均成本','平台意外险（团队）','单均成本','人均成本','社会保险费、住房公积金（资产）','单均成本','人均成本','社会保险费、住房公积金（团队）','单均成本','人均成本','线下工伤险','单均成本','人均成本','房屋类','房屋租金','单均成本','人均成本','办公房屋租金','办公房屋数量','办公房屋单价','办公房屋单均','城市办公房屋租金','城市办公房屋数量','城市办公房屋单价','城市办公房屋单均','住宿房屋租金','住宿房屋数量','住宿房屋单价','住宿房屋单均','房屋物业其他费用','单均成本','人均成本','水电成本','中介成本','物业成本','其他（盛世库房）','税金成本','房屋押金损失','单均成本','人均成本','管理费用类','骑手团建福利费','单均成本','人均成本','管理团建福利费','单均成本','人均成本','差旅费','单均成本','人均成本','招待费','单均成本','人均成本','办公费','单均成本','人均成本','站点资产','单均成本','人均成本','装备类','车辆/装备/电瓶押金损失','单均成本','人均成本','电动车及电池','单均成本','人均成本','骑士装备','单均成本','人均成本','招聘类','内部推荐费','内荐人数','单均成本','人均内荐费','三方推荐费','三方推荐人数','单均成本','人均三方推荐费','招聘平台费用','单均成本','人均成本','招聘其他费用','单均成本','人均成本','意外类','意外支出','单均成本','人均成本','仲裁支出','单均成本','人均成本','商圈管理类','平台保证金损失','单均成本','人均成本','上月发薪全职骑手数','上月发薪全职骑手离职数','离职率','盛世工伤险费用','总人数','增员人数','减员人数','人均成本','单均成本','管理费用率']
               result = to_dd(df)
         - sort_by_columns:
@@ -2545,7 +2553,7 @@ mt_report_from_final_accounts_daily_env:
         - stash_push_df: []
         - fetch_datasource:
             datasource: qcode-biz-team-book
-            month_offset: -1
+#            month_offset: -1
             rename:
               biz_meta.org_bu: org_bu
               biz_meta.org_bu_division: org_bu_division
@@ -2564,7 +2572,7 @@ mt_report_from_final_accounts_daily_env:
 
         - run_py:
             - |
-              df = to_df(df)
+              df = to_df(df).copy()
               df = df.set_index(['team_code'])
               df = df.transpose()
               df.reset_index(drop=False, inplace=True)
@@ -2577,7 +2585,7 @@ mt_report_from_final_accounts_daily_env:
             - ac_code: 编号
         - run_py:
             - |
-              df = to_df(df)
+              df = to_df(df).copy()
               df['指标名称'] = ['日均单量','总收入(税后)','单均收入','毛利率','总成本','单均成本','净利润','单均利润','红冲','预提','净利润率','人效','人创收入(团队)','人创利润（团队）','人创收入（骑士）','人创利润（骑士）','商圈数量','城市数量','骑手人数','商圈管理人数','城市管理人数','城市经理','城市招聘','城市运维','城市人事','城市安全','城市商务','教练培训','项目主体总部人数','区域经理','区域其他','主体管理者','商务','薪资','保险','运维','数据','物资','招聘','安全','项目总部人数','单量','营业天数','主营业务收入（税后）','综合单均收入（税后）','基础收入（税后）','单均基础收入（税后）','KPI奖励收入（税后）','单均奖励（税后）','加权平均星级/星级','政策收入（税后）','政策性收入-商权益','政策性收入-强分摊','政策性收入-其他','运营罚款收入（税后）','运营罚款单均','履约扣罚','履约扣罚单均','骑手活动扣罚','其他常态扣罚','其他非常态扣罚','营业外收入（税后）','站点变卖损益','站点变卖值','卖站体量（单）','市单率','站点收购原值','物资变卖收入','骑士配送费','骑士工资','单均工资','人均工资','全职骑士人数','全职骑士单量','全职骑士工资','全职单均工资','兼职骑士人数','兼职骑士单量','兼职骑士工资','兼职单均工资','特定兼职人数','特定兼职单量','特定兼职工资','特定兼职单均工资','缓发冲抵工资','预提工资','单量合计','工资','工资金额','结算人数','管理带宽','单成本','人均工资','城市经理','结算人数','管理带宽','单成本','人均工资','城市招聘','结算人数','管理带宽','单成本','人均工资','城市运维','结算人数','管理带宽','单成本','人均工资','城市人事','结算人数','管理带宽','单成本','人均工资','城市安全','结算人数','管理带宽','单成本','人均工资','城市商务','结算人数','管理带宽','单成本','人均工资','教练培训','结算人数','管理带宽','单成本','人均工资','区域经理','结算人数','管理带宽','单成本','人均工资','区域其他','结算人数','管理带宽','单成本','人均工资','主体管理者','结算人数','管理带宽','单成本','人均工资','商务','结算人数','管理带宽','单成本','人均工资','薪资','结算人数','管理带宽','单成本','人均工资','保险','结算人数','管理带宽','单成本','人均工资','运维','结算人数','管理带宽','单成本','人均工资','数据','结算人数','管理带宽','单成本','人均工资','物资','结算人数','管理带宽','单成本','人均工资','招聘','结算人数','管理带宽','单成本','人均工资','安全','结算人数','管理带宽','单成本','人均工资','外包结算款','人员类','平台意外险（资产）','单均成本','人均成本','平台意外险（团队）','单均成本','人均成本','社会保险费、住房公积金（资产）','单均成本','人均成本','社会保险费、住房公积金（团队）','单均成本','人均成本','线下工伤险','单均成本','人均成本','房屋类','房屋租金','单均成本','人均成本','办公房屋租金','办公房屋数量','办公房屋单价','办公房屋单均','城市办公房屋租金','城市办公房屋数量','城市办公房屋单价','城市办公房屋单均','住宿房屋租金','住宿房屋数量','住宿房屋单价','住宿房屋单均','房屋物业其他费用','单均成本','人均成本','水电成本','中介成本','物业成本','其他（盛世库房）','税金成本','房屋押金损失','单均成本','人均成本','管理费用类','骑手团建福利费','单均成本','人均成本','管理团建福利费','单均成本','人均成本','差旅费','单均成本','人均成本','招待费','单均成本','人均成本','办公费','单均成本','人均成本','站点资产','单均成本','人均成本','装备类','车辆/装备/电瓶押金损失','单均成本','人均成本','电动车及电池','单均成本','人均成本','骑士装备','单均成本','人均成本','招聘类','内部推荐费','内荐人数','单均成本','人均内荐费','三方推荐费','三方推荐人数','单均成本','人均三方推荐费','招聘平台费用','单均成本','人均成本','招聘其他费用','单均成本','人均成本','意外类','意外支出','单均成本','人均成本','仲裁支出','单均成本','人均成本','商圈管理类','平台保证金损失','单均成本','人均成本','上月发薪全职骑手数','上月发薪全职骑手离职数','离职率','盛世工伤险费用','总人数','增员人数','减员人数','人均成本','单均成本','管理费用率']
               result = to_dd(df)
         - sort_by_columns:
@@ -2593,7 +2601,7 @@ mt_report_from_final_accounts_daily_env:
         - stash_push_df: []
         - fetch_datasource:
             datasource: qcode-biz-team-book
-            month_offset: -1
+#            month_offset: -1
             rename:
               biz_meta.org_bu: org_bu
               biz_meta.org_bu_division: org_bu_division
@@ -2613,7 +2621,7 @@ mt_report_from_final_accounts_daily_env:
 
         - run_py:
             - |
-              df = to_df(df)
+              df = to_df(df).copy()
               df = df.set_index(['team_code'])
               df = df.transpose()
               df.reset_index(drop=False, inplace=True)
@@ -2626,7 +2634,7 @@ mt_report_from_final_accounts_daily_env:
             - ac_code: 编号
         - run_py:
             - |
-              df = to_df(df)
+              df = to_df(df).copy()
               df['指标名称'] = ['日均单量','总收入(税后)','单均收入','毛利率','总成本','单均成本','净利润','单均利润','红冲','预提','净利润率','人效','人创收入(团队)','人创利润（团队）','人创收入（骑士）','人创利润（骑士）','商圈数量','城市数量','骑手人数','商圈管理人数','城市管理人数','城市经理','城市招聘','城市运维','城市人事','城市安全','城市商务','教练培训','项目主体总部人数','区域经理','区域其他','主体管理者','商务','薪资','保险','运维','数据','物资','招聘','安全','项目总部人数','单量','营业天数','主营业务收入（税后）','综合单均收入（税后）','基础收入（税后）','单均基础收入（税后）','KPI奖励收入（税后）','单均奖励（税后）','加权平均星级/星级','政策收入（税后）','政策性收入-商权益','政策性收入-强分摊','政策性收入-其他','运营罚款收入（税后）','运营罚款单均','履约扣罚','履约扣罚单均','骑手活动扣罚','其他常态扣罚','其他非常态扣罚','营业外收入（税后）','站点变卖损益','站点变卖值','卖站体量（单）','市单率','站点收购原值','物资变卖收入','骑士配送费','骑士工资','单均工资','人均工资','全职骑士人数','全职骑士单量','全职骑士工资','全职单均工资','兼职骑士人数','兼职骑士单量','兼职骑士工资','兼职单均工资','特定兼职人数','特定兼职单量','特定兼职工资','特定兼职单均工资','缓发冲抵工资','预提工资','单量合计','工资','工资金额','结算人数','管理带宽','单成本','人均工资','城市经理','结算人数','管理带宽','单成本','人均工资','城市招聘','结算人数','管理带宽','单成本','人均工资','城市运维','结算人数','管理带宽','单成本','人均工资','城市人事','结算人数','管理带宽','单成本','人均工资','城市安全','结算人数','管理带宽','单成本','人均工资','城市商务','结算人数','管理带宽','单成本','人均工资','教练培训','结算人数','管理带宽','单成本','人均工资','区域经理','结算人数','管理带宽','单成本','人均工资','区域其他','结算人数','管理带宽','单成本','人均工资','主体管理者','结算人数','管理带宽','单成本','人均工资','商务','结算人数','管理带宽','单成本','人均工资','薪资','结算人数','管理带宽','单成本','人均工资','保险','结算人数','管理带宽','单成本','人均工资','运维','结算人数','管理带宽','单成本','人均工资','数据','结算人数','管理带宽','单成本','人均工资','物资','结算人数','管理带宽','单成本','人均工资','招聘','结算人数','管理带宽','单成本','人均工资','安全','结算人数','管理带宽','单成本','人均工资','外包结算款','人员类','平台意外险（资产）','单均成本','人均成本','平台意外险（团队）','单均成本','人均成本','社会保险费、住房公积金（资产）','单均成本','人均成本','社会保险费、住房公积金（团队）','单均成本','人均成本','线下工伤险','单均成本','人均成本','房屋类','房屋租金','单均成本','人均成本','办公房屋租金','办公房屋数量','办公房屋单价','办公房屋单均','城市办公房屋租金','城市办公房屋数量','城市办公房屋单价','城市办公房屋单均','住宿房屋租金','住宿房屋数量','住宿房屋单价','住宿房屋单均','房屋物业其他费用','单均成本','人均成本','水电成本','中介成本','物业成本','其他（盛世库房）','税金成本','房屋押金损失','单均成本','人均成本','管理费用类','骑手团建福利费','单均成本','人均成本','管理团建福利费','单均成本','人均成本','差旅费','单均成本','人均成本','招待费','单均成本','人均成本','办公费','单均成本','人均成本','站点资产','单均成本','人均成本','装备类','车辆/装备/电瓶押金损失','单均成本','人均成本','电动车及电池','单均成本','人均成本','骑士装备','单均成本','人均成本','招聘类','内部推荐费','内荐人数','单均成本','人均内荐费','三方推荐费','三方推荐人数','单均成本','人均三方推荐费','招聘平台费用','单均成本','人均成本','招聘其他费用','单均成本','人均成本','意外类','意外支出','单均成本','人均成本','仲裁支出','单均成本','人均成本','商圈管理类','平台保证金损失','单均成本','人均成本','上月发薪全职骑手数','上月发薪全职骑手离职数','离职率','盛世工伤险费用','总人数','增员人数','减员人数','人均成本','单均成本','管理费用率']
               result = to_dd(df)
         - sort_by_columns:
@@ -2641,7 +2649,7 @@ mt_report_from_final_accounts_daily_env:
         - stash_push_df: []
         - fetch_datasource:
             datasource: qcode-biz-team-book
-            month_offset: -1
+#            month_offset: -1
             rename:
               biz_meta.org_bu: org_bu
               biz_meta.org_bu_division: org_bu_division
@@ -2661,7 +2669,7 @@ mt_report_from_final_accounts_daily_env:
 
         - run_py:
             - |
-              df = to_df(df)
+              df = to_df(df).copy()
               df = df.set_index(['team_code'])
               df = df.transpose()
               df.reset_index(drop=False, inplace=True)
@@ -2674,7 +2682,7 @@ mt_report_from_final_accounts_daily_env:
             - ac_code: 编号
         - run_py:
             - |
-              df = to_df(df)
+              df = to_df(df).copy()
               df['指标名称'] = ['日均单量','总收入(税后)','单均收入','毛利率','总成本','单均成本','净利润','单均利润','红冲','预提','净利润率','人效','人创收入(团队)','人创利润（团队）','人创收入（骑士）','人创利润（骑士）','商圈数量','城市数量','骑手人数','商圈管理人数','城市管理人数','城市经理','城市招聘','城市运维','城市人事','城市安全','城市商务','教练培训','项目主体总部人数','区域经理','区域其他','主体管理者','商务','薪资','保险','运维','数据','物资','招聘','安全','项目总部人数','单量','营业天数','主营业务收入（税后）','综合单均收入（税后）','基础收入（税后）','单均基础收入（税后）','KPI奖励收入（税后）','单均奖励（税后）','加权平均星级/星级','政策收入（税后）','政策性收入-商权益','政策性收入-强分摊','政策性收入-其他','运营罚款收入（税后）','运营罚款单均','履约扣罚','履约扣罚单均','骑手活动扣罚','其他常态扣罚','其他非常态扣罚','营业外收入（税后）','站点变卖损益','站点变卖值','卖站体量（单）','市单率','站点收购原值','物资变卖收入','骑士配送费','骑士工资','单均工资','人均工资','全职骑士人数','全职骑士单量','全职骑士工资','全职单均工资','兼职骑士人数','兼职骑士单量','兼职骑士工资','兼职单均工资','特定兼职人数','特定兼职单量','特定兼职工资','特定兼职单均工资','缓发冲抵工资','预提工资','单量合计','工资','工资金额','结算人数','管理带宽','单成本','人均工资','城市经理','结算人数','管理带宽','单成本','人均工资','城市招聘','结算人数','管理带宽','单成本','人均工资','城市运维','结算人数','管理带宽','单成本','人均工资','城市人事','结算人数','管理带宽','单成本','人均工资','城市安全','结算人数','管理带宽','单成本','人均工资','城市商务','结算人数','管理带宽','单成本','人均工资','教练培训','结算人数','管理带宽','单成本','人均工资','区域经理','结算人数','管理带宽','单成本','人均工资','区域其他','结算人数','管理带宽','单成本','人均工资','主体管理者','结算人数','管理带宽','单成本','人均工资','商务','结算人数','管理带宽','单成本','人均工资','薪资','结算人数','管理带宽','单成本','人均工资','保险','结算人数','管理带宽','单成本','人均工资','运维','结算人数','管理带宽','单成本','人均工资','数据','结算人数','管理带宽','单成本','人均工资','物资','结算人数','管理带宽','单成本','人均工资','招聘','结算人数','管理带宽','单成本','人均工资','安全','结算人数','管理带宽','单成本','人均工资','外包结算款','人员类','平台意外险（资产）','单均成本','人均成本','平台意外险（团队）','单均成本','人均成本','社会保险费、住房公积金（资产）','单均成本','人均成本','社会保险费、住房公积金（团队）','单均成本','人均成本','线下工伤险','单均成本','人均成本','房屋类','房屋租金','单均成本','人均成本','办公房屋租金','办公房屋数量','办公房屋单价','办公房屋单均','城市办公房屋租金','城市办公房屋数量','城市办公房屋单价','城市办公房屋单均','住宿房屋租金','住宿房屋数量','住宿房屋单价','住宿房屋单均','房屋物业其他费用','单均成本','人均成本','水电成本','中介成本','物业成本','其他（盛世库房）','税金成本','房屋押金损失','单均成本','人均成本','管理费用类','骑手团建福利费','单均成本','人均成本','管理团建福利费','单均成本','人均成本','差旅费','单均成本','人均成本','招待费','单均成本','人均成本','办公费','单均成本','人均成本','站点资产','单均成本','人均成本','装备类','车辆/装备/电瓶押金损失','单均成本','人均成本','电动车及电池','单均成本','人均成本','骑士装备','单均成本','人均成本','招聘类','内部推荐费','内荐人数','单均成本','人均内荐费','三方推荐费','三方推荐人数','单均成本','人均三方推荐费','招聘平台费用','单均成本','人均成本','招聘其他费用','单均成本','人均成本','意外类','意外支出','单均成本','人均成本','仲裁支出','单均成本','人均成本','商圈管理类','平台保证金损失','单均成本','人均成本','上月发薪全职骑手数','上月发薪全职骑手离职数','离职率','盛世工伤险费用','总人数','增员人数','减员人数','人均成本','单均成本','管理费用率']
               result = to_dd(df)
         - sort_by_columns:
@@ -2690,7 +2698,7 @@ mt_report_from_final_accounts_daily_env:
         - stash_push_df: []
         - fetch_datasource:
             datasource: qcode-biz-team-book
-            month_offset: -1
+#            month_offset: -1
             rename:
               biz_meta.org_bu: org_bu
               biz_meta.org_bu_division: org_bu_division
@@ -2710,7 +2718,7 @@ mt_report_from_final_accounts_daily_env:
 
         - run_py:
             - |
-              df = to_df(df)
+              df = to_df(df).copy()
               df = df.set_index(['team_code'])
               df = df.transpose()
               df.reset_index(drop=False, inplace=True)
@@ -2723,7 +2731,7 @@ mt_report_from_final_accounts_daily_env:
             - ac_code: 编号
         - run_py:
             - |
-              df = to_df(df)
+              df = to_df(df).copy()
               df['指标名称'] = ['日均单量','总收入(税后)','单均收入','毛利率','总成本','单均成本','净利润','单均利润','红冲','预提','净利润率','人效','人创收入(团队)','人创利润（团队）','人创收入（骑士）','人创利润（骑士）','商圈数量','城市数量','骑手人数','商圈管理人数','城市管理人数','城市经理','城市招聘','城市运维','城市人事','城市安全','城市商务','教练培训','项目主体总部人数','区域经理','区域其他','主体管理者','商务','薪资','保险','运维','数据','物资','招聘','安全','项目总部人数','单量','营业天数','主营业务收入（税后）','综合单均收入（税后）','基础收入（税后）','单均基础收入（税后）','KPI奖励收入（税后）','单均奖励（税后）','加权平均星级/星级','政策收入（税后）','政策性收入-商权益','政策性收入-强分摊','政策性收入-其他','运营罚款收入（税后）','运营罚款单均','履约扣罚','履约扣罚单均','骑手活动扣罚','其他常态扣罚','其他非常态扣罚','营业外收入（税后）','站点变卖损益','站点变卖值','卖站体量（单）','市单率','站点收购原值','物资变卖收入','骑士配送费','骑士工资','单均工资','人均工资','全职骑士人数','全职骑士单量','全职骑士工资','全职单均工资','兼职骑士人数','兼职骑士单量','兼职骑士工资','兼职单均工资','特定兼职人数','特定兼职单量','特定兼职工资','特定兼职单均工资','缓发冲抵工资','预提工资','单量合计','工资','工资金额','结算人数','管理带宽','单成本','人均工资','城市经理','结算人数','管理带宽','单成本','人均工资','城市招聘','结算人数','管理带宽','单成本','人均工资','城市运维','结算人数','管理带宽','单成本','人均工资','城市人事','结算人数','管理带宽','单成本','人均工资','城市安全','结算人数','管理带宽','单成本','人均工资','城市商务','结算人数','管理带宽','单成本','人均工资','教练培训','结算人数','管理带宽','单成本','人均工资','区域经理','结算人数','管理带宽','单成本','人均工资','区域其他','结算人数','管理带宽','单成本','人均工资','主体管理者','结算人数','管理带宽','单成本','人均工资','商务','结算人数','管理带宽','单成本','人均工资','薪资','结算人数','管理带宽','单成本','人均工资','保险','结算人数','管理带宽','单成本','人均工资','运维','结算人数','管理带宽','单成本','人均工资','数据','结算人数','管理带宽','单成本','人均工资','物资','结算人数','管理带宽','单成本','人均工资','招聘','结算人数','管理带宽','单成本','人均工资','安全','结算人数','管理带宽','单成本','人均工资','外包结算款','人员类','平台意外险（资产）','单均成本','人均成本','平台意外险（团队）','单均成本','人均成本','社会保险费、住房公积金（资产）','单均成本','人均成本','社会保险费、住房公积金（团队）','单均成本','人均成本','线下工伤险','单均成本','人均成本','房屋类','房屋租金','单均成本','人均成本','办公房屋租金','办公房屋数量','办公房屋单价','办公房屋单均','城市办公房屋租金','城市办公房屋数量','城市办公房屋单价','城市办公房屋单均','住宿房屋租金','住宿房屋数量','住宿房屋单价','住宿房屋单均','房屋物业其他费用','单均成本','人均成本','水电成本','中介成本','物业成本','其他（盛世库房）','税金成本','房屋押金损失','单均成本','人均成本','管理费用类','骑手团建福利费','单均成本','人均成本','管理团建福利费','单均成本','人均成本','差旅费','单均成本','人均成本','招待费','单均成本','人均成本','办公费','单均成本','人均成本','站点资产','单均成本','人均成本','装备类','车辆/装备/电瓶押金损失','单均成本','人均成本','电动车及电池','单均成本','人均成本','骑士装备','单均成本','人均成本','招聘类','内部推荐费','内荐人数','单均成本','人均内荐费','三方推荐费','三方推荐人数','单均成本','人均三方推荐费','招聘平台费用','单均成本','人均成本','招聘其他费用','单均成本','人均成本','意外类','意外支出','单均成本','人均成本','仲裁支出','单均成本','人均成本','商圈管理类','平台保证金损失','单均成本','人均成本','上月发薪全职骑手数','上月发薪全职骑手离职数','离职率','盛世工伤险费用','总人数','增员人数','减员人数','人均成本','单均成本','管理费用率']
               result = to_dd(df)
         - sort_by_columns:
@@ -2740,7 +2748,7 @@ mt_report_from_final_accounts_daily_env:
         - stash_push_df: []
         - fetch_datasource:
             datasource: qcode-biz-team-book
-            month_offset: -1
+#            month_offset: -1
             rename:
               biz_meta.org_bu: org_bu
               biz_meta.org_bu_division: org_bu_division
@@ -2763,7 +2771,7 @@ mt_report_from_final_accounts_daily_env:
 
         - run_py:
             - |
-              df = to_df(df)
+              df = to_df(df).copy()
               df = df.set_index(['team_code'])
               df = df.transpose()
               df.reset_index(drop=False, inplace=True)
@@ -2776,7 +2784,7 @@ mt_report_from_final_accounts_daily_env:
             - ac_code: 编号
         - run_py:
             - |
-              df = to_df(df)
+              df = to_df(df).copy()
               df['指标名称'] = ['日均单量','总收入(税后)','单均收入','毛利率','总成本','单均成本','净利润','单均利润','红冲','预提','净利润率','人效','人创收入(团队)','人创利润（团队）','人创收入（骑士）','人创利润（骑士）','商圈数量','城市数量','骑手人数','商圈管理人数','城市管理人数','城市经理','城市招聘','城市运维','城市人事','城市安全','城市商务','教练培训','项目主体总部人数','区域经理','区域其他','主体管理者','商务','薪资','保险','运维','数据','物资','招聘','安全','项目总部人数','单量','营业天数','主营业务收入（税后）','综合单均收入（税后）','基础收入（税后）','单均基础收入（税后）','KPI奖励收入（税后）','单均奖励（税后）','加权平均星级/星级','政策收入（税后）','政策性收入-商权益','政策性收入-强分摊','政策性收入-其他','运营罚款收入（税后）','运营罚款单均','履约扣罚','履约扣罚单均','骑手活动扣罚','其他常态扣罚','其他非常态扣罚','营业外收入（税后）','站点变卖损益','站点变卖值','卖站体量（单）','市单率','站点收购原值','物资变卖收入','骑士配送费','骑士工资','单均工资','人均工资','全职骑士人数','全职骑士单量','全职骑士工资','全职单均工资','兼职骑士人数','兼职骑士单量','兼职骑士工资','兼职单均工资','特定兼职人数','特定兼职单量','特定兼职工资','特定兼职单均工资','缓发冲抵工资','预提工资','单量合计','工资','工资金额','结算人数','管理带宽','单成本','人均工资','城市经理','结算人数','管理带宽','单成本','人均工资','城市招聘','结算人数','管理带宽','单成本','人均工资','城市运维','结算人数','管理带宽','单成本','人均工资','城市人事','结算人数','管理带宽','单成本','人均工资','城市安全','结算人数','管理带宽','单成本','人均工资','城市商务','结算人数','管理带宽','单成本','人均工资','教练培训','结算人数','管理带宽','单成本','人均工资','区域经理','结算人数','管理带宽','单成本','人均工资','区域其他','结算人数','管理带宽','单成本','人均工资','主体管理者','结算人数','管理带宽','单成本','人均工资','商务','结算人数','管理带宽','单成本','人均工资','薪资','结算人数','管理带宽','单成本','人均工资','保险','结算人数','管理带宽','单成本','人均工资','运维','结算人数','管理带宽','单成本','人均工资','数据','结算人数','管理带宽','单成本','人均工资','物资','结算人数','管理带宽','单成本','人均工资','招聘','结算人数','管理带宽','单成本','人均工资','安全','结算人数','管理带宽','单成本','人均工资','外包结算款','人员类','平台意外险（资产）','单均成本','人均成本','平台意外险（团队）','单均成本','人均成本','社会保险费、住房公积金（资产）','单均成本','人均成本','社会保险费、住房公积金（团队）','单均成本','人均成本','线下工伤险','单均成本','人均成本','房屋类','房屋租金','单均成本','人均成本','办公房屋租金','办公房屋数量','办公房屋单价','办公房屋单均','城市办公房屋租金','城市办公房屋数量','城市办公房屋单价','城市办公房屋单均','住宿房屋租金','住宿房屋数量','住宿房屋单价','住宿房屋单均','房屋物业其他费用','单均成本','人均成本','水电成本','中介成本','物业成本','其他（盛世库房）','税金成本','房屋押金损失','单均成本','人均成本','管理费用类','骑手团建福利费','单均成本','人均成本','管理团建福利费','单均成本','人均成本','差旅费','单均成本','人均成本','招待费','单均成本','人均成本','办公费','单均成本','人均成本','站点资产','单均成本','人均成本','装备类','车辆/装备/电瓶押金损失','单均成本','人均成本','电动车及电池','单均成本','人均成本','骑士装备','单均成本','人均成本','招聘类','内部推荐费','内荐人数','单均成本','人均内荐费','三方推荐费','三方推荐人数','单均成本','人均三方推荐费','招聘平台费用','单均成本','人均成本','招聘其他费用','单均成本','人均成本','意外类','意外支出','单均成本','人均成本','仲裁支出','单均成本','人均成本','商圈管理类','平台保证金损失','单均成本','人均成本','上月发薪全职骑手数','上月发薪全职骑手离职数','离职率','盛世工伤险费用','总人数','增员人数','减员人数','人均成本','单均成本','管理费用率']
               result = to_dd(df)
         - sort_by_columns:
